@@ -4,40 +4,46 @@ agent: "copilot"
 
 你是资深量化研究 + 数据工程助手。请用 Python 为 A 股做一个“统计回测/事件研究”（非投资建议），基于我现有的最近1年数据，评估以下策略的历史表现，并输出可复现的交易明细、组合净值、统计报告与图表，同时打印“模拟实盘风格”的操作日志。
 
-# 0. 我已具备的数据（仅最近1年覆盖）
-1) 东方财富“个股人气榜”历史数据：至少包含字段
-   - trade_date（交易日，YYYY-MM-DD）
-   - code（股票代码，6位字符串）
-   - rank（当日排名，1..N）
-   - （可选）hot_value（人气值/热度数值，如有）
-   说明：策略使用“前一交易日(T-1)的人气排名”，避免未来函数。
-2) 日线行情历史数据（同一时间范围）：至少包含字段
-   - date, code, open, high, low, close, volume, amount
-   说明：amount 为成交额，需统一单位为“元”。
+# 0. 项目架构说明
+请严格遵循 `docs/ARCHITECTURE.md` 中定义的数据分层架构：
+- **原始数据**: `data/parquet/ashare_daily/` （包含日线+hot_rank，已有数据）
+- **处理数据**: `data/processed/` （特征工程输出）
+- **回测结果**: `data/backtest/` （交易明细、净值、报告）
+- **配置文件**: `config/` （数据路径、策略参数）
 
-# 1. 策略参数（必须全部参数化，并可用 CLI 指定）
-- start_date / end_date：默认覆盖我现有最近1年
-- hot_top_n：默认 100（可改 50）
-- prev_amount_min：默认 1e9（10亿，单位：元）
-- drop_trigger：默认 0.07（-7%）
-- init_cash：默认 100000（10w）
-- per_trade_cash_frac：默认 0.1（每笔 1/10 仓，即 1w 名义资金）
-- fee_buy：买入佣金费率（默认 0.0002）
-- fee_sell：卖出佣金费率（默认 0.0002）
-- stamp_tax_sell：卖出印花税（默认 0.001，仅卖出）
-- slippage_bps：滑点（默认 5 bps = 0.05%），用于成交价修正：
-  buy_exec = buy_price * (1 + slippage_bps/10000)
-  sell_exec = sell_price * (1 - slippage_bps/10000)
+所有脚本必须：
+1. 读取 `config/data_config.yaml` 获取数据路径
+2. 读取 `config/strategies/{strategy_name}.yaml` 获取策略参数
+3. 输出结果按命名规范组织（见架构文档）
+
+# 1. 我已具备的数据（仅最近1年覆盖）
+1) 东方财富"个股人气榜"历史数据（已包含在日线数据中）：
+   - 字段：date, code, name, open, high, low, close, volume, amount, turnover, hot_rank
+   - 位置：`data/parquet/ashare_daily/year=2025/month=XX/*.parquet`
+   - 说明：amount 单位已转换为"亿元"，hot_rank 为当日排名
+2) 策略使用"前一交易日(T-1)的人气排名"，避免未来函数（需在特征工程中处理）
+
+# 2. 策略参数（必须全部参数化，从配置文件读取）
+参数定义在 `config/strategies/hot_rank_drop7.yaml`，包括：
+- start_date / end_date：回测时间范围
+- hot_top_n：人气榜前N名（默认 100）
+- prev_amount_min：前日成交额下限（默认 1e9，单位：亿元，注意单位转换）
+- drop_trigger：触发买入阈值（默认 0.07，即-7%）
+- init_cash：初始资金（默认 100000）
+- per_trade_cash_frac：每笔资金占比（默认 0.1）
+- fee_buy / fee_sell / stamp_tax_sell / slippage_bps：交易成本参数
+
+CLI 参数优先级：CLI > 策略配置 > 基础配置
 
 # 2. Universe（选股池）——严格用 T-1 信息
 在交易日 T：
-1) 读取 T-1 的人气榜，取 rank <= hot_top_n 的股票列表；
+1)3读取 T-1 的人气榜，取 rank <= hot_top_n 的股票列表；
 2) 过滤：amount_{T-1} >= prev_amount_min；
 3) 过滤：剔除 ST/*ST/退市整理 等股票（若数据中有 is_st/name 标记则使用；若无，需实现一个“可插拔过滤器”，允许用户提供 st_list 文件或正则规则）；
 4) 过滤：若 T 当日无行情或 volume==0（视为停牌/不可交易），则该股票在 T 不允许买入；
 注意：所有过滤都要在报告中统计“因何原因过滤/跳过”的数量。
 
-# 3. Entry（买入）——交易日 T 触发价成交
+# 4. Entry（买入）——交易日 T 触发价成交
 触发条件（仅用日线近似盘中）：
 - 若 low_T <= close_{T-1} * (1 - drop_trigger)，认为当日盘中触发 -7%
 成交价假设（你必须写清楚并严格执行）：
@@ -52,7 +58,7 @@ agent: "copilot"
   - 若现金不足以覆盖下一笔名义资金（含费用），则该笔及后续当日信号跳过
 - 股票数量（shares）按 A 股 100 股一手向下取整（必须实现），不足一手则跳过并记录原因
 
-# 4. Exit（卖出）——次日收盘卖出；若次日收盘涨停则继续持有
+# 5. Exit（卖出）——次日收盘卖出；若次日收盘涨停则继续持有
 基础退出：
 - 默认在 T+1 收盘卖出：sell_price = close_{T+1}
 
@@ -69,7 +75,7 @@ agent: "copilot"
 - ST 的涨跌幅限制可能不同，必须做成可配置开关与映射（例如 st_limit=0.05 或其他），并在报告里打印本次回测采用的涨停规则；
 - 计算方法：limit_up = round(prev_close * (1 + limit), 2)（0.01 元精度可配置）。
 
-# 5. 回测输出（必须生成）
+# 6. 回测输出（必须生成，遵循架构文档规范）
 1) trades 明细（CSV/Parquet）字段至少包含：
    - entry_date(T), code, rank_t1, amount_t1, prev_close, low_T, trigger
    - buy_price, buy_exec, buy_shares, buy_cost, cash_after_buy
