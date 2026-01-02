@@ -43,7 +43,21 @@ venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-### 2. 配置
+### 2. 测试系统
+
+运行测试脚本验证环境配置：
+
+```bash
+python test_system.py
+```
+
+测试内容包括：
+- AkShare API 连接
+- 单只股票数据获取
+- Parquet 读写
+- DuckDB 查询
+
+### 3. 配置
 
 复制配置示例文件并根据实际情况修改：
 
@@ -57,7 +71,15 @@ cp config.example.yaml config.yaml
 - `fetching.rate_limit`: 限流设置（建议 1-2 请求/秒）
 - `adjust`: 复权类型（`qfq` 前复权 / `hfq` 后复权 / `""` 不复权）
 
-### 3. 首次全量下载（近两年数据）
+### 4. 首次全量下载（近两年数据）
+
+**方式1：使用快速开始脚本（推荐）**
+
+```bash
+python quick_start.py
+```
+
+**方式2：手动指定参数**
 
 ```bash
 python scripts/download_ashare_3y_to_parquet.py \
@@ -80,7 +102,7 @@ python scripts/download_ashare_3y_to_parquet.py \
 - 进度文件：`data/manifest.json`
 - 日志文件：`logs/ashare_quant.log`
 
-### 4. 增量更新（每日运行）
+### 5. 增量更新（每日运行）
 
 ```bash
 python scripts/update_daily_incremental.py --config config.yaml
@@ -92,7 +114,7 @@ python scripts/update_daily_incremental.py --config config.yaml
 3. 去重并追加到对应的 Parquet 分区
 4. 更新 manifest 和生成日报
 
-### 5. 使用 DuckDB 分析数据
+### 6. 使用 DuckDB 分析数据
 
 ```python
 import duckdb
