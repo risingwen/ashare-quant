@@ -1,0 +1,50 @@
+# AShare Quant Configuration Example
+# Copy this file to config.yaml and adjust paths as needed
+
+# Data lake root path (stored in project directory)
+# Data will be saved to: {project_root}/data/parquet/
+onedrive_root: "data/parquet"
+
+# Parquet partitioning strategy
+partition:
+  # Options: year_month, year, none
+  strategy: "year_month"
+  # Path template: {onedrive_root}/{base_path}/{partition}/{filename}
+  base_path: "ashare_daily"
+
+# Data fetching parameters
+fetching:
+  # Number of concurrent workers for downloading
+  workers: 5
+  # Rate limit: requests per second (0 = no limit, but not recommended)
+  rate_limit: 2
+  # Retry settings
+  max_retries: 3
+  retry_delay: 5  # seconds
+  # Timeout for each request
+  timeout: 30  # seconds
+
+# Data validation
+validation:
+  # Check for duplicate (code, date) pairs
+  check_duplicates: true
+  # Check for null values in critical columns
+  check_nulls: true
+  # Check for negative prices
+  check_negative_prices: true
+  # Check date continuity (trading days)
+  check_date_continuity: false
+
+# Adjust type for stock data
+# Options: "" (no adjust), "qfq" (forward adjust), "hfq" (backward adjust)
+adjust: "qfq"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/ashare_quant.log"
+
+# Manifest file path (tracks download progress)
+manifest:
+  path: "data/manifest.json"
