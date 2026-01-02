@@ -44,13 +44,18 @@ cd ashare-quant
 
 # 创建虚拟环境（推荐）
 python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# or
-venv\Scripts\activate  # Windows
+
+# 激活虚拟环境
+# Windows:
+venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
 
 # 安装依赖
 pip install -r requirements.txt
 ```
+
+**注意**：虚拟环境创建后会在项目根目录生成 `venv/` 文件夹，已配置在 `.gitignore` 中。
 
 ### 2. 测试系统
 
@@ -82,17 +87,37 @@ cp config.example.yaml config.yaml
 - **`enable_popularity`: 是否采集股票热度排名（`true`/`false`，默认开启）**
   - 开启后会额外获取：热度排名、新晋粉丝占比、铁杆粉丝占比
   - 数据源：东方财富股吧 API
-  - 覆盖范围：近一年历史数据（~366天）
+  - **覆盖范围：近一年历史数据（~366天）** ⚠️
+  - **重要**：热度数据受API限制只能获取最近一年，如需更长历史需定期运行增量更新积累
 
 ### 4. 首次全量下载（近两年数据）
 
-**方式1：使用快速开始脚本（推荐）**
+**⭐ 方式1：手动下载脚本（最简单）**
+
+```bash
+# 下载最近两年数据（默认）
+python manual_download.py
+
+# 下载最近6个月数据
+python manual_download.py --months 6
+
+# 下载最近30天数据
+python manual_download.py --days 30
+
+# 指定具体日期范围
+python manual_download.py --start 2024-01-01 --end 2025-12-31
+
+# 不下载热度排名（加快速度）
+python manual_download.py --no-popularity
+```
+
+**方式2：使用快速开始脚本**
 
 ```bash
 python quick_start.py
 ```
 
-**方式2：手动指定参数**
+**方式3：直接调用下载脚本**
 
 ```bash
 python scripts/download_ashare_3y_to_parquet.py \
