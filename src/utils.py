@@ -14,7 +14,19 @@ def setup_logging(level: str = "INFO", log_file: str = None, log_format: str = N
     
     handlers = [logging.StreamHandler()]
     if log_file:
-        handlers.append(logging.FileHandler(log_file))
+        # Add timestamp to log file name
+        from datetime import datetime
+        from pathlib import Path
+        
+        log_path = Path(log_file)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_with_timestamp = log_path.parent / f"{log_path.stem}_{timestamp}{log_path.suffix}"
+        
+        # Create log directory if it doesn't exist
+        log_file_with_timestamp.parent.mkdir(parents=True, exist_ok=True)
+        
+        handlers.append(logging.FileHandler(log_file_with_timestamp, encoding='utf-8'))
+        print(f"Log file: {log_file_with_timestamp}")
     
     logging.basicConfig(
         level=getattr(logging, level.upper()),
