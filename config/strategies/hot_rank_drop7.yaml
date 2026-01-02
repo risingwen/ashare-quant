@@ -24,7 +24,7 @@ extends: "../backtest_base.yaml"
 params:
   # === 选股池参数 ===
   hot_top_n: 100                   # 人气榜前N名（可改为50测试）
-  prev_amount_min: 1.0e9           # 前一日成交额下限（10亿元）
+  prev_amount_min: 1000000000      # 前一日成交额下限（10亿元）
   prev_amount_max: null            # 前一日成交额上限（null=不限制）
   
   # === 买入参数 ===
