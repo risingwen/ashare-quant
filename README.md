@@ -1,6 +1,6 @@
 # AShare Quant - A股数据湖项目
 
-使用 AkShare 拉取 A股近两年历史数据（OHLCV + 换手率 + 热度排名），存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
+使用 AkShare 拉取 A股近一年历史数据（OHLCV + 换手率 + 热度排名），存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
 
 ## 核心特性
 
@@ -90,12 +90,12 @@ cp config.example.yaml config.yaml
   - **覆盖范围：近一年历史数据（~366天）** ⚠️
   - **重要**：热度数据受API限制只能获取最近一年，如需更长历史需定期运行增量更新积累
 
-### 4. 首次全量下载（近两年数据）
+### 4. 首次全量下载（近一年数据）
 
 **⭐ 方式1：手动下载脚本（最简单）**
 
 ```bash
-# 下载最近两年数据（默认）
+# 下载最近一年数据（默认）
 python manual_download.py
 
 # 下载最近6个月数据
@@ -133,7 +133,7 @@ python scripts/download_ashare_3y_to_parquet.py \
 - `--workers`: 并发数（可选，默认读取配置文件）
 - `--adjust`: 复权类型（可选，默认读取配置文件）
 
-**运行时间**：全量下载约 5000 只股票，2 年数据，约需 1-3 小时（取决于网络和限流设置）
+**运行时间**：全量下载约 5000 只股票，1 年数据，约需 1-2 小时（取决于网络和限流设置）
 
 **输出位置**：
 - Parquet 文件：`data/parquet/ashare_daily/year=YYYY/month=MM/*.parquet`

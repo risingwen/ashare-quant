@@ -2,7 +2,7 @@
 agent: "copilot"
 ---
 
-请实现"全量拉取A股近两年日线数据并落地到本地数据湖(Parquet)"的核心脚本。
+请实现“全量拉取A股近一年日线数据并落地到本地数据湖(Parquet)”的核心脚本。
 
 数据源：
 - AkShare：用 stock_info_a_code_name 获取A股代码列表（注意该接口在某些版本可能异常，需做容错/降级策略）:contentReference[oaicite:6]{index=6}

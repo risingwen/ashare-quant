@@ -7,12 +7,12 @@ Script name: manual_download.py
 手动下载A股数据的便捷脚本
 
 功能：
-1. 自动计算下载日期范围（默认最近两年）
+1. 自动计算下载日期范围（默认最近一年）
 2. 使用配置文件中的设置
 3. 简化命令行参数
 
 Usage:
-    python manual_download.py                    # 下载最近两年数据
+    python manual_download.py                    # 下载最近一年数据
     python manual_download.py --months 6         # 下载最近6个月数据
     python manual_download.py --days 30          # 下载最近30天数据
     python manual_download.py --start 2024-01-01 --end 2025-12-31  # 指定日期范围
@@ -36,7 +36,7 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  %(prog)s                          # 下载最近两年数据
+  %(prog)s                          # 下载最近一年数据
   %(prog)s --months 6               # 下载最近6个月数据
   %(prog)s --days 30                # 下载最近30天数据
   %(prog)s --start 2024-01-01 --end 2025-12-31  # 指定日期范围
@@ -109,10 +109,10 @@ def calculate_date_range(args):
         end_date = today
         start_date = today - timedelta(days=args.days)
     
-    # Default: 2 years
+    # Default: 1 year
     else:
         end_date = today
-        start_date = today - timedelta(days=730)  # ~2 years
+        start_date = today - timedelta(days=365)  # ~1 year
     
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 

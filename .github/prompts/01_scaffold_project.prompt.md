@@ -2,7 +2,7 @@
 agent: "copilot"
 ---
 
-你是资深Python数据工程/量化工程助手。请为"AkShare 拉取A股近两年数据 + Parquet数据湖 + DuckDB分析"创建一个可运行的项目脚手架。
+你是资深Python数据工程/量化工程助手。请为“AkShare 拉取A股近一年数据 + Parquet数据湖 + DuckDB分析”创建一个可运行的项目脚手架。
 
 要求：
 1. 给出目录结构（src/, scripts/, tests/, docs/），并解释每个目录用途
