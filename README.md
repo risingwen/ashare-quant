@@ -1,11 +1,11 @@
 # AShare Quant - A股数据湖项目
 
-使用 AkShare 拉取 A股近两年历史数据（OHLCV + 换手率 + 人气），存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
+使用 AkShare 拉取 A股近两年历史数据（OHLCV + 换手率 + 热度排名），存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
 
 ## 核心特性
 
 - **历史数据**: OHLCV（开高低收量额） + 换手率
-- **实时人气**: 每日人气指标（可选）
+- **热度排名**: 每日股票热度排名 + 粉丝占比（可选，近一年数据）
 - **Parquet 格式**: 高效存储，支持增量读取
 - **DuckDB 查询**: 无需数据库，直接查询 Parquet 文件
 - **断点续传**: 支持中断后继续下载
@@ -79,7 +79,10 @@ cp config.example.yaml config.yaml
 - `fetching.workers`: 并发下载数量（建议 3-5）
 - `fetching.rate_limit`: 限流设置（建议 1-2 请求/秒）
 - `adjust`: 复权类型（`qfq` 前复权 / `hfq` 后复权 / `""` 不复权）
-- **`enable_popularity`: 是否采集人气字段（`true`/`false`，默认开启）**
+- **`enable_popularity`: 是否采集股票热度排名（`true`/`false`，默认开启）**
+  - 开启后会额外获取：热度排名、新晋粉丝占比、铁杆粉丝占比
+  - 数据源：东方财富股吧 API
+  - 覆盖范围：近一年历史数据（~366天）
 
 ### 4. 首次全量下载（近两年数据）
 
