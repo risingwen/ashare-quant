@@ -260,15 +260,19 @@ class AShareDownloader:
             # Convert date to datetime
             df["date"] = pd.to_datetime(df["date"])
             
-            # Select required columns (extended with turnover and name)
+            # Select required columns (hot_rank will be added later via merge if enabled)
             required_cols = ["date", "code", "name", "open", "high", "low", "close", "volume", "amount", "turnover"]
             available_cols = [col for col in required_cols if col in df.columns]
             df = df[available_cols]
             
-            # Add missing columns with NaN
+            # Add missing columns with NaN (except hot_rank which is handled separately)
             for col in required_cols:
                 if col not in df.columns:
                     df[col] = None
+            
+            # Convert amount from yuan to 100 million yuan (亿元) - MUST be after column selection
+            if "amount" in df.columns:
+                df["amount"] = df["amount"] / 100000000
             
             return df[required_cols]
             
@@ -374,6 +378,10 @@ class AShareDownloader:
                     hot_rank_df = self.fetch_stock_hot_rank(code)
                     
                     if hot_rank_df is not None and not hot_rank_df.empty:
+                        # Only keep hot_rank column, drop fans columns
+                        hot_rank_cols = ["date", "code", "hot_rank"]
+                        hot_rank_df = hot_rank_df[hot_rank_cols]
+                        
                         # Merge hot rank data with price data
                         df = pd.merge(
                             df,
@@ -386,6 +394,14 @@ class AShareDownloader:
                 except Exception as e:
                     logger.debug(f"Failed to fetch hot rank for {code}: {str(e)}")
                     # Continue without hot rank data
+            
+            # Ensure hot_rank column exists (add if missing)
+            if "hot_rank" not in df.columns:
+                df["hot_rank"] = None
+            
+            # Reorder columns to match expected schema
+            final_cols = ["date", "code", "name", "open", "high", "low", "close", "volume", "amount", "turnover", "hot_rank"]
+            df = df[final_cols]
             
             # Deduplicate
             df = deduplicate_dataframe(df, subset=["code", "date"])
