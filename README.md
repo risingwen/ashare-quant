@@ -114,8 +114,23 @@ python scripts/update_daily_incremental.py --config config.yaml
 3. 去重并追加到对应的 Parquet 分区
 4. 更新 manifest 和生成日报
 
-### 6. 使用 DuckDB 分析数据
+### 6. 查看和分析数据
 
+#### 使用项目自带工具（推荐）
+```bash
+# 数据浏览工具
+python view_data.py
+```
+
+#### 使用客户端工具
+支持多种图形化工具查看 Parquet 数据：
+- **DBeaver** - 功能最强大（推荐）
+- **VS Code 扩展** - Parquet Viewer
+- **ParquetViewer** - Windows 轻量级工具
+
+详细说明请查看：[数据查看工具指南](docs/VIEWING_TOOLS.md)
+
+#### 使用 DuckDB 编程查询
 ```python
 import duckdb
 
@@ -142,7 +157,7 @@ print(df)
 **性能提示**：
 - DuckDB 支持直接查询 Parquet，无需导入
 - 使用分区剪枝可大幅提升查询速度
-- 不建议将 `.duckdb` 文件放在 OneDrive 上频繁读写
+- 不建议将 `.duckdb` 文件放在云盘上频繁读写
 
 ## 数据字段说明
 
