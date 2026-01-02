@@ -1,0 +1,90 @@
+# 回测基础配置
+# 本配置包含所有策略通用的回测参数，可被具体策略配置覆盖
+
+backtest:
+  # 回测时间范围
+  start_date: "2025-01-02"  # 开始日期
+  end_date: "2025-12-31"    # 结束日期
+  
+  # 资金管理
+  init_cash: 100000         # 初始资金（元）
+  position_limit: 20        # 最大持仓股票数量
+  max_single_position: 0.2  # 单股最大仓位占比
+  
+  # 参数化说明：
+  # - 所有参数支持通过CLI覆盖：--param.hot_top_n=50
+  # - 策略配置优先级：CLI > 策略YAML > 基础YAML
+  
+  # 交易成本（A股标准）
+  fee_buy: 0.0002           # 买入佣金费率（万2）
+  fee_sell: 0.0002          # 卖出佣金费率（万2）
+  stamp_tax_sell: 0.001     # 印花税（千1，仅卖出）
+  min_commission: 5         # 单笔最低佣金（元）
+  slippage_bps: 5           # 滑点（基点，0.05%）
+  
+  # A股交易规则
+  min_lot_size: 100         # 最小交易单位（1手=100股）
+  t_plus_1: true            # T+1交易制度
+  
+  # 通用过滤规则
+  filter_st: true           # 过滤ST/*ST股票
+  filter_suspend: true      # 过滤停牌股票
+  filter_new_stock: false   # 是否过滤次新股
+  new_stock_days: 60        # 次新股定义（上市N天内）
+  
+  # 风控参数
+  max_drawdown_stop: 0.20   # 最大回撤止损（20%）
+  daily_loss_limit: 0.05    # 单日最大亏损（5%）
+  
+# 涨停规则配置（A股市场）
+limit_up_rules:
+  # 各板块涨跌幅限制
+  main_board: 0.10      # 主板/中小板（沪深主板）
+  gem_board: 0.20       # 创业板（300/301开头）
+  star_board: 0.20      # 科创板（688/689开头）
+  bse_board: 0.30       # 北交所（8/4开头）
+  st_stock: 0.05        # ST/*ST股票
+  
+  # 价格精度
+  price_precision: 0.01  # 0.01元（1分）
+  
+  # 涨停判断容差（处理浮点误差）
+  tolerance: 0.0001      # 0.01%
+  
+# 报告配置
+report:
+  # 统计周期
+  periods:
+    - "daily"     # 日度
+    - "weekly"    # 周度
+    - "monthly"   # 月度
+    - "yearly"    # 年度
+  
+  # 绩效指标
+  metrics:
+    - "total_return"      # 总收益率
+    - "annualized_return" # 年化收益率
+    - "sharpe_ratio"      # 夏普比率
+    - "max_drawdown"      # 最大回撤
+    - "win_rate"          # 胜率
+    - "profit_loss_ratio" # 盈亏比
+    
+  # 图表设置
+  charts:
+    dpi: 300              # 图表分辨率
+    figsize: [12, 8]      # 图表尺寸（英寸）
+    style: "seaborn-v0_8-darkgrid"  # 绘图风格
+    
+# 日志配置
+logging:
+  # 日志级别（DEBUG, INFO, WARNING, ERROR）
+  level: "INFO"
+  
+  # 日志格式
+  format: "json"  # json 或 text
+  
+  # 是否记录每笔交易
+  log_trades: true
+  
+  # 是否记录每日组合状态
+  log_daily_portfolio: false

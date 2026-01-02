@@ -1,0 +1,97 @@
+# 人气榜-7%策略配置
+# 策略逻辑：前一交易日人气榜前N名，次日跌破-7%买入，涨停不卖
+
+# 策略元信息
+strategy:
+  name: "hot_rank_drop7_smart_exit"
+  version: "1.1.0"
+  description: "基于东财人气榜，次日跌破-7%买入，涨停不卖+跌停卖出"
+  author: "AShare Quant Team"
+  created_date: "2026-01-02"
+  updated_date: "2026-01-02"
+  
+  # 策略标签（便于分类和筛选）
+  tags:
+    - "人气榜"
+    - "短线"
+    - "反转"
+    - "涨停板"
+  
+# 继承基础配置
+extends: "../backtest_base.yaml"
+
+# 策略特定参数（所有参数可通过CLI覆盖）
+params:
+  # === 选股池参数 ===
+  hot_top_n: 100                   # 人气榜前N名（可改为50测试）
+  prev_amount_min: 1.0e9           # 前一日成交额下限（10亿元）
+  prev_amount_max: null            # 前一日成交额上限（null=不限制）
+  
+  # === 买入参数 ===
+  drop_trigger: 0.07               # 触发买入阈值（-7%，可改为0.06即-6%）
+  entry_time: "intraday"           # 买入时机：intraday（盘中触发）
+  entry_price_method: "trigger"    # 成交价方法：trigger（触发价）
+  
+  # === 卖出参数 ===
+  exit_rule: "smart_exit"          # 退出规则：智能退出（涨停不卖+跌停卖出）
+  base_exit_day: 1                 # 基础持仓天数（T+1）
+  max_hold_days: 30                # 最大持仓天数（防止长期停牌）
+  
+  # 涨停不卖规则
+  hold_on_limit_up: true           # 涨停日不卖出
+  
+  # 跌停卖出规则（新增）
+  exit_on_limit_down: true         # 跌停触发卖出
+  limit_down_trigger: 0.07         # 跌停卖出阈值（-7%，与买入对称）
+  limit_down_price_method: "trigger"  # 跌停成交价：trigger（跌停价）或close（收盘价）
+  
+  # === 仓位管理 ===
+  position_sizing: "equal_amount"  # 等金额分配
+  per_trade_cash_frac: 0.1         # 每笔交易占初始资金10%
+  max_positions: 10                # 最大同时持仓数量
+  
+  # === 优先级规则 ===
+  priority_by: "rank"              # 按人气排名优先
+  priority_order: "asc"            # 升序（排名越小越优先）
+  
+  # === 过滤规则 ===
+  additional_filters:
+    filter_st: true                # 过滤ST股票
+    filter_new_ipo: true           # 过滤新股
+    new_ipo_days: 60               # 上市60天内视为新股
+    filter_high_limit: true        # 过滤一字涨停股票
+    filter_low_liquidity: true     # 过滤流动性差的股票
+    min_turnover: 0.01             # 最小换手率（1%）
+
+# 覆盖基础配置（如果需要）
+backtest:
+  # 使用基础配置的默认值，如需修改可在此覆盖
+  init_cash: 100000
+  
+  # 交易成本（使用默认值）
+  # fee_buy: 0.0002
+  # fee_sell: 0.0002
+  # stamp_tax_sell: 0.001
+  # slippage_bps: 5
+
+# 涨停规则（使用基础配置的默认规则）
+# limit_up_rules:
+#   使用 backtest_base.yaml 中的定义
+
+# 报告配置（策略特定）
+report:
+  # 分组统计维度
+  groupby:
+    - field: "rank_bucket"
+      bins: [1, 20, 50, 100]
+      labels: ["Top20", "21-50", "51-100"]
+    
+    - field: "amount_bucket"
+      bins: [1e9, 2e9, 5e9, "inf"]
+      labels: ["10-20亿", "20-50亿", "50亿+"]
+  
+  # 特定指标
+  custom_metrics:
+    - "avg_hold_days"              # 平均持仓天数
+    - "limitup_hold_ratio"         # 涨停持仓比例
+    - "max_consecutive_limitup"    # 最大连续涨停天数
