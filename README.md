@@ -1,6 +1,15 @@
 # AShare Quant - A股数据湖项目
 
-使用 AkShare 拉取 A股近两年历史数据，存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
+使用 AkShare 拉取 A股近两年历史数据（OHLCV + 换手率 + 人气），存储到 Parquet 数据湖，并通过 DuckDB 进行快速分析。
+
+## 核心特性
+
+- **历史数据**: OHLCV（开高低收量额） + 换手率
+- **实时人气**: 每日人气指标（可选）
+- **Parquet 格式**: 高效存储，支持增量读取
+- **DuckDB 查询**: 无需数据库，直接查询 Parquet 文件
+- **断点续传**: 支持中断后继续下载
+- **数据校验**: 自动去重、验证数据质量
 
 ## 目录结构
 
@@ -65,11 +74,12 @@ python test_system.py
 cp config.example.yaml config.yaml
 ```
 
-**重要配置项**：
+**重要配置项**:
 - `onedrive_root`: 数据存储根目录（默认：`data/parquet`，存储在项目本地）
 - `fetching.workers`: 并发下载数量（建议 3-5）
 - `fetching.rate_limit`: 限流设置（建议 1-2 请求/秒）
 - `adjust`: 复权类型（`qfq` 前复权 / `hfq` 后复权 / `""` 不复权）
+- **`enable_popularity`: 是否采集人气字段（`true`/`false`，默认开启）**
 
 ### 4. 首次全量下载（近两年数据）
 
