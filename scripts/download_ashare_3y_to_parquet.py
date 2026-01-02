@@ -126,54 +126,64 @@ class AShareDownloader:
         
         raise Exception("All methods to get stock list failed")
     
-    @retry_on_exception(max_retries=3, delay=2.0, backoff=2.0)
-    def get_popularity_data(self) -> Optional[pd.DataFrame]:
+    @retry_on_exception(max_retries=2, delay=3.0, backoff=1.5)
+    def fetch_stock_hot_rank(self, code: str) -> Optional[pd.DataFrame]:
         """
-        Get real-time popularity (人气) data for all A-share stocks
+        Fetch historical hot rank (股票热度排名) data for a single stock
         
+        Args:
+            code: Stock code (6-digit)
+            
         Returns:
-            DataFrame with columns: code, popularity
+            DataFrame with columns: date, hot_rank, new_fans_pct, core_fans_pct
         """
-        from datetime import date
-        
-        today = date.today()
-        
-        # Return cached data if still valid (same day)
-        if (self._popularity_cache is not None and 
-            self._popularity_cache_date == today):
-            return self._popularity_cache
-        
-        logger.info("Fetching real-time popularity data...")
         self.rate_limiter.wait()
         
         try:
-            df = ak.stock_zh_a_spot_em()
+            # Determine market prefix
+            if code.startswith(('000', '001', '002', '003', '300')):
+                symbol = f"SZ{code}"
+            elif code.startswith(('600', '601', '603', '688')):
+                symbol = f"SH{code}"
+            elif code.startswith(('8', '4')):
+                symbol = f"BJ{code}"
+            else:
+                symbol = f"SZ{code}"  # Default to SZ
+            
+            df = ak.stock_hot_rank_detail_em(symbol=symbol)
             
             if df is None or df.empty:
-                logger.warning("Failed to fetch popularity data")
+                logger.debug(f"No hot rank data for {code}")
                 return None
             
-            # Extract code and popularity columns
+            # Standardize columns
             column_mapping = {
-                "代码": "code",
-                "人气": "popularity"
+                "时间": "date",
+                "排名": "hot_rank",
+                "证券代码": "code",
+                "新晋粉丝": "new_fans_pct",
+                "铁杆粉丝": "core_fans_pct"
             }
             
-            if "人气" in df.columns:
-                df = df[["代码", "人气"]].rename(columns=column_mapping)
-                
-                # Cache the result
-                self._popularity_cache = df
-                self._popularity_cache_date = today
-                
-                logger.info(f"Retrieved popularity data for {len(df)} stocks")
-                return df
+            df = df.rename(columns=column_mapping)
+            
+            # Extract pure code (remove market prefix)
+            if "code" in df.columns:
+                df["code"] = df["code"].str.replace(r"^(SH|SZ|BJ)", "", regex=True)
             else:
-                logger.warning("Popularity column not found in spot data")
-                return None
-                
+                df["code"] = code
+            
+            # Convert date
+            df["date"] = pd.to_datetime(df["date"])
+            
+            # Select required columns
+            cols = ["date", "code", "hot_rank", "new_fans_pct", "core_fans_pct"]
+            available = [c for c in cols if c in df.columns]
+            
+            return df[available]
+            
         except Exception as e:
-            logger.error(f"Failed to fetch popularity data: {str(e)}")
+            logger.debug(f"Failed to fetch hot rank for {code}: {str(e)}")
             return None
     
     @retry_on_exception(max_retries=3, delay=2.0, backoff=2.0)
@@ -336,13 +346,32 @@ class AShareDownloader:
         }
         
         try:
-            # Fetch data
+            # Fetch historical price data
             df = self.fetch_stock_history(code, start_date, end_date)
             
             if df is None or df.empty:
                 result["status"] = "no_data"
                 result["error"] = "No data returned"
                 return result
+            
+            # Fetch hot rank data if enabled
+            if self.enable_popularity:
+                try:
+                    hot_rank_df = self.fetch_stock_hot_rank(code)
+                    
+                    if hot_rank_df is not None and not hot_rank_df.empty:
+                        # Merge hot rank data with price data
+                        df = pd.merge(
+                            df,
+                            hot_rank_df,
+                            on=["date", "code"],
+                            how="left"
+                        )
+                        logger.debug(f"Merged {len(hot_rank_df)} hot rank records for {code}")
+                    
+                except Exception as e:
+                    logger.debug(f"Failed to fetch hot rank for {code}: {str(e)}")
+                    # Continue without hot rank data
             
             # Deduplicate
             df = deduplicate_dataframe(df, subset=["code", "date"])
