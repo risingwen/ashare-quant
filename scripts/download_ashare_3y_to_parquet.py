@@ -59,6 +59,7 @@ class AShareDownloader:
         self.base_path = config["partition"]["base_path"]
         self.partition_strategy = config["partition"]["strategy"]
         self.adjust = config.get("adjust", "qfq")
+        self.enable_popularity = config.get("enable_popularity", False)
         
         # Rate limiter
         rate = config["fetching"]["rate_limit"]
@@ -70,6 +71,10 @@ class AShareDownloader:
         
         # Validation settings
         self.validation_config = config.get("validation", {})
+        
+        # Cache for popularity data (updated daily)
+        self._popularity_cache = None
+        self._popularity_cache_date = None
     
     def get_stock_list(self) -> pd.DataFrame:
         """
@@ -120,6 +125,56 @@ class AShareDownloader:
                 continue
         
         raise Exception("All methods to get stock list failed")
+    
+    @retry_on_exception(max_retries=3, delay=2.0, backoff=2.0)
+    def get_popularity_data(self) -> Optional[pd.DataFrame]:
+        """
+        Get real-time popularity (人气) data for all A-share stocks
+        
+        Returns:
+            DataFrame with columns: code, popularity
+        """
+        from datetime import date
+        
+        today = date.today()
+        
+        # Return cached data if still valid (same day)
+        if (self._popularity_cache is not None and 
+            self._popularity_cache_date == today):
+            return self._popularity_cache
+        
+        logger.info("Fetching real-time popularity data...")
+        self.rate_limiter.wait()
+        
+        try:
+            df = ak.stock_zh_a_spot_em()
+            
+            if df is None or df.empty:
+                logger.warning("Failed to fetch popularity data")
+                return None
+            
+            # Extract code and popularity columns
+            column_mapping = {
+                "代码": "code",
+                "人气": "popularity"
+            }
+            
+            if "人气" in df.columns:
+                df = df[["代码", "人气"]].rename(columns=column_mapping)
+                
+                # Cache the result
+                self._popularity_cache = df
+                self._popularity_cache_date = today
+                
+                logger.info(f"Retrieved popularity data for {len(df)} stocks")
+                return df
+            else:
+                logger.warning("Popularity column not found in spot data")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to fetch popularity data: {str(e)}")
+            return None
     
     @retry_on_exception(max_retries=3, delay=2.0, backoff=2.0)
     def fetch_stock_history(
@@ -181,8 +236,8 @@ class AShareDownloader:
             # Convert date to datetime
             df["date"] = pd.to_datetime(df["date"])
             
-            # Select only required columns
-            required_cols = ["date", "code", "open", "high", "low", "close", "volume", "amount"]
+            # Select required columns (extended with turnover)
+            required_cols = ["date", "code", "open", "high", "low", "close", "volume", "amount", "turnover"]
             available_cols = [col for col in required_cols if col in df.columns]
             df = df[available_cols]
             

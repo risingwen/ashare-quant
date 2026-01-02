@@ -24,6 +24,11 @@ fetching:
   # Timeout for each request
   timeout: 30  # seconds
 
+# Enable real-time popularity data (人气)
+# Note: Popularity is fetched from daily spot data, not historical data
+# When enabled, script will fetch current day's popularity for all stocks
+enable_popularity: true
+
 # Data validation
 validation:
   # Check for duplicate (code, date) pairs
