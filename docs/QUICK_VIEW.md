@@ -18,6 +18,42 @@ python view_data.py
 
 ## 🖥️ 使用图形化工具
 
+### VS Code: Data Wrangler ⭐（最推荐）
+
+**微软官方扩展，下载量最高，功能最强**
+
+#### 安装步骤
+1. 打开 VS Code
+2. 按 `Ctrl+Shift+X` 打开扩展市场
+3. 搜索 "Data Wrangler"
+4. 点击安装（Microsoft 官方发布）
+
+#### 使用步骤
+1. 在 VS Code 文件资源管理器中找到 Parquet 文件
+2. 右键点击文件
+3. 选择 "Open in Data Wrangler"
+4. 开始探索！
+
+#### 核心功能
+- ✅ **数据预览**: 表格形式查看，支持排序和筛选
+- ✅ **统计信息**: 自动显示每列的统计数据
+- ✅ **数据质量**: 检查空值、重复值
+- ✅ **可视化**: 内置图表（柱状图、折线图、散点图）
+- ✅ **数据转换**: 过滤、排序、分组等操作
+- ✅ **代码生成**: 自动生成 Python/Pandas 代码
+
+#### 示例操作
+```
+1. 打开文件后，可以：
+   - 点击列标题排序
+   - 使用顶部搜索框过滤数据
+   - 点击 "Operations" 进行数据转换
+   - 点击 "Chart" 创建可视化
+   - 点击 "Export" 生成 Python 代码
+```
+
+---
+
 ### Windows 用户：ParquetViewer
 
 **最快捷的图形化工具（无需安装）**
@@ -93,14 +129,17 @@ FROM read_parquet('C:/Users/14737/OneDrive/06AKshare/ashare-quant/data/parquet/a
 
 ---
 
-### VS Code 用户：Parquet Viewer 扩展
+### VS Code 用户：其他 Parquet 扩展
 
+#### Parquet Viewer（轻量级）
 1. 打开 VS Code
 2. 按 `Ctrl+Shift+X` 打开扩展市场
 3. 搜索 "Parquet Viewer"
 4. 安装扩展
 5. 在文件资源管理器中右键点击 `.parquet` 文件
 6. 选择 "Open with Parquet Viewer"
+
+**对比**: Data Wrangler 功能更强大，Parquet Viewer 更轻量
 
 ---
 
@@ -166,10 +205,17 @@ A:
 
 ## 💡 推荐流程
 
-1. **初次使用**: 运行 `python view_data.py` 快速查看
-2. **日常查看**: 使用 ParquetViewer（Windows）或 VS Code 扩展
-3. **深度分析**: 使用 DBeaver + DuckDB 进行 SQL 查询
-4. **编程分析**: 使用 Python + pandas/duckdb
+1. **首选方案** ⭐: 使用 VS Code 的 **Data Wrangler** 扩展
+   - 安装简单（VS Code 扩展市场一键安装）
+   - 功能强大（数据探索、可视化、代码生成）
+   - 微软官方支持，更新及时
+
+2. **备选方案**: 
+   - Windows 用户: ParquetViewer 绿色软件
+   - 命令行用户: `python view_data.py`
+   - 专业分析: DBeaver + DuckDB
+
+3. **深度分析**: 使用 Python + pandas/duckdb 进行编程
 
 ---
 

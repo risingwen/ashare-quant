@@ -122,13 +122,23 @@ python scripts/update_daily_incremental.py --config config.yaml
 python view_data.py
 ```
 
-#### 使用客户端工具
-支持多种图形化工具查看 Parquet 数据：
-- **DBeaver** - 功能最强大（推荐）
-- **VS Code 扩展** - Parquet Viewer
-- **ParquetViewer** - Windows 轻量级工具
+#### 使用图形化客户端工具 ⭐
 
-详细说明请查看：[数据查看工具指南](docs/VIEWING_TOOLS.md)
+**最推荐: VS Code Data Wrangler**
+- 微软官方扩展，下载量最高
+- 交互式数据探索 + 可视化 + 代码生成
+- 安装: VS Code 扩展市场搜索 "Data Wrangler"
+- 使用: 右键 `.parquet` 文件 → "Open in Data Wrangler"
+
+**其他选择**:
+- **DBeaver** - 功能最强大，支持 SQL 查询
+- **ParquetViewer** - Windows 轻量级工具
+- **其他 Parquet Viewer** - VS Code 其他扩展
+
+详细说明请查看：
+- 📘 [Data Wrangler 完整指南](docs/DATA_WRANGLER_GUIDE.md)
+- 📗 [数据查看工具对比](docs/VIEWING_TOOLS.md)
+- 📙 [快速查看指南](docs/QUICK_VIEW.md)
 
 #### 使用 DuckDB 编程查询
 ```python

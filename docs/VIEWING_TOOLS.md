@@ -29,11 +29,31 @@ LIMIT 100;
 ### 2. **VS Code 扩展** 📝
 **最方便 - 如果你已经在用 VS Code**
 
-#### a) Parquet Viewer
+#### a) Data Wrangler ⭐ 强烈推荐
+- **安装**: 搜索 "Data Wrangler" (微软官方扩展)
+- **下载量**: 最高，超过 500K+
+- **特点**:
+  - ✅ 微软官方开发
+  - ✅ 交互式数据探索
+  - ✅ 数据清洗和转换
+  - ✅ 可视化图表
+  - ✅ 支持 Parquet/CSV/Excel/JSON
+- **使用**: 
+  1. 右键点击 `.parquet` 文件
+  2. 选择 "Open in Data Wrangler"
+  3. 可以排序、筛选、统计、可视化
+
+**特别优势**: 
+- 可以直接生成 Python/Pandas 代码
+- 内置数据质量检查
+- 交互式操作，无需编写代码
+
+#### b) Parquet Viewer
 - **安装**: 搜索 "Parquet Viewer" 或 "Parquet Explorer"
 - **使用**: 直接右键点击 `.parquet` 文件 → "Open with Parquet Viewer"
+- **特点**: 轻量级，只读查看
 
-#### b) Rainbow CSV + DuckDB
+#### c) Rainbow CSV + DuckDB
 - **安装**: 
   - Rainbow CSV
   - DuckDB SQL Tools
@@ -132,15 +152,20 @@ D SELECT * FROM read_parquet('data/parquet/ashare_daily/**/*.parquet') LIMIT 10;
 
 ## 🎮 快速开始：推荐方案
 
-### 方案 A: 轻量级用户
+### 方案 A: VS Code 用户 ⭐ 最推荐
+1. 安装 **Data Wrangler** 扩展（微软官方）
+2. 右键 Parquet 文件 → "Open in Data Wrangler"
+3. 享受交互式数据探索和可视化
+
+### 方案 B: 轻量级用户
 1. 安装 **ParquetViewer** (Windows) 或 **Tad** (跨平台)
 2. 直接打开 Parquet 文件浏览
 
-### 方案 B: 开发者用户
-1. 使用 **VS Code** + Parquet Viewer 扩展
-2. 或运行项目自带的 `python view_data.py`
+### 方案 C: 开发者用户
+1. 使用项目自带的 `python view_data.py`
+2. 或在 Python 中直接操作
 
-### 方案 C: 专业分析
+### 方案 D: 专业分析
 1. 安装 **DBeaver**
 2. 使用 SQL 进行复杂查询和分析
 
@@ -179,11 +204,14 @@ ORDER BY date DESC;
 
 | 需求 | 推荐工具 | 原因 |
 |------|----------|------|
-| **快速浏览** | ParquetViewer / VS Code 扩展 | 简单直接 |
+| **交互式探索** ⭐ | Data Wrangler (VS Code) | 微软官方，功能最全，可视化强 |
+| **快速浏览** | ParquetViewer / 其他 Parquet Viewer | 简单直接，无需配置 |
 | **数据分析** | DBeaver + DuckDB | 强大的 SQL 支持 |
 | **编程使用** | Python + pandas/duckdb | 灵活可扩展 |
-| **可视化** | Jupyter Notebook | 交互式分析 |
+| **可视化** | Data Wrangler / Jupyter | 交互式分析和图表 |
 | **大数据集** | DuckDB CLI | 高性能 |
+
+**首选推荐**: 如果你用 VS Code 开发，直接装 **Data Wrangler**，体验最好！
 
 ## 💡 小技巧
 
