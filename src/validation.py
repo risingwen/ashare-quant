@@ -14,7 +14,8 @@ def validate_dataframe(
     required_columns: List[str],
     check_duplicates: bool = True,
     check_nulls: bool = True,
-    check_negative_prices: bool = True
+    check_negative_prices: bool = True,
+    check_date_continuity: bool = False
 ) -> Dict[str, any]:
     """
     Validate DataFrame for common data quality issues

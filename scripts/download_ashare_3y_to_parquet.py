@@ -72,6 +72,9 @@ class AShareDownloader:
         # Validation settings
         self.validation_config = config.get("validation", {})
         
+        # Stock names dictionary (code -> name)
+        self.stock_names = {}
+        
         # Cache for popularity data (updated daily)
         self._popularity_cache = None
         self._popularity_cache_date = None
@@ -116,6 +119,11 @@ class AShareDownloader:
                 
                 # Filter out invalid codes
                 df = df[df["code"].notna() & (df["code"] != "")]
+                
+                # Store stock names mapping
+                if "name" in df.columns:
+                    self.stock_names = dict(zip(df["code"], df["name"]))
+                    logger.info(f"Stored {len(self.stock_names)} stock names")
                 
                 logger.info(f"Retrieved {len(df)} stocks from {method_name}")
                 return df
@@ -243,11 +251,17 @@ class AShareDownloader:
             if "code" not in df.columns:
                 df["code"] = code
             
+            # Add stock name if available
+            if code in self.stock_names:
+                df["name"] = self.stock_names[code]
+            else:
+                df["name"] = ""
+            
             # Convert date to datetime
             df["date"] = pd.to_datetime(df["date"])
             
-            # Select required columns (extended with turnover)
-            required_cols = ["date", "code", "open", "high", "low", "close", "volume", "amount", "turnover"]
+            # Select required columns (extended with turnover and name)
+            required_cols = ["date", "code", "name", "open", "high", "low", "close", "volume", "amount", "turnover"]
             available_cols = [col for col in required_cols if col in df.columns]
             df = df[available_cols]
             
@@ -379,7 +393,7 @@ class AShareDownloader:
             # Validate
             validation = validate_dataframe(
                 df,
-                required_columns=["date", "code", "open", "high", "low", "close"],
+                required_columns=["date", "code", "name", "open", "high", "low", "close"],
                 **self.validation_config
             )
             

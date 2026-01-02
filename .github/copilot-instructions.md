@@ -13,4 +13,4 @@
 - 所有脚本必须给出“脚本名称”，并提供 main() 入口与 argparse 参数
 - 日志使用 logging，关键步骤打印清晰英文提示（不使用 emoji）
 - 必须实现：断点续跑、失败重试、限流保护、数据校验（行数/重复/空值/日期连续性）
-- 目录结构要清晰：src/ tests/ data/（data 只存少量示例，真实数据在 OneDrive 路径）
+- 目录结构要清晰：src/ tests/ data/（data 只存少量示例，真实数据在 OneDrive 路径）- Git commit 信息使用中文，简洁明了描述改动内容和原因
