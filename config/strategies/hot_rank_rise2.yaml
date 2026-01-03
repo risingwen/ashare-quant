@@ -1,0 +1,100 @@
+# 人气榜+2%追涨策略配置
+# 策略逻辑：前一交易日人气榜前N名且成交额达标，次日股价上涨到+2%时买入
+# 这是一种追涨策略，买入强势股
+
+# 策略元信息
+strategy:
+  name: "hot_rank_rise2_smart_exit"
+  version: "1.0.0"
+  description: "基于东财人气榜，次日股价涨到+2%时买入（追涨策略），涨停不卖+跌停卖出"
+  author: "AShare Quant Team"
+  created_date: "2026-01-03"
+  updated_date: "2026-01-03"
+  
+  # 策略标签（便于分类和筛选）
+  tags:
+    - "人气榜"
+    - "短线"
+    - "追涨"
+    - "动量"
+  
+# 继承基础配置
+extends: "../backtest_base.yaml"
+
+# 策略特定参数（所有参数可通过CLI覆盖）
+params:
+  # === 选股池参数 ===
+  hot_top_n: 50                    # 人气榜前N名（比原策略更严格）
+  prev_amount_min: 2000000000      # 前一日成交额下限（20亿元，单位：元）
+  prev_amount_max: null            # 前一日成交额上限（null=不限制）
+  
+  # === 买入参数 ===
+  rise_trigger: 0.02               # 触发买入阈值（+2%，追涨）
+  entry_time: "intraday"           # 买入时机：intraday（盘中触发）
+  entry_price_method: "trigger"    # 成交价方法：trigger（触发价，即+2%价格）
+  
+  # === 卖出参数 ===
+  exit_rule: "smart_exit"          # 退出规则：智能退出（涨停不卖+跌停卖出）
+  base_exit_day: 1                 # 基础持仓天数（T+1）
+  max_hold_days: 30                # 最大持仓天数（防止长期停牌）
+  
+  # 涨停不卖规则
+  hold_on_limit_up: true           # 涨停日不卖出
+  
+  # 跌停卖出规则
+  exit_on_limit_down: true         # 跌停触发卖出
+  limit_down_trigger: 0.07         # 跌停卖出阈值（-7%）
+  limit_down_price_method: "trigger"  # 跌停成交价：trigger（跌停价）
+  
+  # === 仓位管理 ===
+  position_sizing: "equal_amount"  # 等金额分配
+  per_trade_cash_frac: 0.1         # 每笔交易占初始资金10%
+  max_positions: 10                # 最大同时持仓数量
+  
+  # === 优先级规则 ===
+  priority_by: "rank"              # 按人气排名优先
+  priority_order: "asc"            # 升序（排名越小越优先）
+  
+  # === 人气过滤 ===
+  max_hot_rank_3d: 50              # 前3日最高人气排名上限（与hot_top_n一致）
+  
+  # === 涨停板过滤 ===
+  require_prev_limit_up: true      # 要求T-1日必须涨停（追涨涨停板）
+  
+  # === 过滤规则 ===
+  additional_filters:
+    filter_st: true                # 过滤ST股票
+    filter_new_ipo: true           # 过滤新股
+    new_ipo_days: 60               # 上市60天内视为新股
+    filter_high_limit: true        # 过滤一字涨停股票（无法买入）
+    filter_low_liquidity: true     # 过滤流动性差的股票
+    min_turnover: 0.01             # 最小换手率（1%）
+
+# 覆盖基础配置（如果需要）
+backtest:
+  # 使用基础配置的默认值，如需修改可在此覆盖
+  init_cash: 100000
+  
+  # 交易成本（使用默认值）
+  # fee_buy: 0.0002
+  # fee_sell: 0.0002
+  # stamp_tax_sell: 0.001
+  # slippage_bps: 5
+
+# 报告配置（策略特定）
+report:
+  # 分组统计维度
+  groupby:
+    - field: "rank_bucket"
+      bins: [1, 10, 25, 50]
+      labels: ["Top10", "11-25", "26-50"]
+    
+    - field: "amount_bucket"
+      bins: [2e9, 4e9, 8e9, "inf"]
+      labels: ["20-40亿", "40-80亿", "80亿+"]
+  
+  # 特定指标
+  custom_metrics:
+    - "avg_hold_days"              # 平均持仓天数
+    - "limitup_hold_ratio"         # 涨停持仓比例
+    - "max_consecutive_limitup"    # 最大连续涨停天数
