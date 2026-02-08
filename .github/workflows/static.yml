@@ -120,6 +120,14 @@ jobs:
             '</html>' \
             > public/index.html
 
+          # Jekyll配置：让GitHub Pages渲染Markdown文件
+          printf '%s\n' \
+            'markdown: GFM' \
+            'theme: jekyll-theme-minimal' \
+            'title: A股量化回测' \
+            'description: 人气策略回测结果' \
+            > public/_config.yml
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
