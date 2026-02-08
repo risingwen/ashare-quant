@@ -62,6 +62,7 @@ jobs:
 
           cp reports/trades/*.csv public/trades/ 2>/dev/null || true
           cp reports/trades/*.md public/trades/ 2>/dev/null || true
+          cp reports/trades/*.html public/trades/ 2>/dev/null || true
 
           cp data/backtest/trades/*.csv public/trades/ 2>/dev/null || true
 
@@ -87,12 +88,17 @@ jobs:
             printf -- '- [%s](./%s)\n' "$f" "$f" >> public/reports/index.md
           done < /tmp/reports_list.txt
 
-          printf '%s\n' '# 买卖记录列表' > public/trades/index.md
-          ls public/trades >/tmp/trades_list.txt
-          while IFS= read -r f; do
-            [ "$f" = "index.md" ] && continue
-            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/trades/index.md
-          done < /tmp/trades_list.txt
+          # 如果reports/trades/index.md存在则使用它，否则自动生成
+          if [ -f reports/trades/index.md ]; then
+            cp reports/trades/index.md public/trades/index.md
+          else
+            printf '%s\n' '# 买卖记录列表' > public/trades/index.md
+            ls public/trades >/tmp/trades_list.txt
+            while IFS= read -r f; do
+              [ "$f" = "index.md" ] && continue
+              printf -- '- [%s](./%s)\n' "$f" "$f" >> public/trades/index.md
+            done < /tmp/trades_list.txt
+          fi
 
           printf '%s\n' \
             '<!doctype html>' \
