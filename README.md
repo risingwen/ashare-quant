@@ -245,6 +245,46 @@ A: 数据默认存储在项目的 `data/parquet/` 目录下。如需备份到 On
 ### Q4: 遇到 AkShare 接口错误？
 A: AkShare 接口偶尔变动，检查 `akshare` 版本，必要时降级到稳定版本。查看日志了解具体错误。
 
+### Q5: 策略回测中创业板/科创板为什么触发阈值不同？
+A: 创业板（300）和科创板（688）波动率显著高于主板，使用-13%触发买入以避免正常波动中的假信号；主板和深市股票保持-7%触发。这是基于不同板块的风险特征进行的差异化设计。详见 `docs/STRATEGY_REQUIREMENTS.md`。
+
+## 策略回测
+
+### 人气榜-7%策略（含差异化阈值）
+
+**策略逻辑**：
+- 前一交易日人气榜前100名股票
+- 次日跌破触发阈值时买入：
+  - **创业板（300）、科创板（688）**：-13%触发
+  - **其他股票（主板、深市）**：-7%触发
+- 智能卖出：
+  - 涨停日继续持有（捕捉连板行情）
+  - 跌破-7%时止损卖出
+  - 其他情况T+1收盘卖出
+
+**配置文件**：`config/strategies/hot_rank_drop7.yaml`
+
+**运行回测**：
+```bash
+# 生成特征数据
+python scripts/prepare_features.py --version v1
+
+# 运行回测
+python scripts/backtest_hot_rank_strategy.py \
+  --config config/strategies/hot_rank_drop7.yaml \
+  --features data/processed/features/daily_features_v1.parquet
+```
+
+**关键参数**：
+- `hot_top_n: 100` - 人气榜前N名
+- `prev_amount_min: 2000000000` - 成交额下限（20亿）
+- `drop_trigger: 0.07` - 主板触发阈值（-7%）
+- `drop_trigger_cyb_kcb: 0.13` - 创业板/科创板触发阈值（-13%）
+- `hold_on_limit_up: true` - 涨停不卖
+- `exit_on_limit_down: true` - 跌停卖出
+
+详细策略说明参见 `docs/STRATEGY_REQUIREMENTS.md`。
+
 ## 开发与贡献
 
 ### 运行测试

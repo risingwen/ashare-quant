@@ -87,7 +87,7 @@ def apply_cli_overrides(config: dict, overrides: dict) -> dict:
     
     Args:
         config: 原配置
-        overrides: CLI覆盖参数（如 {'param.hot_top_n': 50}）
+        overrides: CLI覆盖参数（如 {'param.hot_top_n': 10}）
         
     Returns:
         覆盖后的配置
@@ -450,8 +450,8 @@ class BacktestEngine:
         buy_price = row_prev['close'] * (1 + rise_trigger)
         buy_exec = buy_price * (1 + self.slippage_bps / 10000)
         
-        # 计算名义资金（10万分2份，每份5万）
-        nominal_cash = self.init_cash * 0.5
+        # 计算名义资金（10万全部投入）
+        nominal_cash = self.init_cash * 0.2
         
         # 计算股数（向下取整到100股）
         shares = int(nominal_cash / buy_exec / self.min_lot_size) * self.min_lot_size
@@ -671,8 +671,8 @@ class BacktestEngine:
                 self.execute_sell(date, position, row_today, reason)
             
             # 2. 检查买入信号
-            # 限制最多持2只股票（10万资金分两份）
-            max_positions = 2
+            # 限制最多持1只股票（10万资金全部投入）
+            max_positions = 5
             if len(self.positions) >= max_positions:
                 # 已达到最大持仓数，不再买入
                 pass
@@ -774,9 +774,16 @@ class BacktestEngine:
             trades_df.to_parquet(trades_file, index=False)
             logger.info(f"交易明细已保存: {trades_file}")
             
-            # 同时保存CSV（使用相同命名）
+            # 同时保存CSV（数字保留2位小数）
             csv_file = output_dir / 'trades' / f"{prefix}_trades.csv"
-            trades_df.to_csv(csv_file, index=False, encoding='utf-8-sig')
+            # 浮点数列保留2位小数
+            float_cols = ['buy_price', 'buy_exec', 'commission', 'total_cost', 'cash_after',
+                          'sell_price', 'sell_exec', 'stamp_tax', 'sell_proceed', 'pnl', 
+                          'pnl_pct', 'close', 'limit_up']
+            for col in float_cols:
+                if col in trades_df.columns:
+                    trades_df[col] = trades_df[col].round(2)
+            trades_df.to_csv(csv_file, index=False, encoding='utf-8-sig', float_format='%.2f')
             logger.info(f"交易明细CSV已保存: {csv_file}")
         
         # 保存组合净值

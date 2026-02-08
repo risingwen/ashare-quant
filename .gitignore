@@ -82,3 +82,16 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+# Agent/session artifacts
+.specstory/history/
+
+# Generated backtest and feature outputs
+data/backtest/
+data/processed/
+reports/
+
+# Local scratch and temporary analysis files
+temp_*.py
+temp_*.txt
+position_allocation_test_*.json

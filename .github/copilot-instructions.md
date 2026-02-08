@@ -13,4 +13,10 @@
 - 所有脚本必须给出“脚本名称”，并提供 main() 入口与 argparse 参数
 - 日志使用 logging，关键步骤打印清晰英文提示（不使用 emoji）
 - 必须实现：断点续跑、失败重试、限流保护、数据校验（行数/重复/空值/日期连续性）
-- 目录结构要清晰：src/ tests/ data/（data 只存少量示例，真实数据在 OneDrive 路径）- Git commit 信息使用中文，简洁明了描述改动内容和原因
+- 目录结构要清晰：src/ tests/ data/（data 只存少量示例，真实数据在 OneDrive 路径）
+- Git commit 信息使用中文，简洁明了描述改动内容和原因
+
+# 文档规范
+- 策略文档（.github/prompts/）需要包含完整的策略逻辑、参数说明、实现要点
+- 每次策略逻辑或参数调整后，必须在文档末尾添加 Changelog 章节
+- Changelog 格式：日期 + 分类（Changed/Fixed/Added/Removed）+ 详细说明（包含原因和影响）

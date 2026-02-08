@@ -295,15 +295,16 @@ class FeatureEngineer:
             axis=1
         )
         
-        # 判断是否涨停/跌停（使用容差）
-        tolerance = self.limit_calculator.rules.get('tolerance', 0.0001)
+        # 判断是否涨停/跌停
+        # 涨幅>=9.9%认为涨停，跌幅<=-9.9%认为跌停（简化判断，避免精度问题）
+        df['pct_change_from_prev'] = (df['close'] / df['close_prev'] - 1) * 100
         df['is_limit_up'] = (
-            (df['close'] >= df['limit_up_price'] * (1 - tolerance)) & 
-            df['limit_up_price'].notna()
+            (df['pct_change_from_prev'] >= 9.9) & 
+            df['close_prev'].notna()
         )
         df['is_limit_down'] = (
-            (df['close'] <= df['limit_down_price'] * (1 + tolerance)) & 
-            df['limit_down_price'].notna()
+            (df['pct_change_from_prev'] <= -9.9) & 
+            df['close_prev'].notna()
         )
         
         # 统计
@@ -332,10 +333,59 @@ class FeatureEngineer:
         df['days_since_listing'] = df.groupby('code').cumcount() + 1
         df['is_new_ipo'] = df['days_since_listing'] <= 60
         
+        # 计算T-1日振幅和跌幅（用于过滤极端波动）
+        # 重要：必须按股票分组后再shift，否则会拿到其他股票的数据
+        df['amplitude_prev'] = df.groupby('code', group_keys=False).apply(
+            lambda x: ((x['high'] - x['low']) / x['close_prev'] * 100).shift(1)
+        ).values
+        df['pct_change_prev'] = df.groupby('code', group_keys=False).apply(
+            lambda x: ((x['close'] - x['close_prev']) / x['close_prev'] * 100).shift(1)
+        ).values
+        
+        # 风险过滤特征1：前5个交易日盘中最大跌幅（检测是否有单日大跌超7%）
+        # 使用最低价相对于前收盘价的跌幅，而非收盘价跌幅
+        # 注意：shift(1)确保T日决策时用的是T-1日及之前的数据，不包含T日当天
+        logger.info("Calculating max intraday drop in past 5 days...")
+        df['intraday_drop'] = (df['low'] - df['close_prev']) / df['close_prev'] * 100
+        df['max_drop_5d'] = df.groupby('code', group_keys=False)['intraday_drop'].apply(
+            lambda x: x.shift(1).rolling(window=5, min_periods=1).min()
+        ).values
+        
+        # 风险过滤特征2：连续2日累计涨幅（检测异常暴涨）
+        # 使用收盘价计算累计涨幅
+        # 注意：计算T-1和T-2两日的累计收益率
+        logger.info("Calculating 2-day cumulative return...")
+        df['pct_change'] = (df['close'] - df['close_prev']) / df['close_prev'] * 100
+        df['cum_return_2d'] = df.groupby('code', group_keys=False)['pct_change'].apply(
+            lambda x: x.shift(1).rolling(window=2, min_periods=2).apply(
+                lambda y: (1 + y/100).prod() - 1, raw=True
+            ) * 100
+        ).values
+        
+        # 风险过滤特征3：前5日一字板天数（开=收=高=低）
+        # 注意：shift(1)确保不包含当天
+        logger.info("Calculating one-word board days in past 5 days...")
+        df['is_one_word_board'] = (
+            (df['open'] == df['close']) & 
+            (df['close'] == df['high']) & 
+            (df['high'] == df['low'])
+        )
+        df['one_word_board_5d'] = df.groupby('code', group_keys=False)['is_one_word_board'].apply(
+            lambda x: x.shift(1).rolling(window=5, min_periods=1).sum()
+        ).values
+        
+        # 注意:max_hot_rank_3d将在回测时动态计算,避免跨越缺失日期
+        # 这里不再预先计算,以确保只看实际连续的2天数据
+        
         # 统计
         n_tradable = df['is_tradable'].sum()
         n_new_ipo = df['is_new_ipo'].sum()
+        n_risk_drop = (df['max_drop_5d'] <= -7).sum()
+        n_risk_surge = (df['cum_return_2d'] > 40).sum()
+        n_risk_board = (df['one_word_board_5d'] >= 2).sum()
         logger.info(f"Trading flags added: {n_tradable:,} tradable, {n_new_ipo:,} new IPO")
+        logger.info(f"Volatility features added: amplitude_prev, pct_change_prev")
+        logger.info(f"Risk features: {n_risk_drop:,} with 5d drop<=-7%, {n_risk_surge:,} with 2d surge>40%, {n_risk_board:,} with 2+ one-word boards")
         
         return df
     
@@ -360,7 +410,9 @@ class FeatureEngineer:
             'limit_up_price', 'limit_down_price',
             'is_limit_up', 'is_limit_down',
             'is_st', 'is_tradable', 'is_new_ipo',
-            'days_since_listing'
+            'days_since_listing',
+            'amplitude_prev', 'pct_change_prev',
+            'intraday_drop', 'max_drop_5d', 'cum_return_2d', 'one_word_board_5d'
         ]
         
         df_output = df[columns].copy()

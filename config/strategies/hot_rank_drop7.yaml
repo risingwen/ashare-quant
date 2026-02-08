@@ -1,11 +1,12 @@
 # 人气榜-7%策略配置
-# 策略逻辑：前一交易日人气榜前N名，次日跌破-7%买入，涨停不卖
+# 策略逻辑：前一交易日人气榜前N名，次日跌破触发阈值买入，涨停不卖
+# 差异化阈值：创业板(300)和科创板(688)为-13%，其他股票为-7%
 
 # 策略元信息
 strategy:
   name: "hot_rank_drop7_smart_exit"
   version: "1.1.0"
-  description: "基于东财人气榜，次日跌破-7%买入，涨停不卖+跌停卖出"
+  description: "基于东财人气榜，次日跌破阈值买入（创业板/科创板-13%，其他-7%），涨停不卖+跌停卖出"
   author: "AShare Quant Team"
   created_date: "2026-01-02"
   updated_date: "2026-01-02"
@@ -24,11 +25,14 @@ extends: "../backtest_base.yaml"
 params:
   # === 选股池参数 ===
   hot_top_n: 100                   # 人气榜前N名（可改为50测试）
-  prev_amount_min: 1000000000      # 前一日成交额下限（10亿元）
+  prev_amount_min: 2000000000      # 前一日成交额下限（20亿元）
   prev_amount_max: null            # 前一日成交额上限（null=不限制）
   
   # === 买入参数 ===
   drop_trigger: 0.07               # 触发买入阈值（-7%，可改为0.06即-6%）
+  drop_trigger_cyb_kcb: 0.13       # 创业板(300)和科创板(688)触发阈值（-13%）
+  max_drop_trigger: 0.10           # 最大跌幅限制（-10%），避免买入极端下跌股票
+  max_drop_trigger_cyb_kcb: 0.16   # 创业板/科创板最大跌幅限制（-16%）
   entry_time: "intraday"           # 买入时机：intraday（盘中触发）
   entry_price_method: "trigger"    # 成交价方法：trigger（触发价）
   
@@ -53,6 +57,9 @@ params:
   # === 优先级规则 ===
   priority_by: "rank"              # 按人气排名优先
   priority_order: "asc"            # 升序（排名越小越优先）
+  
+  # === 人气过滤 ===
+  max_hot_rank_3d: 100             # 前3日最高人气排名上限（排名越小越热门）
   
   # === 过滤规则 ===
   additional_filters:

@@ -105,8 +105,9 @@ def apply_cli_overrides(config: dict, overrides: dict) -> dict:
 class Trade:
     """交易记录"""
     
-    def __init__(self, code: str, entry_date: str):
+    def __init__(self, code: str, entry_date: str, name: str = None):
         self.code = code
+        self.name = name
         self.entry_date = entry_date
         self.rank_t1 = None
         self.amount_t1 = None
@@ -136,9 +137,14 @@ class Trade:
         """转换为字典"""
         return {
             'code': self.code,
+            'name': self.name,
             'entry_date': self.entry_date,
+            'rank_t': self.rank_t,
             'rank_t1': self.rank_t1,
+            'rank_t2': self.rank_t2,
+            'amount_t': self.amount_t,
             'amount_t1': self.amount_t1,
+            'amount_t2': self.amount_t2,
             'prev_close': self.prev_close,
             'trigger_low': self.trigger_low,
             'buy_price': self.buy_price,
@@ -185,11 +191,15 @@ class BacktestEngine:
         self.hot_top_n = self.params['hot_top_n']
         self.prev_amount_min = self.params['prev_amount_min']
         self.drop_trigger = self.params['drop_trigger']
+        self.drop_trigger_cyb_kcb = self.params.get('drop_trigger_cyb_kcb', 0.13)  # 创业板和科创板
+        self.max_drop_trigger = self.params.get('max_drop_trigger', 0.12)  # 最大跌幅限制
+        self.max_drop_trigger_cyb_kcb = self.params.get('max_drop_trigger_cyb_kcb', 0.18)  # 创业板/科创板最大跌幅
         self.per_trade_cash_frac = self.params['per_trade_cash_frac']
         self.hold_on_limit_up = self.params['hold_on_limit_up']
         self.exit_on_limit_down = self.params['exit_on_limit_down']
         self.limit_down_trigger = self.params['limit_down_trigger']
         self.max_hold_days = self.params['max_hold_days']
+        self.max_hot_rank_3d = self.params.get('max_hot_rank_3d', 100)
         
         # 回测参数
         self.init_cash = self.backtest_config['init_cash']
@@ -275,7 +285,8 @@ class BacktestEngine:
         self.stats['signal_hot_rank'] += len(df_prev_hot)
         
         # 2. 过滤成交额（使用昨日T-1的amount，注意单位是亿元）
-        amount_min_billion = self.prev_amount_min / 1e9  # 转换为亿元
+        # 配置中的单位是"元"，数据中的单位是"亿元"，需要除以1e8转换
+        amount_min_billion = self.prev_amount_min / 1e8  # 转换为亿元
         df_prev_hot = df_prev_hot[df_prev_hot['amount'] >= amount_min_billion]
         self.stats['filter_amount'] += (len(df_prev_hot))
         
@@ -285,12 +296,71 @@ class BacktestEngine:
             df_prev_hot = df_prev_hot[~df_prev_hot['is_st']]
             self.stats['filter_st'] += (before - len(df_prev_hot))
         
-        # 4. 今日必须有行情且可交易
+        # 4. 过滤新股（上市10个交易日内不交易）
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[df_prev_hot['days_since_listing'] > 10]
+        filtered_new_ipo = before - len(df_prev_hot)
+        self.stats['filter_new_ipo'] = self.stats.get('filter_new_ipo', 0) + filtered_new_ipo
+        
+        # 5. 过滤T-1日极端波动股票（振幅>30% 或 跌幅>20%）
+        # 注意：如果T-1日数据缺失（NaN），也视为不符合条件，直接过滤掉
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[
+            (df_prev_hot['amplitude_prev'].notna()) &
+            (df_prev_hot['amplitude_prev'] <= 30) &
+            (df_prev_hot['pct_change_prev'].notna()) &
+            (df_prev_hot['pct_change_prev'] >= -20)
+        ]
+        filtered_volatility = before - len(df_prev_hot)
+        self.stats['filter_volatility'] = self.stats.get('filter_volatility', 0) + filtered_volatility
+        
+        # 6. 过滤前5日有过单日跌幅≤-7%的股票（避免追跌风险股）
+        # 注意：需要同时检查两个条件：
+        #   a) max_drop_5d (T-1日的值): T-2至T-6日的历史最大跌幅
+        #   b) intraday_drop (T-1日的值): T-1日当天的跌幅（从T-2收盘到T-1最低）
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[
+            (
+                (df_prev_hot['max_drop_5d'].isna()) | 
+                (df_prev_hot['max_drop_5d'] > -7)
+            ) & (
+                (df_prev_hot['intraday_drop'].isna()) |
+                (df_prev_hot['intraday_drop'] > -7)
+            )
+        ]
+        filtered_max_drop = before - len(df_prev_hot)
+        self.stats['filter_max_drop_5d'] = self.stats.get('filter_max_drop_5d', 0) + filtered_max_drop
+        
+        # 7. 过滤连续2天累计涨幅超过40%的股票（异常暴涨）
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[
+            (df_prev_hot['cum_return_2d'].isna()) | 
+            (df_prev_hot['cum_return_2d'] <= 40)
+        ]
+        filtered_surge = before - len(df_prev_hot)
+        self.stats['filter_2d_surge'] = self.stats.get('filter_2d_surge', 0) + filtered_surge
+        
+        # 8. 过滤前5日有一字板的股票（操纵嫌疑）
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[df_prev_hot['one_word_board_5d'] < 1]
+        filtered_board = before - len(df_prev_hot)
+        self.stats['filter_one_word_board'] = self.stats.get('filter_one_word_board', 0) + filtered_board
+        
+        # 9. 过滤前3日人气排名超过100的股票（人气不足）
+        before = len(df_prev_hot)
+        df_prev_hot = df_prev_hot[
+            (df_prev_hot['max_hot_rank_3d'].isna()) | 
+            (df_prev_hot['max_hot_rank_3d'] <= self.max_hot_rank_3d)
+        ]
+        filtered_popularity = before - len(df_prev_hot)
+        self.stats['filter_low_popularity'] = self.stats.get('filter_low_popularity', 0) + filtered_popularity
+        
+        # 10. 今日必须有行情且可交易
         df_today_tradable = df_today[df_today['is_tradable']].copy()
         codes_tradable = set(df_today_tradable['code'])
         df_prev_hot = df_prev_hot[df_prev_hot['code'].isin(codes_tradable)]
         
-        # 5. 按昨日hot_rank排序（越小越优先）
+        # 10. 按昨日hot_rank排序（越小越优先）
         df_prev_hot = df_prev_hot.sort_values('hot_rank')
         
         return df_prev_hot
@@ -298,6 +368,7 @@ class BacktestEngine:
     def check_entry_signal(self, row_today: pd.Series, row_prev: pd.Series) -> bool:
         """
         检查买入信号（今日low触及昨日收盘价 * (1-drop_trigger)）
+        同时检查跌幅不能超过最大限制，避免买入极端下跌股票
         
         Args:
             row_today: 今日行情
@@ -306,10 +377,26 @@ class BacktestEngine:
         Returns:
             是否触发买入
         """
-        trigger_price = row_prev['close'] * (1 - self.drop_trigger)
-        return row_today['low'] <= trigger_price
+        # 根据股票代码选择触发阈值和最大跌幅限制
+        code = row_today['code']
+        if code.startswith('30') or code.startswith('688'):
+            drop_trigger = self.drop_trigger_cyb_kcb  # 创业板/科创板 -13%
+            max_drop = self.max_drop_trigger_cyb_kcb  # 最大跌幅 -18%
+        else:
+            drop_trigger = self.drop_trigger  # 其他 -7%
+            max_drop = self.max_drop_trigger  # 最大跌幅 -12%
+        
+        # 计算实际跌幅
+        actual_drop = (row_today['low'] - row_prev['close']) / row_prev['close']
+        
+        # 触发条件：跌幅在 [-max_drop, -drop_trigger] 区间内
+        # 即：actual_drop <= -drop_trigger (触发买入) 且 actual_drop >= -max_drop (不超过最大跌幅)
+        trigger_price = row_prev['close'] * (1 - drop_trigger)
+        max_drop_price = row_prev['close'] * (1 - max_drop)
+        
+        return (row_today['low'] <= trigger_price) and (row_today['low'] >= max_drop_price)
     
-    def execute_buy(self, date: str, row_today: pd.Series, row_prev: pd.Series) -> Optional[Trade]:
+    def execute_buy(self, date: pd.Timestamp, row_today: pd.Series, row_prev: pd.Series, row_prev_2: Optional[pd.Series] = None) -> Optional[Trade]:
         """
         执行买入
         
@@ -317,14 +404,21 @@ class BacktestEngine:
             date: 交易日期
             row_today: 今日行情
             row_prev: 昨日行情（T-1）
+            row_prev_2: 前日行情（T-2）
             
         Returns:
             交易记录或None
         """
         code = row_today['code']
         
+        # 根据股票代码选择触发阈值
+        if code.startswith('30') or code.startswith('688'):
+            drop_trigger = self.drop_trigger_cyb_kcb  # 创业板/科创板 -13%
+        else:
+            drop_trigger = self.drop_trigger  # 其他 -7%
+        
         # 计算买入价格（基于昨日收盘价）
-        buy_price = row_prev['close'] * (1 - self.drop_trigger)
+        buy_price = row_prev['close'] * (1 - drop_trigger)
         buy_exec = buy_price * (1 + self.slippage_bps / 10000)
         
         # 计算名义资金
@@ -354,9 +448,21 @@ class BacktestEngine:
         self.cash -= total_cost
         
         # 创建交易记录
-        trade = Trade(code, date)
-        trade.rank_t1 = row_prev['hot_rank']  # 使用昨日的hot_rank
+        trade = Trade(code, date, name=row_today.get('name', ''))
+        # T日数据
+        trade.rank_t = row_today['hot_rank']
+        trade.amount_t = row_today['amount']
+        # T-1日数据
+        trade.rank_t1 = row_prev['hot_rank']
         trade.amount_t1 = row_prev['amount']
+        # T-2日数据
+        if row_prev_2 is not None:
+            trade.rank_t2 = row_prev_2['hot_rank']
+            trade.amount_t2 = row_prev_2['amount']
+        else:
+            trade.rank_t2 = None
+            trade.amount_t2 = None
+        
         trade.prev_close = row_prev['close']
         trade.trigger_low = row_today['low']
         trade.buy_price = buy_price
@@ -389,10 +495,10 @@ class BacktestEngine:
         检查卖出信号
         
         优先级：
-        1. 跌停卖出
+        1. 跌幅达到-7%立刻卖出
         2. 最大持仓天数
-        3. 涨停持有
-        4. 正常收盘卖出
+        3. 涨停持有（直到不涨停再卖）
+        4. T+1正常收盘卖出
         
         Args:
             position: 持仓
@@ -401,20 +507,23 @@ class BacktestEngine:
         Returns:
             (是否卖出, 卖出原因)
         """
-        # 1. 跌停卖出（优先级最高）- 使用今日跌停价
-        if self.exit_on_limit_down and row_today['is_limit_down']:
-            return True, 'sell_limitdown'
+        # 1. 跌幅达到-7%立刻卖出（优先级最高）
+        if self.exit_on_limit_down:
+            # 计算今日跌幅
+            pct_change = (row_today['close'] - row_today['close_prev']) / row_today['close_prev']
+            if pct_change <= -self.drop_trigger:
+                return True, 'sell_drop7'
         
         # 2. 最大持仓天数
         if position.days_held >= self.max_hold_days:
             return True, 'sell_max_hold_days'
         
-        # 3. 涨停持有
+        # 3. 涨停持有（收盘价等于涨停价时不卖）
         if self.hold_on_limit_up and row_today['is_limit_up']:
             return False, 'hold_limitup'
         
-        # 4. 正常收盘卖出
-        if position.days_held >= 1:  # T+1
+        # 4. T+1正常收盘卖出（买入次日即卖出）
+        if position.days_held >= 0:  # T+1（因为days_held在检查后才+1，所以>=0表示买入次日）
             return True, 'sell_t1_close'
         
         return False, 'hold'
@@ -432,14 +541,8 @@ class BacktestEngine:
         code = position.code
         trade = position.trade
         
-        # 计算卖出价格
-        if reason == 'sell_limitdown':
-            # 跌停卖出，使用跌停价
-            sell_price = row_today['limit_down_price']
-        else:
-            # 其他情况使用收盘价
-            sell_price = row_today['close']
-        
+        # 计算卖出价格（所有情况都使用收盘价）
+        sell_price = row_today['close']
         sell_exec = sell_price * (1 - self.slippage_bps / 10000)
         
         # 计算费用
@@ -506,8 +609,10 @@ class BacktestEngine:
                 continue  # 第一天没有T-1数据
             
             prev_date = dates[i-1]
+            prev_date_2 = dates[i-2] if i >= 2 else None
             df_today = features_df[features_df['date'] == date]
             df_prev = features_df[features_df['date'] == prev_date]
+            df_prev_2 = features_df[features_df['date'] == prev_date_2] if prev_date_2 else pd.DataFrame()
             
             logger.info(f"\n--- {date} ---")
             
@@ -552,11 +657,27 @@ class BacktestEngine:
                     continue
                 row_today = row_today.iloc[0]
                 
+                # 获取T-2数据
+                row_prev_2 = None
+                if not df_prev_2.empty:
+                    row_prev_2_data = df_prev_2[df_prev_2['code'] == code]
+                    if not row_prev_2_data.empty:
+                        row_prev_2 = row_prev_2_data.iloc[0]
+                
                 # 检查买入信号
                 if self.check_entry_signal(row_today, row_prev):
-                    trade = self.execute_buy(date, row_today, row_prev)
+                    trade = self.execute_buy(date, row_today, row_prev, row_prev_2)
                     if trade is None:
                         break  # 资金不足，跳过后续信号
+                else:
+                    # 检查是否因为极端下跌被过滤
+                    drop_pct = (row_today['low'] - row_prev['close']) / row_prev['close']
+                    if code.startswith('30') or code.startswith('688'):
+                        if drop_pct <= -self.drop_trigger_cyb_kcb and drop_pct < -self.max_drop_trigger_cyb_kcb:
+                            self.stats['filter_extreme_drop'] = self.stats.get('filter_extreme_drop', 0) + 1
+                    else:
+                        if drop_pct <= -self.drop_trigger and drop_pct < -self.max_drop_trigger:
+                            self.stats['filter_extreme_drop'] = self.stats.get('filter_extreme_drop', 0) + 1
             
             # 3. 记录每日组合状态
             position_value = sum(
@@ -586,6 +707,13 @@ class BacktestEngine:
         """打印统计信息"""
         logger.info(f"\n统计信息:")
         logger.info(f"  信号数: {self.stats['signal_hot_rank']}")
+        logger.info(f"  过滤-新股10日内: {self.stats.get('filter_new_ipo', 0)}")
+        logger.info(f"  过滤-极端波动: {self.stats.get('filter_volatility', 0)}")
+        logger.info(f"  过滤-前5日大跌>7%: {self.stats.get('filter_max_drop_5d', 0)}")
+        logger.info(f"  过滤-2日暴涨>40%: {self.stats.get('filter_2d_surge', 0)}")
+        logger.info(f"  过滤-一字板>=1: {self.stats.get('filter_one_word_board', 0)}")
+        logger.info(f"  过滤-3日人气>100: {self.stats.get('filter_low_popularity', 0)}")
+        logger.info(f"  过滤-极端下跌>12%: {self.stats.get('filter_extreme_drop', 0)}")
         logger.info(f"  成交买入: {self.stats['buy_success']}")
         logger.info(f"  成交卖出: {self.stats['sell_success']}")
         logger.info(f"  跳过-资金不足: {self.stats['skip_cash']}")
