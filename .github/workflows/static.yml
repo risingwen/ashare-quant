@@ -130,12 +130,34 @@ jobs:
             'description: 人气策略回测结果' \
             > public/_config.yml
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+          bundler-cache: true
+
+      - name: Install Jekyll
+        run: |
+          cd public
+          gem install jekyll bundler
+          cat > Gemfile << 'EOF'
+          source "https://rubygems.org"
+          gem "jekyll", "~> 4.3"
+          gem "jekyll-theme-minimal"
+          EOF
+          bundle install
+
+      - name: Build with Jekyll
+        run: |
+          cd public
+          bundle exec jekyll build --destination ../_site
+          
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'public'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
