@@ -49,36 +49,16 @@ jobs:
 
           cp README.md public/
 
-          BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M UTC")
-          cat > public/index.html <<EOF
-          <!doctype html>
-          <html lang="zh-CN">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <title>量化统计结果 v0.1</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 2rem auto; max-width: 860px; padding: 0 1rem; line-height: 1.6; }
-              h1 { margin-bottom: .5rem; }
-              .meta { color: #666; font-size: .95rem; margin-bottom: 1.5rem; }
-              a { text-decoration: none; }
-              a:hover { text-decoration: underline; }
-              .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-            </style>
-          </head>
-          <body>
-            <h1>量化统计结果（v0.1）</h1>
-            <p class="meta">自动部署时间：${BUILD_TIME}</p>
-            <div class="card">
-              <h2>最新统计分析</h2>
-              <p><a href="./latest.md">打开 latest.md</a></p>
-            </div>
-            <div class="card">
-              <h2>项目说明</h2>
-              <p><a href="./README.md">打开 README.md</a></p>
-            </div>
-          </body>
-          </html>
+          cat > public/index.md <<'EOF'
+          # 量化统计结果（v0.1）
+
+          ## 最新统计分析
+
+          - [打开 latest.md](./latest.md)
+
+          ## 项目说明
+
+          - [打开 README.md](./README.md)
           EOF
 
       - name: Setup Pages
