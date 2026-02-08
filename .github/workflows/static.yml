@@ -1,5 +1,4 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: Deploy quant reports to Pages
 
 on:
   # Runs on pushes targeting the default branch
@@ -22,7 +21,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
@@ -31,13 +29,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare Pages content
+        run: |
+          rm -rf public
+          mkdir -p public
+
+          cp README.md public/
+          cp analysis_*.md public/ 2>/dev/null || true
+          cp "人气阈值测试结果汇总.md" public/ 2>/dev/null || true
+          cp "人气阈值测试记录.md" public/ 2>/dev/null || true
+          cp "持仓数量对比结果.md" public/ 2>/dev/null || true
+
+          cat > public/index.md <<'EOF'
+          # 量化统计结果
+
+          这是自动部署到 GitHub Pages 的统计分析页面。
+
+          ## 最新分析
+
+          - [analysis_603601_hold3days.md](./analysis_603601_hold3days.md)
+          - [人气阈值测试结果汇总.md](./人气阈值测试结果汇总.md)
+          - [人气阈值测试记录.md](./人气阈值测试记录.md)
+          - [持仓数量对比结果.md](./持仓数量对比结果.md)
+
+          ## 项目说明
+
+          - [README.md](./README.md)
+          EOF
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          path: 'public'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
