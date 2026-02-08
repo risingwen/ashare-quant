@@ -55,6 +55,7 @@ jobs:
           fi
 
           cp config/strategies/*.yaml public/strategies/ 2>/dev/null || true
+          cp reports/strategies/*.md public/strategies/ 2>/dev/null || true
 
           cp reports/*.md public/reports/ 2>/dev/null || true
           cp reports/*.png public/reports/ 2>/dev/null || true

@@ -1,0 +1,50 @@
+# 首次进入人气前10 + 次日涨2%或低开买入策略
+
+strategy:
+  name: "hot_rank_first_top10_rise2_or_gapdown"
+  version: "0.1.0"
+  description: "首次进入人气前10，次日低开或盘中触发+2%买入，跌出前50卖出"
+  author: "AShare Quant Team"
+  created_date: "2026-02-08"
+  updated_date: "2026-02-08"
+  tags:
+    - "人气榜"
+    - "首次入榜"
+    - "动量"
+    - "低开"
+
+extends: "../backtest_base.yaml"
+
+params:
+  # 信号与买入
+  hot_top_n: 10
+  require_first_entry: true
+  rise_trigger: 0.02
+  buy_on_gap_down: true
+
+  # 卖出
+  exit_rank_threshold: 50
+
+  # 仓位
+  position_sizing: "equal_amount"
+  cash_splits: 3
+  per_trade_cash_frac: 0.333333
+  max_positions: 3
+
+  # 过滤
+  additional_filters:
+    filter_st: true
+    filter_suspend: true
+
+backtest:
+  init_cash: 1000000
+  fee_buy: 0.0003
+  fee_sell: 0.0003
+  stamp_tax_sell: 0.001
+  slippage_bps: 5
+
+report:
+  custom_metrics:
+    - "first_entry_count"
+    - "rise2_trigger_count"
+    - "gap_down_buy_count"
