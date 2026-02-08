@@ -7,23 +7,43 @@
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 20px; background: #f5f5f5; }
 h1 { color: #333; }
+.strategy-box { background: #e0f2fe; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0284c7; }
+.strategy-box h2 { margin: 0 0 10px 0; color: #0369a1; font-size: 16px; }
+.strategy-box ul { margin: 0; padding-left: 20px; }
+.strategy-box li { margin: 5px 0; color: #334155; }
 .summary { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .summary span { margin-right: 20px; }
 .positive { color: #16a34a; font-weight: bold; }
 .negative { color: #dc2626; font-weight: bold; }
 table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
-th { background: #f8fafc; cursor: pointer; position: sticky; top: 0; user-select: none; }
+th { background: #f8fafc; cursor: pointer; position: sticky; top: 0; user-select: none; white-space: nowrap; }
 th:hover { background: #e2e8f0; }
 th.sort-asc::after { content: " ▲"; color: #3b82f6; }
 th.sort-desc::after { content: " ▼"; color: #3b82f6; }
 tr:hover { background: #f1f5f9; }
 .pnl-pos { color: #16a34a; }
 .pnl-neg { color: #dc2626; }
+.balance { color: #7c3aed; font-weight: 500; }
 </style>
 </head>
 <body>
 <h1>交易记录 - 人气首次入榜前10策略</h1>
+
+<div class="strategy-box">
+<h2>策略说明</h2>
+<ul>
+<li><b>信号条件</b>：个股首次进入人气前10（T日产生信号）</li>
+<li><b>买入条件</b>（T+1日满足其一）：
+  <ul>
+    <li>低开买入：开盘价 < T日收盘价，按开盘价买入</li>
+    <li>涨2%买入：盘中触及 T日收盘价 × 1.02，按触发价买入</li>
+  </ul>
+</li>
+<li><b>卖出条件</b>：持仓期间人气排名跌出前50（hot_rank > 50），当日收盘卖出</li>
+<li><b>仓位管理</b>：初始资金100万，每笔交易使用1/3资金，最多同时持有3个仓位</li>
+</ul>
+</div>
 <div class="summary">
 <span>总交易: <b>268</b></span>
 <span>盈利: <b class="positive">128</b></span>
@@ -31,279 +51,4852 @@ tr:hover { background: #f1f5f9; }
 <span>胜率: <b>47.8%</b></span>
 <span>总盈亏: <b class="positive">590,370</b></span>
 <span>平均收益率: <b class="positive">0.66%</b></span>
+<span>最终余额: <b class="balance">1,590,370</b></span>
 </div>
 <table id="tradesTable">
 <thead><tr>
-<th onclick="sortTable(this)">代码</th><th onclick="sortTable(this)">名称</th><th onclick="sortTable(this)">信号日</th><th onclick="sortTable(this)">买入日</th><th onclick="sortTable(this)">买入条件</th><th onclick="sortTable(this)">买入价</th><th onclick="sortTable(this)">买入股数</th><th onclick="sortTable(this)">买入成本</th><th onclick="sortTable(this)">卖出日</th><th onclick="sortTable(this)">卖出排名</th><th onclick="sortTable(this)">卖出价</th><th onclick="sortTable(this)">卖出收入</th><th onclick="sortTable(this)">持有天数</th><th onclick="sortTable(this)">净盈亏</th><th onclick="sortTable(this)">收益率%</th></tr></thead>
+<th onclick="sortTable(this)">代码</th>
+<th onclick="sortTable(this)">名称</th>
+<th onclick="sortTable(this)">信号日</th>
+<th onclick="sortTable(this)">买入日</th>
+<th onclick="sortTable(this)">买入条件</th>
+<th onclick="sortTable(this)">买入价</th>
+<th onclick="sortTable(this)">买入股数</th>
+<th onclick="sortTable(this)">买入成本</th>
+<th onclick="sortTable(this)">卖出日</th>
+<th onclick="sortTable(this)">卖出排名</th>
+<th onclick="sortTable(this)">卖出价</th>
+<th onclick="sortTable(this)">卖出收入</th>
+<th onclick="sortTable(this)">持有天数</th>
+<th onclick="sortTable(this)">净盈亏</th>
+<th onclick="sortTable(this)">收益率%</th>
+<th onclick="sortTable(this)">资金余额</th>
+</tr></thead>
 <tbody>
-<tr><td>600733</td><td>北汽蓝谷</td><td>2025-12-16</td><td>2025-12-30</td><td>低开买</td><td>7.94</td><td>41900</td><td>332952</td><td>2025-12-31</td><td>284</td><td>8.03</td><td>335852</td><td>2</td><td class="pnl-pos">2,899</td><td class="pnl-pos">0.87%</td></tr>
-<tr><td>600271</td><td>航天信息</td><td>2025-12-16</td><td>2025-12-30</td><td>低开买</td><td>10.54</td><td>31600</td><td>333331</td><td>2025-12-31</td><td>107</td><td>11.69</td><td>368739</td><td>2</td><td class="pnl-pos">35,409</td><td class="pnl-pos">10.62%</td></tr>
-<tr><td>2104</td><td>恒宝股份</td><td>2025-12-16</td><td>2025-12-26</td><td>低开买</td><td>20.18</td><td>16500</td><td>333236</td><td>2025-12-30</td><td>133</td><td>21.49</td><td>353947</td><td>3</td><td class="pnl-pos">20,711</td><td class="pnl-pos">6.21%</td></tr>
-<tr><td>2413</td><td>雷科防务</td><td>2025-12-15</td><td>2025-12-25</td><td>低开买</td><td>8.96</td><td>37100</td><td>332682</td><td>2025-12-26</td><td>102</td><td>9.43</td><td>349223</td><td>2</td><td class="pnl-pos">16,542</td><td class="pnl-pos">4.97%</td></tr>
-<tr><td>600105</td><td>永鼎股份</td><td>2025-12-11</td><td>2025-12-24</td><td>低开买</td><td>20.77</td><td>16000</td><td>332586</td><td>2025-12-25</td><td>78</td><td>23.53</td><td>375803</td><td>2</td><td class="pnl-pos">43,217</td><td class="pnl-pos">12.99%</td></tr>
-<tr><td>2519</td><td>银河电子</td><td>2025-12-11</td><td>2025-12-24</td><td>低开买</td><td>5.52</td><td>60300</td><td>333122</td><td>2025-12-25</td><td>276</td><td>6.11</td><td>367770</td><td>2</td><td class="pnl-pos">34,648</td><td class="pnl-pos">10.40%</td></tr>
-<tr><td>2235</td><td>安妮股份</td><td>2025-12-11</td><td>2025-12-23</td><td>低开买</td><td>10.9</td><td>30500</td><td>332716</td><td>2025-12-24</td><td>213</td><td>11.02</td><td>335505</td><td>2</td><td class="pnl-pos">2,789</td><td class="pnl-pos">0.84%</td></tr>
-<tr><td>2202</td><td>金风科技</td><td>2025-12-11</td><td>2025-12-23</td><td>涨2%买</td><td>17.32</td><td>19200</td><td>332802</td><td>2025-12-24</td><td>144</td><td>17.43</td><td>334054</td><td>2</td><td class="pnl-pos">1,251</td><td class="pnl-pos">0.38%</td></tr>
-<tr><td>2163</td><td>海南发展</td><td>2025-12-10</td><td>2025-12-22</td><td>低开买</td><td>15.87</td><td>20900</td><td>331948</td><td>2025-12-30</td><td>59</td><td>22.25</td><td>464188</td><td>7</td><td class="pnl-pos">132,240</td><td class="pnl-pos">39.84%</td></tr>
-<tr><td>603019</td><td>中科曙光</td><td>2025-12-10</td><td>2025-12-22</td><td>低开买</td><td>86.99</td><td>3800</td><td>330826</td><td>2025-12-23</td><td>213</td><td>87.66</td><td>332509</td><td>2</td><td class="pnl-pos">1,682</td><td class="pnl-pos">0.51%</td></tr>
-<tr><td>2</td><td>万  科Ａ</td><td>2025-12-10</td><td>2025-12-22</td><td>低开买</td><td>4.88</td><td>68200</td><td>333082</td><td>2025-12-23</td><td>188</td><td>4.79</td><td>326090</td><td>2</td><td class="pnl-neg">-6,992</td><td class="pnl-neg">-2.10%</td></tr>
-<tr><td>600330</td><td>天通股份</td><td>2025-12-09</td><td>2025-12-19</td><td>低开买</td><td>10.8</td><td>30800</td><td>332906</td><td>2025-12-22</td><td>187</td><td>12.0</td><td>368935</td><td>2</td><td class="pnl-pos">36,029</td><td class="pnl-pos">10.82%</td></tr>
-<tr><td>2229</td><td>鸿博股份</td><td>2025-12-09</td><td>2025-12-19</td><td>低开买</td><td>15.47</td><td>21500</td><td>332871</td><td>2025-12-22</td><td>504</td><td>15.91</td><td>341450</td><td>2</td><td class="pnl-pos">8,578</td><td class="pnl-pos">2.58%</td></tr>
-<tr><td>2217</td><td>合力泰</td><td>2025-12-09</td><td>2025-12-19</td><td>低开买</td><td>3.06</td><td>108800</td><td>333194</td><td>2025-12-22</td><td>723</td><td>3.12</td><td>338845</td><td>2</td><td class="pnl-pos">5,651</td><td class="pnl-pos">1.70%</td></tr>
-<tr><td>600635</td><td>大众公用</td><td>2025-12-04</td><td>2025-12-18</td><td>低开买</td><td>6.44</td><td>51700</td><td>333214</td><td>2025-12-19</td><td>582</td><td>6.42</td><td>331317</td><td>2</td><td class="pnl-neg">-1,898</td><td class="pnl-neg">-0.57%</td></tr>
-<tr><td>2512</td><td>达华智能</td><td>2025-12-04</td><td>2025-12-18</td><td>低开买</td><td>5.81</td><td>57300</td><td>333179</td><td>2025-12-19</td><td>298</td><td>6.03</td><td>344897</td><td>2</td><td class="pnl-pos">11,718</td><td class="pnl-pos">3.52%</td></tr>
-<tr><td>300394</td><td>天孚通信</td><td>2025-12-08</td><td>2025-12-18</td><td>低开买</td><td>215.23</td><td>1500</td><td>323103</td><td>2025-12-19</td><td>249</td><td>214.03</td><td>320467</td><td>2</td><td class="pnl-neg">-2,636</td><td class="pnl-neg">-0.82%</td></tr>
-<tr><td>2402</td><td>和而泰</td><td>2025-12-04</td><td>2025-12-17</td><td>低开买</td><td>38.02</td><td>8700</td><td>331039</td><td>2025-12-18</td><td>231</td><td>38.85</td><td>337387</td><td>2</td><td class="pnl-pos">6,348</td><td class="pnl-pos">1.92%</td></tr>
-<tr><td>2050</td><td>三花智控</td><td>2025-12-04</td><td>2025-12-17</td><td>低开买</td><td>43.13</td><td>7700</td><td>332367</td><td>2025-12-18</td><td>133</td><td>42.88</td><td>329582</td><td>2</td><td class="pnl-neg">-2,785</td><td class="pnl-neg">-0.84%</td></tr>
-<tr><td>2031</td><td>巨轮智能</td><td>2025-12-04</td><td>2025-12-17</td><td>低开买</td><td>7.38</td><td>45100</td><td>333104</td><td>2025-12-18</td><td>426</td><td>7.21</td><td>324586</td><td>2</td><td class="pnl-neg">-8,518</td><td class="pnl-neg">-2.56%</td></tr>
-<tr><td>1280</td><td>中国铀业</td><td>2025-12-03</td><td>2025-12-16</td><td>涨2%买</td><td>69.35</td><td>4800</td><td>333145</td><td>2025-12-17</td><td>185</td><td>64.65</td><td>309762</td><td>2</td><td class="pnl-neg">-23,384</td><td class="pnl-neg">-7.02%</td></tr>
-<tr><td>78</td><td>海王生物</td><td>2025-12-03</td><td>2025-12-16</td><td>低开买</td><td>4.12</td><td>80800</td><td>333162</td><td>2025-12-17</td><td>187</td><td>4.12</td><td>332297</td><td>2</td><td class="pnl-neg">-865</td><td class="pnl-neg">-0.26%</td></tr>
-<tr><td>603122</td><td>合富中国</td><td>2025-12-02</td><td>2025-12-16</td><td>涨2%买</td><td>26.07</td><td>12700</td><td>331369</td><td>2025-12-17</td><td>67</td><td>27.45</td><td>347988</td><td>2</td><td class="pnl-pos">16,619</td><td class="pnl-pos">5.02%</td></tr>
-<tr><td>572</td><td>海马汽车</td><td>2025-12-02</td><td>2025-12-15</td><td>低开买</td><td>9.06</td><td>36700</td><td>332768</td><td>2025-12-16</td><td>57</td><td>9.76</td><td>357547</td><td>2</td><td class="pnl-pos">24,779</td><td class="pnl-pos">7.45%</td></tr>
-<tr><td>600977</td><td>中国电影</td><td>2025-12-01</td><td>2025-12-15</td><td>低开买</td><td>17.84</td><td>18600</td><td>332090</td><td>2025-12-16</td><td>163</td><td>15.86</td><td>294465</td><td>2</td><td class="pnl-neg">-37,624</td><td class="pnl-neg">-11.33%</td></tr>
-<tr><td>2632</td><td>道明光学</td><td>2025-12-01</td><td>2025-12-15</td><td>低开买</td><td>12.87</td><td>25800</td><td>332312</td><td>2025-12-16</td><td>517</td><td>12.25</td><td>315481</td><td>2</td><td class="pnl-neg">-16,830</td><td class="pnl-neg">-5.06%</td></tr>
-<tr><td>888</td><td>峨眉山Ａ</td><td>2025-12-01</td><td>2025-12-12</td><td>低开买</td><td>12.52</td><td>26600</td><td>333298</td><td>2025-12-15</td><td>1066</td><td>12.67</td><td>336416</td><td>2</td><td class="pnl-pos">3,117</td><td class="pnl-pos">0.94%</td></tr>
-<tr><td>63</td><td>中兴通讯</td><td>2025-12-01</td><td>2025-12-12</td><td>低开买</td><td>36.9</td><td>9000</td><td>332366</td><td>2025-12-15</td><td>88</td><td>36.84</td><td>330963</td><td>2</td><td class="pnl-neg">-1,402</td><td class="pnl-neg">-0.42%</td></tr>
-<tr><td>678</td><td>襄阳轴承</td><td>2025-11-28</td><td>2025-12-12</td><td>涨2%买</td><td>15.06</td><td>22100</td><td>332986</td><td>2025-12-15</td><td>202</td><td>15.39</td><td>339507</td><td>2</td><td class="pnl-pos">6,521</td><td class="pnl-pos">1.96%</td></tr>
-<tr><td>2291</td><td>遥望科技</td><td>2025-11-26</td><td>2025-12-11</td><td>低开买</td><td>6.72</td><td>49500</td><td>332906</td><td>2025-12-12</td><td>986</td><td>6.38</td><td>315242</td><td>2</td><td class="pnl-neg">-17,664</td><td class="pnl-neg">-5.31%</td></tr>
-<tr><td>2759</td><td>天际股份</td><td>2025-11-25</td><td>2025-12-11</td><td>低开买</td><td>35.3</td><td>9400</td><td>332086</td><td>2025-12-12</td><td>208</td><td>32.27</td><td>302792</td><td>2</td><td class="pnl-neg">-29,293</td><td class="pnl-neg">-8.82%</td></tr>
-<tr><td>2728</td><td>特一药业</td><td>2025-11-27</td><td>2025-12-11</td><td>低开买</td><td>12.28</td><td>27100</td><td>333054</td><td>2025-12-12</td><td>832</td><td>11.74</td><td>317582</td><td>2</td><td class="pnl-neg">-15,473</td><td class="pnl-neg">-4.65%</td></tr>
-<tr><td>601360</td><td>三六零</td><td>2025-11-24</td><td>2025-12-10</td><td>低开买</td><td>11.98</td><td>27800</td><td>333310</td><td>2025-12-11</td><td>186</td><td>11.54</td><td>320235</td><td>2</td><td class="pnl-neg">-13,076</td><td class="pnl-neg">-3.92%</td></tr>
-<tr><td>300589</td><td>江龙船艇</td><td>2025-11-24</td><td>2025-12-10</td><td>低开买</td><td>22.81</td><td>14600</td><td>333292</td><td>2025-12-11</td><td>301</td><td>22.81</td><td>332427</td><td>2</td><td class="pnl-neg">-866</td><td class="pnl-neg">-0.26%</td></tr>
-<tr><td>2400</td><td>省广集团</td><td>2025-11-24</td><td>2025-12-10</td><td>低开买</td><td>8.67</td><td>38400</td><td>333194</td><td>2025-12-11</td><td>412</td><td>8.39</td><td>321596</td><td>2</td><td class="pnl-neg">-11,598</td><td class="pnl-neg">-3.48%</td></tr>
-<tr><td>2279</td><td>久其软件</td><td>2025-11-24</td><td>2025-12-09</td><td>低开买</td><td>8.63</td><td>38600</td><td>333385</td><td>2025-12-10</td><td>690</td><td>8.3</td><td>319804</td><td>2</td><td class="pnl-neg">-13,581</td><td class="pnl-neg">-4.07%</td></tr>
-<tr><td>920091</td><td>大鹏工业</td><td>2025-11-21</td><td>2025-12-09</td><td>低开买</td><td>50.52</td><td>6500</td><td>328643</td><td>2025-12-10</td><td>1679</td><td>54.19</td><td>351601</td><td>2</td><td class="pnl-pos">22,958</td><td class="pnl-pos">6.99%</td></tr>
-<tr><td>301171</td><td>易点天下</td><td>2025-11-21</td><td>2025-12-09</td><td>低开买</td><td>37.8</td><td>8800</td><td>332906</td><td>2025-12-10</td><td>477</td><td>36.99</td><td>324926</td><td>2</td><td class="pnl-neg">-7,980</td><td class="pnl-neg">-2.40%</td></tr>
-<tr><td>300094</td><td>国联水产</td><td>2025-11-19</td><td>2025-12-08</td><td>低开买</td><td>4.1</td><td>81200</td><td>333186</td><td>2025-12-09</td><td>622</td><td>4.1</td><td>332321</td><td>2</td><td class="pnl-neg">-865</td><td class="pnl-neg">-0.26%</td></tr>
-<tr><td>2213</td><td>大为股份</td><td>2025-11-19</td><td>2025-12-08</td><td>低开买</td><td>26.65</td><td>12500</td><td>333392</td><td>2025-12-09</td><td>591</td><td>27.54</td><td>343631</td><td>2</td><td class="pnl-pos">10,239</td><td class="pnl-pos">3.07%</td></tr>
-<tr><td>601566</td><td>九牧王</td><td>2025-11-20</td><td>2025-12-08</td><td>低开买</td><td>13.67</td><td>24300</td><td>332447</td><td>2025-12-09</td><td>77</td><td>14.9</td><td>361419</td><td>2</td><td class="pnl-pos">28,972</td><td class="pnl-pos">8.71%</td></tr>
-<tr><td>798</td><td>中水渔业</td><td>2025-11-19</td><td>2025-12-05</td><td>低开买</td><td>11.07</td><td>30000</td><td>332366</td><td>2025-12-08</td><td>447</td><td>11.65</td><td>348871</td><td>2</td><td class="pnl-pos">16,505</td><td class="pnl-pos">4.97%</td></tr>
-<tr><td>600756</td><td>浪潮软件</td><td>2025-11-18</td><td>2025-12-05</td><td>低开买</td><td>18.85</td><td>17600</td><td>332025</td><td>2025-12-08</td><td>482</td><td>19.58</td><td>343988</td><td>2</td><td class="pnl-pos">11,962</td><td class="pnl-pos">3.60%</td></tr>
-<tr><td>300058</td><td>蓝色光标</td><td>2025-11-18</td><td>2025-12-05</td><td>低开买</td><td>9.2</td><td>36200</td><td>333306</td><td>2025-12-08</td><td>106</td><td>9.57</td><td>345811</td><td>2</td><td class="pnl-pos">12,504</td><td class="pnl-pos">3.75%</td></tr>
-<tr><td>2131</td><td>利欧股份</td><td>2025-11-18</td><td>2025-12-04</td><td>低开买</td><td>4.93</td><td>67500</td><td>333041</td><td>2025-12-05</td><td>230</td><td>4.98</td><td>335545</td><td>2</td><td class="pnl-pos">2,504</td><td class="pnl-pos">0.75%</td></tr>
-<tr><td>681</td><td>视觉中国</td><td>2025-11-18</td><td>2025-12-04</td><td>低开买</td><td>22.88</td><td>14500</td><td>332025</td><td>2025-12-05</td><td>525</td><td>22.5</td><td>325663</td><td>2</td><td class="pnl-neg">-6,362</td><td class="pnl-neg">-1.92%</td></tr>
-<tr><td>601606</td><td>长城军工</td><td>2025-11-17</td><td>2025-12-04</td><td>低开买</td><td>49.0</td><td>6700</td><td>328563</td><td>2025-12-05</td><td>225</td><td>49.86</td><td>333461</td><td>2</td><td class="pnl-pos">4,898</td><td class="pnl-pos">1.49%</td></tr>
-<tr><td>600157</td><td>永泰能源</td><td>2025-11-14</td><td>2025-12-03</td><td>低开买</td><td>1.65</td><td>201900</td><td>333402</td><td>2025-12-04</td><td>368</td><td>1.61</td><td>324474</td><td>2</td><td class="pnl-neg">-8,927</td><td class="pnl-neg">-2.68%</td></tr>
-<tr><td>600410</td><td>华胜天成</td><td>2025-11-17</td><td>2025-12-03</td><td>低开买</td><td>18.93</td><td>17500</td><td>331540</td><td>2025-12-04</td><td>232</td><td>18.14</td><td>316879</td><td>2</td><td class="pnl-neg">-14,661</td><td class="pnl-neg">-4.42%</td></tr>
-<tr><td>600408</td><td>安泰集团</td><td>2025-11-12</td><td>2025-12-02</td><td>低开买</td><td>4.55</td><td>73200</td><td>333326</td><td>2025-12-04</td><td>75</td><td>5.2</td><td>379955</td><td>3</td><td class="pnl-pos">46,629</td><td class="pnl-pos">13.99%</td></tr>
-<tr><td>2309</td><td>中利集团</td><td>2025-11-12</td><td>2025-12-02</td><td>低开买</td><td>3.17</td><td>105000</td><td>333116</td><td>2025-12-03</td><td>973</td><td>3.25</td><td>340636</td><td>2</td><td class="pnl-pos">7,520</td><td class="pnl-pos">2.26%</td></tr>
-<tr><td>2506</td><td>协鑫集成</td><td>2025-11-11</td><td>2025-12-02</td><td>低开买</td><td>2.61</td><td>127600</td><td>333302</td><td>2025-12-03</td><td>1007</td><td>2.53</td><td>322247</td><td>2</td><td class="pnl-neg">-11,055</td><td class="pnl-neg">-3.32%</td></tr>
-<tr><td>2451</td><td>摩恩电气</td><td>2025-11-11</td><td>2025-12-01</td><td>低开买</td><td>10.66</td><td>31200</td><td>332858</td><td>2025-12-02</td><td>180</td><td>11.02</td><td>343205</td><td>2</td><td class="pnl-pos">10,347</td><td class="pnl-pos">3.11%</td></tr>
-<tr><td>601888</td><td>中国中免</td><td>2025-11-10</td><td>2025-12-01</td><td>低开买</td><td>78.77</td><td>4200</td><td>331099</td><td>2025-12-02</td><td>194</td><td>83.17</td><td>348685</td><td>2</td><td class="pnl-pos">17,587</td><td class="pnl-pos">5.31%</td></tr>
-<tr><td>600745</td><td>闻泰科技</td><td>2025-11-07</td><td>2025-12-01</td><td>低开买</td><td>40.8</td><td>8100</td><td>330744</td><td>2025-12-02</td><td>178</td><td>40.0</td><td>323417</td><td>2</td><td class="pnl-neg">-7,327</td><td class="pnl-neg">-2.22%</td></tr>
-<tr><td>2709</td><td>天赐材料</td><td>2025-11-07</td><td>2025-11-28</td><td>低开买</td><td>40.48</td><td>8200</td><td>332202</td><td>2025-12-01</td><td>124</td><td>42.39</td><td>346973</td><td>2</td><td class="pnl-pos">14,771</td><td class="pnl-pos">4.45%</td></tr>
-<tr><td>2196</td><td>方正电机</td><td>2025-11-07</td><td>2025-11-28</td><td>低开买</td><td>13.49</td><td>24600</td><td>332120</td><td>2025-12-01</td><td>450</td><td>13.13</td><td>322417</td><td>2</td><td class="pnl-neg">-9,703</td><td class="pnl-neg">-2.92%</td></tr>
-<tr><td>601600</td><td>中国铝业</td><td>2025-11-06</td><td>2025-11-28</td><td>低开买</td><td>10.39</td><td>32000</td><td>332746</td><td>2025-12-01</td><td>251</td><td>10.69</td><td>341464</td><td>2</td><td class="pnl-pos">8,718</td><td class="pnl-pos">2.62%</td></tr>
-<tr><td>601179</td><td>中国西电</td><td>2025-11-06</td><td>2025-11-27</td><td>低开买</td><td>8.24</td><td>40400</td><td>333162</td><td>2025-11-28</td><td>240</td><td>8.33</td><td>335926</td><td>2</td><td class="pnl-pos">2,764</td><td class="pnl-pos">0.83%</td></tr>
-<tr><td>2050</td><td>三花智控</td><td>2025-11-06</td><td>2025-11-27</td><td>低开买</td><td>43.2</td><td>7700</td><td>332906</td><td>2025-11-28</td><td>101</td><td>42.98</td><td>330351</td><td>2</td><td class="pnl-neg">-2,556</td><td class="pnl-neg">-0.77%</td></tr>
-<tr><td>559</td><td>万向钱潮</td><td>2025-11-06</td><td>2025-11-27</td><td>低开买</td><td>11.81</td><td>28200</td><td>333308</td><td>2025-11-28</td><td>229</td><td>12.53</td><td>352710</td><td>2</td><td class="pnl-pos">19,402</td><td class="pnl-pos">5.82%</td></tr>
-<tr><td>338</td><td>潍柴动力</td><td>2025-11-06</td><td>2025-11-26</td><td>低开买</td><td>16.97</td><td>19600</td><td>332878</td><td>2025-11-27</td><td>630</td><td>16.98</td><td>332209</td><td>2</td><td class="pnl-neg">-669</td><td class="pnl-neg">-0.20%</td></tr>
-<tr><td>603530</td><td>神马电力</td><td>2025-11-05</td><td>2025-11-26</td><td>低开买</td><td>40.08</td><td>8300</td><td>332930</td><td>2025-11-27</td><td>1849</td><td>39.5</td><td>327260</td><td>2</td><td class="pnl-neg">-5,670</td><td class="pnl-neg">-1.70%</td></tr>
-<tr><td>600550</td><td>保变电气</td><td>2025-11-05</td><td>2025-11-26</td><td>低开买</td><td>9.68</td><td>34400</td><td>333258</td><td>2025-11-27</td><td>811</td><td>9.3</td><td>319344</td><td>2</td><td class="pnl-neg">-13,914</td><td class="pnl-neg">-4.18%</td></tr>
-<tr><td>300591</td><td>万里马</td><td>2025-11-04</td><td>2025-11-25</td><td>低开买</td><td>10.03</td><td>33200</td><td>333262</td><td>2025-11-26</td><td>410</td><td>10.23</td><td>339025</td><td>2</td><td class="pnl-pos">5,762</td><td class="pnl-pos">1.73%</td></tr>
-<tr><td>300062</td><td>中能电气</td><td>2025-11-05</td><td>2025-11-25</td><td>低开买</td><td>8.26</td><td>40300</td><td>333144</td><td>2025-11-26</td><td>753</td><td>8.26</td><td>332279</td><td>2</td><td class="pnl-neg">-865</td><td class="pnl-neg">-0.26%</td></tr>
-<tr><td>300444</td><td>双杰电气</td><td>2025-11-05</td><td>2025-11-25</td><td>低开买</td><td>9.65</td><td>34500</td><td>333191</td><td>2025-11-26</td><td>525</td><td>9.29</td><td>319928</td><td>2</td><td class="pnl-neg">-13,263</td><td class="pnl-neg">-3.98%</td></tr>
-<tr><td>601929</td><td>吉视传媒</td><td>2025-11-03</td><td>2025-11-24</td><td>低开买</td><td>3.75</td><td>88800</td><td>333266</td><td>2025-11-25</td><td>246</td><td>3.94</td><td>349242</td><td>2</td><td class="pnl-pos">15,976</td><td class="pnl-pos">4.79%</td></tr>
-<tr><td>600667</td><td>太极实业</td><td>2025-11-03</td><td>2025-11-24</td><td>低开买</td><td>7.67</td><td>43400</td><td>333144</td><td>2025-11-25</td><td>672</td><td>7.9</td><td>342243</td><td>2</td><td class="pnl-pos">9,099</td><td class="pnl-pos">2.73%</td></tr>
-<tr><td>2611</td><td>东方精工</td><td>2025-11-03</td><td>2025-11-24</td><td>低开买</td><td>17.29</td><td>19200</td><td>332234</td><td>2025-11-25</td><td>489</td><td>17.35</td><td>332521</td><td>2</td><td class="pnl-pos">287</td><td class="pnl-pos">0.09%</td></tr>
-<tr><td>777</td><td>中核科技</td><td>2025-11-03</td><td>2025-11-21</td><td>低开买</td><td>21.01</td><td>15800</td><td>332224</td><td>2025-11-24</td><td>1237</td><td>20.54</td><td>323948</td><td>2</td><td class="pnl-neg">-8,276</td><td class="pnl-neg">-2.49%</td></tr>
-<tr><td>600635</td><td>大众公用</td><td>2025-10-31</td><td>2025-11-20</td><td>低开买</td><td>6.74</td><td>49400</td><td>333222</td><td>2025-11-24</td><td>143</td><td>6.96</td><td>343205</td><td>3</td><td class="pnl-pos">9,983</td><td class="pnl-pos">3.00%</td></tr>
-<tr><td>2402</td><td>和而泰</td><td>2025-10-31</td><td>2025-11-19</td><td>低开买</td><td>51.25</td><td>6500</td><td>333392</td><td>2025-11-24</td><td>60</td><td>46.98</td><td>304821</td><td>4</td><td class="pnl-neg">-28,571</td><td class="pnl-neg">-8.57%</td></tr>
-<tr><td>603686</td><td>福龙马</td><td>2025-10-30</td><td>2025-11-19</td><td>低开买</td><td>27.16</td><td>12200</td><td>331617</td><td>2025-11-21</td><td>131</td><td>25.37</td><td>308957</td><td>3</td><td class="pnl-neg">-22,660</td><td class="pnl-neg">-6.83%</td></tr>
-<tr><td>601012</td><td>隆基绿能</td><td>2025-10-29</td><td>2025-11-19</td><td>涨2%买</td><td>21.21</td><td>15700</td><td>333197</td><td>2025-11-20</td><td>74</td><td>20.1</td><td>315002</td><td>2</td><td class="pnl-neg">-18,195</td><td class="pnl-neg">-5.46%</td></tr>
-<tr><td>600021</td><td>上海电力</td><td>2025-10-29</td><td>2025-11-18</td><td>低开买</td><td>25.8</td><td>12900</td><td>333086</td><td>2025-11-19</td><td>241</td><td>25.32</td><td>326040</td><td>2</td><td class="pnl-neg">-7,046</td><td class="pnl-neg">-2.12%</td></tr>
-<tr><td>300450</td><td>先导智能</td><td>2025-10-29</td><td>2025-11-18</td><td>低开买</td><td>54.97</td><td>6000</td><td>330084</td><td>2025-11-19</td><td>305</td><td>50.89</td><td>304791</td><td>2</td><td class="pnl-neg">-25,293</td><td class="pnl-neg">-7.66%</td></tr>
-<tr><td>300274</td><td>阳光电源</td><td>2025-10-29</td><td>2025-11-18</td><td>低开买</td><td>183.69</td><td>1800</td><td>330907</td><td>2025-11-19</td><td>146</td><td>176.5</td><td>317128</td><td>2</td><td class="pnl-neg">-13,778</td><td class="pnl-neg">-4.16%</td></tr>
-<tr><td>601138</td><td>工业富联</td><td>2025-10-27</td><td>2025-11-17</td><td>低开买</td><td>64.39</td><td>5100</td><td>328652</td><td>2025-11-18</td><td>96</td><td>64.72</td><td>329478</td><td>2</td><td class="pnl-pos">826</td><td class="pnl-pos">0.25%</td></tr>
-<tr><td>603986</td><td>兆易创新</td><td>2025-10-27</td><td>2025-11-17</td><td>低开买</td><td>207.81</td><td>1600</td><td>332762</td><td>2025-11-18</td><td>232</td><td>202.5</td><td>323417</td><td>2</td><td class="pnl-neg">-9,345</td><td class="pnl-neg">-2.81%</td></tr>
-<tr><td>2217</td><td>合力泰</td><td>2025-10-28</td><td>2025-11-17</td><td>低开买</td><td>3.28</td><td>101500</td><td>333186</td><td>2025-11-18</td><td>622</td><td>3.24</td><td>328268</td><td>2</td><td class="pnl-neg">-4,918</td><td class="pnl-neg">-1.48%</td></tr>
-<tr><td>300655</td><td>晶瑞电材</td><td>2025-10-27</td><td>2025-11-14</td><td>低开买</td><td>15.9</td><td>20900</td><td>332576</td><td>2025-11-17</td><td>470</td><td>15.81</td><td>329834</td><td>2</td><td class="pnl-neg">-2,741</td><td class="pnl-neg">-0.82%</td></tr>
-<tr><td>300476</td><td>胜宏科技</td><td>2025-10-27</td><td>2025-11-14</td><td>低开买</td><td>282.18</td><td>1100</td><td>310646</td><td>2025-11-17</td><td>287</td><td>281.18</td><td>308741</td><td>2</td><td class="pnl-neg">-1,905</td><td class="pnl-neg">-0.61%</td></tr>
-<tr><td>300059</td><td>东方财富</td><td>2025-10-24</td><td>2025-11-13</td><td>低开买</td><td>24.59</td><td>13500</td><td>332231</td><td>2025-11-17</td><td>85</td><td>24.51</td><td>330290</td><td>3</td><td class="pnl-neg">-1,941</td><td class="pnl-neg">-0.58%</td></tr>
-<tr><td>600601</td><td>方正科技</td><td>2025-10-24</td><td>2025-11-13</td><td>低开买</td><td>11.19</td><td>29700</td><td>332609</td><td>2025-11-14</td><td>387</td><td>10.81</td><td>320479</td><td>2</td><td class="pnl-neg">-12,130</td><td class="pnl-neg">-3.65%</td></tr>
-<tr><td>300308</td><td>中际旭创</td><td>2025-10-24</td><td>2025-11-13</td><td>低开买</td><td>489.28</td><td>600</td><td>293803</td><td>2025-11-14</td><td>142</td><td>462.82</td><td>277192</td><td>2</td><td class="pnl-neg">-16,611</td><td class="pnl-neg">-5.65%</td></tr>
-<tr><td>600871</td><td>石化油服</td><td>2025-10-22</td><td>2025-11-12</td><td>低开买</td><td>2.35</td><td>141700</td><td>333261</td><td>2025-11-13</td><td>233</td><td>2.63</td><td>372000</td><td>2</td><td class="pnl-pos">38,739</td><td class="pnl-pos">11.62%</td></tr>
-<tr><td>2490</td><td>山东墨龙</td><td>2025-10-22</td><td>2025-11-12</td><td>低开买</td><td>7.47</td><td>44600</td><td>333429</td><td>2025-11-13</td><td>116</td><td>8.45</td><td>376192</td><td>2</td><td class="pnl-pos">42,763</td><td class="pnl-pos">12.83%</td></tr>
-<tr><td>2542</td><td>中化岩土</td><td>2025-10-21</td><td>2025-11-12</td><td>低开买</td><td>3.73</td><td>89300</td><td>333356</td><td>2025-11-13</td><td>1395</td><td>3.74</td><td>333381</td><td>2</td><td class="pnl-pos">26</td><td class="pnl-pos">0.01%</td></tr>
-<tr><td>852</td><td>石化机械</td><td>2025-10-21</td><td>2025-11-11</td><td>低开买</td><td>7.22</td><td>46100</td><td>333108</td><td>2025-11-12</td><td>263</td><td>7.5</td><td>345128</td><td>2</td><td class="pnl-pos">12,020</td><td class="pnl-pos">3.61%</td></tr>
-<tr><td>600460</td><td>士兰微</td><td>2025-10-20</td><td>2025-11-11</td><td>低开买</td><td>30.18</td><td>11000</td><td>332246</td><td>2025-11-12</td><td>533</td><td>28.86</td><td>316889</td><td>2</td><td class="pnl-neg">-15,357</td><td class="pnl-neg">-4.62%</td></tr>
-<tr><td>300179</td><td>四方达</td><td>2025-10-20</td><td>2025-11-10</td><td>涨2%买</td><td>14.33</td><td>23200</td><td>332745</td><td>2025-11-12</td><td>181</td><td>17.49</td><td>405038</td><td>3</td><td class="pnl-pos">72,293</td><td class="pnl-pos">21.73%</td></tr>
-<tr><td>600121</td><td>郑州煤电</td><td>2025-10-20</td><td>2025-11-10</td><td>涨2%买</td><td>5.56</td><td>59900</td><td>333251</td><td>2025-11-11</td><td>552</td><td>5.36</td><td>320486</td><td>2</td><td class="pnl-neg">-12,764</td><td class="pnl-neg">-3.83%</td></tr>
-<tr><td>2185</td><td>华天科技</td><td>2025-10-17</td><td>2025-11-07</td><td>低开买</td><td>11.83</td><td>28100</td><td>332689</td><td>2025-11-10</td><td>393</td><td>12.1</td><td>339398</td><td>2</td><td class="pnl-pos">6,709</td><td class="pnl-pos">2.02%</td></tr>
-<tr><td>601212</td><td>白银有色</td><td>2025-10-16</td><td>2025-11-07</td><td>低开买</td><td>5.03</td><td>66200</td><td>333252</td><td>2025-11-10</td><td>190</td><td>5.28</td><td>348907</td><td>2</td><td class="pnl-pos">15,655</td><td class="pnl-pos">4.70%</td></tr>
-<tr><td>2208</td><td>合肥城建</td><td>2025-10-17</td><td>2025-11-07</td><td>低开买</td><td>11.7</td><td>28400</td><td>332546</td><td>2025-11-11</td><td>192</td><td>11.63</td><td>329698</td><td>3</td><td class="pnl-neg">-2,848</td><td class="pnl-neg">-0.86%</td></tr>
-<tr><td>600580</td><td>卧龙电驱</td><td>2025-10-15</td><td>2025-11-06</td><td>低开买</td><td>44.45</td><td>7400</td><td>329193</td><td>2025-11-07</td><td>147</td><td>44.79</td><td>330850</td><td>2</td><td class="pnl-pos">1,656</td><td class="pnl-pos">0.50%</td></tr>
-<tr><td>63</td><td>中兴通讯</td><td>2025-10-16</td><td>2025-11-06</td><td>低开买</td><td>41.4</td><td>8000</td><td>331465</td><td>2025-11-07</td><td>149</td><td>41.72</td><td>333159</td><td>2</td><td class="pnl-pos">1,694</td><td class="pnl-pos">0.51%</td></tr>
-<tr><td>158</td><td>常山北明</td><td>2025-10-16</td><td>2025-11-06</td><td>低开买</td><td>23.79</td><td>14000</td><td>333326</td><td>2025-11-07</td><td>300</td><td>22.9</td><td>320023</td><td>2</td><td class="pnl-neg">-13,303</td><td class="pnl-neg">-3.99%</td></tr>
-<tr><td>600268</td><td>国电南自</td><td>2025-10-15</td><td>2025-11-05</td><td>低开买</td><td>11.8</td><td>28200</td><td>333026</td><td>2025-11-06</td><td>497</td><td>13.11</td><td>369037</td><td>2</td><td class="pnl-pos">36,011</td><td class="pnl-pos">10.81%</td></tr>
-<tr><td>2364</td><td>中恒电气</td><td>2025-10-15</td><td>2025-11-05</td><td>低开买</td><td>24.07</td><td>13800</td><td>332432</td><td>2025-11-06</td><td>188</td><td>27.4</td><td>377440</td><td>2</td><td class="pnl-pos">45,008</td><td class="pnl-pos">13.54%</td></tr>
-<tr><td>981</td><td>山子高科</td><td>2025-10-14</td><td>2025-11-05</td><td>低开买</td><td>3.72</td><td>89500</td><td>333206</td><td>2025-11-06</td><td>94</td><td>3.77</td><td>336808</td><td>2</td><td class="pnl-pos">3,601</td><td class="pnl-pos">1.08%</td></tr>
-<tr><td>603690</td><td>至纯科技</td><td>2025-10-13</td><td>2025-11-04</td><td>低开买</td><td>30.54</td><td>10900</td><td>333152</td><td>2025-11-05</td><td>714</td><td>30.2</td><td>328588</td><td>2</td><td class="pnl-neg">-4,565</td><td class="pnl-neg">-1.37%</td></tr>
-<tr><td>600745</td><td>闻泰科技</td><td>2025-10-13</td><td>2025-11-04</td><td>涨2%买</td><td>42.67</td><td>7800</td><td>333066</td><td>2025-11-05</td><td>63</td><td>43.08</td><td>335419</td><td>2</td><td class="pnl-pos">2,354</td><td class="pnl-pos">0.71%</td></tr>
-<tr><td>831</td><td>中国稀土</td><td>2025-10-13</td><td>2025-11-03</td><td>低开买</td><td>52.0</td><td>6400</td><td>333066</td><td>2025-11-04</td><td>436</td><td>49.4</td><td>315591</td><td>2</td><td class="pnl-neg">-17,475</td><td class="pnl-neg">-5.25%</td></tr>
-<tr><td>300127</td><td>银河磁体</td><td>2025-10-13</td><td>2025-11-03</td><td>低开买</td><td>34.05</td><td>9700</td><td>330549</td><td>2025-11-04</td><td>1728</td><td>33.07</td><td>320202</td><td>2</td><td class="pnl-neg">-10,347</td><td class="pnl-neg">-3.13%</td></tr>
-<tr><td>600010</td><td>包钢股份</td><td>2025-10-13</td><td>2025-11-03</td><td>低开买</td><td>2.75</td><td>121100</td><td>333291</td><td>2025-11-05</td><td>95</td><td>2.72</td><td>328799</td><td>3</td><td class="pnl-neg">-4,492</td><td class="pnl-neg">-1.35%</td></tr>
-<tr><td>603011</td><td>合锻智能</td><td>2025-10-10</td><td>2025-10-31</td><td>涨2%买</td><td>24.26</td><td>13700</td><td>332568</td><td>2025-11-03</td><td>249</td><td>23.57</td><td>322328</td><td>2</td><td class="pnl-neg">-10,240</td><td class="pnl-neg">-3.08%</td></tr>
-<tr><td>601899</td><td>紫金矿业</td><td>2025-10-09</td><td>2025-10-31</td><td>低开买</td><td>31.11</td><td>10700</td><td>333143</td><td>2025-11-03</td><td>132</td><td>30.0</td><td>320422</td><td>2</td><td class="pnl-neg">-12,721</td><td class="pnl-neg">-3.82%</td></tr>
-<tr><td>21</td><td>深科技</td><td>2025-10-09</td><td>2025-10-31</td><td>低开买</td><td>28.6</td><td>11600</td><td>332025</td><td>2025-11-03</td><td>201</td><td>27.15</td><td>314373</td><td>2</td><td class="pnl-neg">-17,652</td><td class="pnl-neg">-5.32%</td></tr>
-<tr><td>603799</td><td>华友钴业</td><td>2025-09-30</td><td>2025-10-30</td><td>低开买</td><td>62.5</td><td>5300</td><td>331515</td><td>2025-10-31</td><td>104</td><td>64.81</td><td>342875</td><td>2</td><td class="pnl-pos">11,360</td><td class="pnl-pos">3.43%</td></tr>
-<tr><td>600030</td><td>中信证券</td><td>2025-09-29</td><td>2025-10-30</td><td>低开买</td><td>30.19</td><td>11000</td><td>332356</td><td>2025-10-31</td><td>213</td><td>29.38</td><td>322598</td><td>2</td><td class="pnl-neg">-9,757</td><td class="pnl-neg">-2.94%</td></tr>
-<tr><td>2670</td><td>国盛证券</td><td>2025-09-29</td><td>2025-10-30</td><td>低开买</td><td>21.45</td><td>15500</td><td>332741</td><td>2025-10-31</td><td>477</td><td>20.91</td><td>323522</td><td>2</td><td class="pnl-neg">-9,219</td><td class="pnl-neg">-2.77%</td></tr>
-<tr><td>601127</td><td>赛力斯</td><td>2025-09-26</td><td>2025-10-29</td><td>涨2%买</td><td>160.05</td><td>2000</td><td>320353</td><td>2025-10-30</td><td>128</td><td>162.94</td><td>325294</td><td>2</td><td class="pnl-pos">4,941</td><td class="pnl-pos">1.54%</td></tr>
-<tr><td>601727</td><td>上海电气</td><td>2025-09-25</td><td>2025-10-29</td><td>低开买</td><td>9.51</td><td>35000</td><td>333116</td><td>2025-10-30</td><td>126</td><td>9.39</td><td>328059</td><td>2</td><td class="pnl-neg">-5,058</td><td class="pnl-neg">-1.52%</td></tr>
-<tr><td>601218</td><td>吉鑫科技</td><td>2025-09-26</td><td>2025-10-29</td><td>涨2%买</td><td>5.77</td><td>57700</td><td>333380</td><td>2025-10-30</td><td>755</td><td>5.68</td><td>327146</td><td>2</td><td class="pnl-neg">-6,234</td><td class="pnl-neg">-1.87%</td></tr>
-<tr><td>600556</td><td>天下秀</td><td>2025-09-25</td><td>2025-10-28</td><td>低开买</td><td>5.55</td><td>60000</td><td>333266</td><td>2025-10-29</td><td>233</td><td>5.98</td><td>358154</td><td>2</td><td class="pnl-pos">24,888</td><td class="pnl-pos">7.47%</td></tr>
-<tr><td>300750</td><td>宁德时代</td><td>2025-09-25</td><td>2025-10-28</td><td>低开买</td><td>386.16</td><td>800</td><td>309175</td><td>2025-10-29</td><td>74</td><td>400.0</td><td>319424</td><td>2</td><td class="pnl-pos">10,249</td><td class="pnl-pos">3.31%</td></tr>
-<tr><td>2298</td><td>中电鑫龙</td><td>2025-09-25</td><td>2025-10-28</td><td>低开买</td><td>11.91</td><td>27900</td><td>332555</td><td>2025-10-29</td><td>222</td><td>12.18</td><td>339211</td><td>2</td><td class="pnl-pos">6,656</td><td class="pnl-pos">2.00%</td></tr>
-<tr><td>2129</td><td>TCL中环</td><td>2025-09-25</td><td>2025-10-27</td><td>低开买</td><td>8.82</td><td>37700</td><td>332780</td><td>2025-10-28</td><td>286</td><td>8.98</td><td>337937</td><td>2</td><td class="pnl-pos">5,157</td><td class="pnl-pos">1.55%</td></tr>
-<tr><td>988</td><td>华工科技</td><td>2025-09-25</td><td>2025-10-27</td><td>低开买</td><td>84.0</td><td>3900</td><td>327862</td><td>2025-10-28</td><td>150</td><td>86.63</td><td>337249</td><td>2</td><td class="pnl-pos">9,387</td><td class="pnl-pos">2.86%</td></tr>
-<tr><td>977</td><td>浪潮信息</td><td>2025-09-25</td><td>2025-10-27</td><td>低开买</td><td>68.9</td><td>4800</td><td>330985</td><td>2025-10-28</td><td>177</td><td>68.17</td><td>326627</td><td>2</td><td class="pnl-neg">-4,357</td><td class="pnl-neg">-1.32%</td></tr>
-<tr><td>600126</td><td>杭钢股份</td><td>2025-09-24</td><td>2025-10-24</td><td>低开买</td><td>8.86</td><td>37600</td><td>333403</td><td>2025-10-27</td><td>699</td><td>9.1</td><td>341544</td><td>2</td><td class="pnl-pos">8,142</td><td class="pnl-pos">2.44%</td></tr>
-<tr><td>2371</td><td>北方华创</td><td>2025-09-24</td><td>2025-10-24</td><td>低开买</td><td>406.02</td><td>800</td><td>325076</td><td>2025-10-27</td><td>192</td><td>429.1</td><td>342662</td><td>2</td><td class="pnl-pos">17,586</td><td class="pnl-pos">5.41%</td></tr>
-<tr><td>600895</td><td>张江高科</td><td>2025-09-23</td><td>2025-10-24</td><td>低开买</td><td>44.87</td><td>7400</td><td>332304</td><td>2025-10-27</td><td>182</td><td>46.04</td><td>340083</td><td>2</td><td class="pnl-pos">7,779</td><td class="pnl-pos">2.34%</td></tr>
-<tr><td>300604</td><td>长川科技</td><td>2025-09-23</td><td>2025-10-23</td><td>涨2%买</td><td>81.88</td><td>4000</td><td>327764</td><td>2025-10-24</td><td>108</td><td>88.62</td><td>353842</td><td>2</td><td class="pnl-pos">26,079</td><td class="pnl-pos">7.96%</td></tr>
-<tr><td>2549</td><td>凯美特气</td><td>2025-09-23</td><td>2025-10-23</td><td>低开买</td><td>25.0</td><td>13300</td><td>332766</td><td>2025-10-24</td><td>173</td><td>24.53</td><td>325662</td><td>2</td><td class="pnl-neg">-7,104</td><td class="pnl-neg">-2.13%</td></tr>
-<tr><td>603019</td><td>中科曙光</td><td>2025-09-22</td><td>2025-10-23</td><td>低开买</td><td>108.5</td><td>3000</td><td>325760</td><td>2025-10-24</td><td>51</td><td>113.92</td><td>341145</td><td>2</td><td class="pnl-pos">15,385</td><td class="pnl-pos">4.72%</td></tr>
-<tr><td>300115</td><td>长盈精密</td><td>2025-09-22</td><td>2025-10-22</td><td>低开买</td><td>35.9</td><td>9200</td><td>330544</td><td>2025-10-23</td><td>445</td><td>35.28</td><td>323992</td><td>2</td><td class="pnl-neg">-6,552</td><td class="pnl-neg">-1.98%</td></tr>
-<tr><td>2600</td><td>领益智造</td><td>2025-09-22</td><td>2025-10-22</td><td>低开买</td><td>14.82</td><td>22400</td><td>332234</td><td>2025-10-23</td><td>189</td><td>14.59</td><td>326228</td><td>2</td><td class="pnl-neg">-6,006</td><td class="pnl-neg">-1.81%</td></tr>
-<tr><td>2097</td><td>山河智能</td><td>2025-09-19</td><td>2025-10-21</td><td>低开买</td><td>12.8</td><td>26000</td><td>333066</td><td>2025-10-23</td><td>92</td><td>13.53</td><td>351147</td><td>3</td><td class="pnl-pos">18,081</td><td class="pnl-pos">5.43%</td></tr>
-<tr><td>601138</td><td>工业富联</td><td>2025-09-18</td><td>2025-10-21</td><td>低开买</td><td>62.94</td><td>5200</td><td>327550</td><td>2025-10-22</td><td>65</td><td>65.46</td><td>339780</td><td>2</td><td class="pnl-pos">12,230</td><td class="pnl-pos">3.73%</td></tr>
-<tr><td>2065</td><td>东华软件</td><td>2025-09-22</td><td>2025-10-21</td><td>低开买</td><td>10.01</td><td>33200</td><td>332598</td><td>2025-10-22</td><td>589</td><td>9.93</td><td>329083</td><td>2</td><td class="pnl-neg">-3,515</td><td class="pnl-neg">-1.06%</td></tr>
-<tr><td>600699</td><td>均胜电子</td><td>2025-09-17</td><td>2025-10-20</td><td>低开买</td><td>29.97</td><td>11100</td><td>332933</td><td>2025-10-21</td><td>123</td><td>32.47</td><td>359768</td><td>2</td><td class="pnl-pos">26,835</td><td class="pnl-pos">8.06%</td></tr>
-<tr><td>737</td><td>北方铜业</td><td>2025-09-17</td><td>2025-10-20</td><td>涨2%买</td><td>15.56</td><td>21400</td><td>333143</td><td>2025-10-21</td><td>381</td><td>15.92</td><td>340075</td><td>2</td><td class="pnl-pos">6,932</td><td class="pnl-pos">2.08%</td></tr>
-<tr><td>600143</td><td>金发科技</td><td>2025-09-17</td><td>2025-10-20</td><td>低开买</td><td>19.16</td><td>17300</td><td>331733</td><td>2025-10-21</td><td>247</td><td>19.6</td><td>338470</td><td>2</td><td class="pnl-pos">6,737</td><td class="pnl-pos">2.03%</td></tr>
-<tr><td>2195</td><td>岩山科技</td><td>2025-09-16</td><td>2025-10-17</td><td>低开买</td><td>7.31</td><td>45500</td><td>332871</td><td>2025-10-20</td><td>102</td><td>7.34</td><td>333369</td><td>2</td><td class="pnl-pos">498</td><td class="pnl-pos">0.15%</td></tr>
-<tr><td>600977</td><td>中国电影</td><td>2025-09-15</td><td>2025-10-16</td><td>低开买</td><td>13.73</td><td>24200</td><td>332532</td><td>2025-10-17</td><td>786</td><td>13.24</td><td>319831</td><td>2</td><td class="pnl-neg">-12,700</td><td class="pnl-neg">-3.82%</td></tr>
-<tr><td>600171</td><td>上海贝岭</td><td>2025-09-15</td><td>2025-10-15</td><td>低开买</td><td>35.33</td><td>9400</td><td>332368</td><td>2025-10-16</td><td>577</td><td>34.96</td><td>328033</td><td>2</td><td class="pnl-neg">-4,335</td><td class="pnl-neg">-1.30%</td></tr>
-<tr><td>300661</td><td>圣邦股份</td><td>2025-09-15</td><td>2025-10-14</td><td>低开买</td><td>87.21</td><td>3800</td><td>331663</td><td>2025-10-15</td><td>541</td><td>81.7</td><td>309901</td><td>2</td><td class="pnl-neg">-21,762</td><td class="pnl-neg">-6.56%</td></tr>
-<tr><td>600111</td><td>北方稀土</td><td>2025-09-12</td><td>2025-10-13</td><td>涨2%买</td><td>54.66</td><td>6000</td><td>328233</td><td>2025-10-20</td><td>78</td><td>52.22</td><td>312756</td><td>6</td><td class="pnl-neg">-15,477</td><td class="pnl-neg">-4.72%</td></tr>
-<tr><td>600103</td><td>青山纸业</td><td>2025-09-12</td><td>2025-10-13</td><td>低开买</td><td>3.39</td><td>98200</td><td>333164</td><td>2025-10-14</td><td>121</td><td>3.63</td><td>355825</td><td>2</td><td class="pnl-pos">22,660</td><td class="pnl-pos">6.80%</td></tr>
-<tr><td>300252</td><td>金信诺</td><td>2025-09-11</td><td>2025-10-10</td><td>低开买</td><td>14.18</td><td>23400</td><td>332077</td><td>2025-10-13</td><td>1010</td><td>13.73</td><td>320704</td><td>2</td><td class="pnl-neg">-11,374</td><td class="pnl-neg">-3.42%</td></tr>
-<tr><td>600050</td><td>中国联通</td><td>2025-09-10</td><td>2025-10-10</td><td>低开买</td><td>5.45</td><td>61100</td><td>333261</td><td>2025-10-13</td><td>381</td><td>5.42</td><td>330566</td><td>2</td><td class="pnl-neg">-2,695</td><td class="pnl-neg">-0.81%</td></tr>
-<tr><td>2467</td><td>二六三</td><td>2025-09-10</td><td>2025-10-09</td><td>低开买</td><td>6.4</td><td>52000</td><td>333066</td><td>2025-10-10</td><td>978</td><td>6.34</td><td>329087</td><td>2</td><td class="pnl-neg">-3,980</td><td class="pnl-neg">-1.19%</td></tr>
-<tr><td>2131</td><td>利欧股份</td><td>2025-09-10</td><td>2025-10-09</td><td>低开买</td><td>5.71</td><td>58300</td><td>333159</td><td>2025-10-10</td><td>113</td><td>5.8</td><td>337532</td><td>2</td><td class="pnl-pos">4,372</td><td class="pnl-pos">1.31%</td></tr>
-<tr><td>600118</td><td>中国卫星</td><td>2025-09-08</td><td>2025-09-30</td><td>低开买</td><td>35.76</td><td>9300</td><td>332834</td><td>2025-10-09</td><td>490</td><td>37.29</td><td>346173</td><td>2</td><td class="pnl-pos">13,339</td><td class="pnl-pos">4.01%</td></tr>
-<tr><td>2617</td><td>露笑科技</td><td>2025-09-08</td><td>2025-09-29</td><td>低开买</td><td>9.39</td><td>35400</td><td>332672</td><td>2025-09-30</td><td>258</td><td>9.28</td><td>327921</td><td>2</td><td class="pnl-neg">-4,751</td><td class="pnl-neg">-1.43%</td></tr>
-<tr><td>300014</td><td>亿纬锂能</td><td>2025-09-05</td><td>2025-09-26</td><td>涨2%买</td><td>79.32</td><td>4200</td><td>333390</td><td>2025-10-09</td><td>166</td><td>90.27</td><td>378452</td><td>4</td><td class="pnl-pos">45,061</td><td class="pnl-pos">13.52%</td></tr>
-<tr><td>2176</td><td>江特电机</td><td>2025-09-08</td><td>2025-09-26</td><td>低开买</td><td>9.68</td><td>34400</td><td>333258</td><td>2025-09-29</td><td>402</td><td>9.8</td><td>336513</td><td>2</td><td class="pnl-pos">3,255</td><td class="pnl-pos">0.98%</td></tr>
-<tr><td>601288</td><td>农业银行</td><td>2025-09-04</td><td>2025-09-25</td><td>低开买</td><td>6.43</td><td>51800</td><td>333341</td><td>2025-09-26</td><td>295</td><td>6.5</td><td>336094</td><td>2</td><td class="pnl-pos">2,754</td><td class="pnl-pos">0.83%</td></tr>
-<tr><td>2426</td><td>胜利精密</td><td>2025-09-04</td><td>2025-09-25</td><td>低开买</td><td>3.6</td><td>92500</td><td>333266</td><td>2025-09-26</td><td>870</td><td>3.5</td><td>323167</td><td>2</td><td class="pnl-neg">-10,099</td><td class="pnl-neg">-3.03%</td></tr>
-<tr><td>2251</td><td>步步高</td><td>2025-09-04</td><td>2025-09-24</td><td>低开买</td><td>5.42</td><td>61400</td><td>333054</td><td>2025-09-25</td><td>109</td><td>5.81</td><td>356092</td><td>2</td><td class="pnl-pos">23,038</td><td class="pnl-pos">6.92%</td></tr>
-<tr><td>2115</td><td>三维通信</td><td>2025-09-04</td><td>2025-09-24</td><td>低开买</td><td>10.95</td><td>30400</td><td>333146</td><td>2025-09-25</td><td>363</td><td>11.01</td><td>334102</td><td>2</td><td class="pnl-pos">955</td><td class="pnl-pos">0.29%</td></tr>
-<tr><td>564</td><td>供销大集</td><td>2025-09-04</td><td>2025-09-23</td><td>低开买</td><td>2.71</td><td>122900</td><td>333325</td><td>2025-09-24</td><td>251</td><td>2.63</td><td>322645</td><td>2</td><td class="pnl-neg">-10,680</td><td class="pnl-neg">-3.20%</td></tr>
-<tr><td>2547</td><td>春兴精工</td><td>2025-09-03</td><td>2025-09-23</td><td>涨2%买</td><td>5.67</td><td>58700</td><td>333166</td><td>2025-09-24</td><td>479</td><td>5.52</td><td>323441</td><td>2</td><td class="pnl-neg">-9,725</td><td class="pnl-neg">-2.92%</td></tr>
-<tr><td>601099</td><td>太平洋</td><td>2025-09-02</td><td>2025-09-22</td><td>低开买</td><td>4.68</td><td>71100</td><td>333014</td><td>2025-09-23</td><td>325</td><td>4.53</td><td>321503</td><td>2</td><td class="pnl-neg">-11,511</td><td class="pnl-neg">-3.46%</td></tr>
-<tr><td>600410</td><td>华胜天成</td><td>2025-09-02</td><td>2025-09-22</td><td>低开买</td><td>21.51</td><td>15400</td><td>331519</td><td>2025-09-23</td><td>99</td><td>20.18</td><td>310213</td><td>2</td><td class="pnl-neg">-21,306</td><td class="pnl-neg">-6.43%</td></tr>
-<tr><td>603881</td><td>数据港</td><td>2025-09-01</td><td>2025-09-19</td><td>低开买</td><td>35.78</td><td>9300</td><td>333020</td><td>2025-09-22</td><td>120</td><td>37.15</td><td>344873</td><td>2</td><td class="pnl-pos">11,853</td><td class="pnl-pos">3.56%</td></tr>
-<tr><td>300324</td><td>旋极信息</td><td>2025-09-01</td><td>2025-09-18</td><td>低开买</td><td>7.42</td><td>44900</td><td>333425</td><td>2025-09-19</td><td>186</td><td>7.5</td><td>336144</td><td>2</td><td class="pnl-pos">2,719</td><td class="pnl-pos">0.82%</td></tr>
-<tr><td>300308</td><td>中际旭创</td><td>2025-09-01</td><td>2025-09-17</td><td>低开买</td><td>404.6</td><td>800</td><td>323939</td><td>2025-09-18</td><td>72</td><td>409.0</td><td>326611</td><td>2</td><td class="pnl-pos">2,672</td><td class="pnl-pos">0.82%</td></tr>
-<tr><td>601606</td><td>长城军工</td><td>2025-08-29</td><td>2025-09-16</td><td>低开买</td><td>48.98</td><td>6800</td><td>333331</td><td>2025-09-17</td><td>227</td><td>47.07</td><td>319500</td><td>2</td><td class="pnl-neg">-13,830</td><td class="pnl-neg">-4.15%</td></tr>
-<tr><td>688981</td><td>中芯国际</td><td>2025-08-28</td><td>2025-09-15</td><td>低开买</td><td>110.55</td><td>3000</td><td>331915</td><td>2025-09-16</td><td>189</td><td>109.78</td><td>328747</td><td>2</td><td class="pnl-neg">-3,168</td><td class="pnl-neg">-0.95%</td></tr>
-<tr><td>300476</td><td>胜宏科技</td><td>2025-08-28</td><td>2025-09-05</td><td>低开买</td><td>256.0</td><td>1300</td><td>333066</td><td>2025-09-15</td><td>84</td><td>329.56</td><td>427657</td><td>7</td><td class="pnl-pos">94,591</td><td class="pnl-pos">28.40%</td></tr>
-<tr><td>300394</td><td>天孚通信</td><td>2025-08-28</td><td>2025-09-04</td><td>涨2%买</td><td>183.1</td><td>1800</td><td>329844</td><td>2025-09-05</td><td>103</td><td>186.3</td><td>334737</td><td>2</td><td class="pnl-pos">4,893</td><td class="pnl-pos">1.48%</td></tr>
-<tr><td>2241</td><td>歌尔股份</td><td>2025-08-26</td><td>2025-09-03</td><td>低开买</td><td>33.21</td><td>10000</td><td>332366</td><td>2025-09-04</td><td>141</td><td>31.73</td><td>316729</td><td>2</td><td class="pnl-neg">-15,637</td><td class="pnl-neg">-4.70%</td></tr>
-<tr><td>600010</td><td>包钢股份</td><td>2025-08-25</td><td>2025-09-02</td><td>低开买</td><td>2.72</td><td>122400</td><td>333194</td><td>2025-09-03</td><td>175</td><td>2.56</td><td>312780</td><td>2</td><td class="pnl-neg">-20,414</td><td class="pnl-neg">-6.13%</td></tr>
-<tr><td>2611</td><td>东方精工</td><td>2025-08-25</td><td>2025-09-01</td><td>低开买</td><td>18.7</td><td>17800</td><td>333126</td><td>2025-09-02</td><td>239</td><td>17.89</td><td>317869</td><td>2</td><td class="pnl-neg">-15,257</td><td class="pnl-neg">-4.58%</td></tr>
-<tr><td>300418</td><td>昆仑万维</td><td>2025-08-22</td><td>2025-08-29</td><td>低开买</td><td>41.11</td><td>8100</td><td>333257</td><td>2025-09-01</td><td>359</td><td>41.67</td><td>336920</td><td>2</td><td class="pnl-pos">3,662</td><td class="pnl-pos">1.10%</td></tr>
-<tr><td>603123</td><td>翠微股份</td><td>2025-08-21</td><td>2025-08-28</td><td>低开买</td><td>14.03</td><td>23700</td><td>332777</td><td>2025-08-29</td><td>693</td><td>14.13</td><td>334278</td><td>2</td><td class="pnl-pos">1,501</td><td class="pnl-pos">0.45%</td></tr>
-<tr><td>601929</td><td>吉视传媒</td><td>2025-08-21</td><td>2025-08-28</td><td>涨2%买</td><td>4.04</td><td>82400</td><td>333096</td><td>2025-09-22</td><td>59</td><td>4.3</td><td>353682</td><td>18</td><td class="pnl-pos">20,586</td><td class="pnl-pos">6.18%</td></tr>
-<tr><td>300766</td><td>每日互动</td><td>2025-08-21</td><td>2025-08-27</td><td>涨2%买</td><td>48.94</td><td>6800</td><td>333056</td><td>2025-08-28</td><td>424</td><td>45.1</td><td>306128</td><td>2</td><td class="pnl-neg">-26,927</td><td class="pnl-neg">-8.08%</td></tr>
-<tr><td>300352</td><td>北信源</td><td>2025-08-21</td><td>2025-08-27</td><td>低开买</td><td>7.13</td><td>46700</td><td>333237</td><td>2025-08-28</td><td>587</td><td>6.74</td><td>314192</td><td>2</td><td class="pnl-neg">-19,046</td><td class="pnl-neg">-5.72%</td></tr>
-<tr><td>2177</td><td>御银股份</td><td>2025-08-21</td><td>2025-08-26</td><td>涨2%买</td><td>9.27</td><td>35900</td><td>333124</td><td>2025-08-27</td><td>91</td><td>8.41</td><td>301376</td><td>2</td><td class="pnl-neg">-31,748</td><td class="pnl-neg">-9.53%</td></tr>
-<tr><td>600703</td><td>三安光电</td><td>2025-08-20</td><td>2025-08-26</td><td>涨2%买</td><td>14.72</td><td>22600</td><td>332907</td><td>2025-08-27</td><td>131</td><td>15.35</td><td>346286</td><td>2</td><td class="pnl-pos">13,379</td><td class="pnl-pos">4.02%</td></tr>
-<tr><td>536</td><td>华映科技</td><td>2025-08-20</td><td>2025-08-25</td><td>涨2%买</td><td>5.68</td><td>58600</td><td>333196</td><td>2025-08-26</td><td>75</td><td>5.93</td><td>346873</td><td>2</td><td class="pnl-pos">13,676</td><td class="pnl-pos">4.10%</td></tr>
-<tr><td>601138</td><td>工业富联</td><td>2025-08-19</td><td>2025-08-22</td><td>低开买</td><td>44.5</td><td>7400</td><td>329563</td><td>2025-08-26</td><td>51</td><td>45.48</td><td>335946</td><td>3</td><td class="pnl-pos">6,383</td><td class="pnl-pos">1.94%</td></tr>
-<tr><td>600839</td><td>四川长虹</td><td>2025-08-19</td><td>2025-08-21</td><td>涨2%买</td><td>11.9</td><td>27900</td><td>332371</td><td>2025-08-25</td><td>67</td><td>12.0</td><td>334198</td><td>3</td><td class="pnl-pos">1,827</td><td class="pnl-pos">0.55%</td></tr>
-<tr><td>2600</td><td>领益智造</td><td>2025-08-18</td><td>2025-08-19</td><td>涨2%买</td><td>11.33</td><td>29300</td><td>332299</td><td>2025-08-22</td><td>56</td><td>12.31</td><td>360034</td><td>4</td><td class="pnl-pos">27,735</td><td class="pnl-pos">8.35%</td></tr>
-<tr><td>2837</td><td>英维克</td><td>2025-08-18</td><td>2025-08-19</td><td>低开买</td><td>69.0</td><td>4800</td><td>331465</td><td>2025-08-21</td><td>56</td><td>64.6</td><td>309522</td><td>3</td><td class="pnl-neg">-21,943</td><td class="pnl-neg">-6.62%</td></tr>
-<tr><td>300803</td><td>指南针</td><td>2025-08-15</td><td>2025-08-18</td><td>涨2%买</td><td>112.07</td><td>2900</td><td>325256</td><td>2025-08-19</td><td>95</td><td>126.55</td><td>366335</td><td>2</td><td class="pnl-pos">41,079</td><td class="pnl-pos">12.63%</td></tr>
-<tr><td>300059</td><td>东方财富</td><td>2025-08-15</td><td>2025-08-18</td><td>涨2%买</td><td>27.3</td><td>12200</td><td>333268</td><td>2025-10-20</td><td>51</td><td>25.02</td><td>304695</td><td>40</td><td class="pnl-neg">-28,573</td><td class="pnl-neg">-8.57%</td></tr>
-<tr><td>601162</td><td>天风证券</td><td>2025-08-15</td><td>2025-08-18</td><td>涨2%买</td><td>5.65</td><td>58900</td><td>333098</td><td>2025-08-19</td><td>96</td><td>5.63</td><td>331010</td><td>2</td><td class="pnl-neg">-2,088</td><td class="pnl-neg">-0.63%</td></tr>
-<tr><td>901</td><td>航天科技</td><td>2025-08-11</td><td>2025-08-12</td><td>涨2%买</td><td>19.02</td><td>17500</td><td>333169</td><td>2025-08-18</td><td>104</td><td>20.7</td><td>361598</td><td>5</td><td class="pnl-pos">28,429</td><td class="pnl-pos">8.53%</td></tr>
-<tr><td>2046</td><td>国机精工</td><td>2025-08-08</td><td>2025-08-11</td><td>涨2%买</td><td>31.67</td><td>10500</td><td>332812</td><td>2025-08-12</td><td>97</td><td>31.35</td><td>328583</td><td>2</td><td class="pnl-neg">-4,229</td><td class="pnl-neg">-1.27%</td></tr>
-<tr><td>2017</td><td>东信和平</td><td>2025-08-05</td><td>2025-08-06</td><td>涨2%买</td><td>27.7</td><td>12000</td><td>332704</td><td>2025-08-11</td><td>113</td><td>29.16</td><td>349290</td><td>4</td><td class="pnl-pos">16,586</td><td class="pnl-pos">4.99%</td></tr>
-<tr><td>558</td><td>天府文旅</td><td>2025-07-30</td><td>2025-07-31</td><td>涨2%买</td><td>6.72</td><td>49500</td><td>332995</td><td>2025-08-06</td><td>51</td><td>6.62</td><td>327100</td><td>5</td><td class="pnl-neg">-5,895</td><td class="pnl-neg">-1.77%</td></tr>
-<tr><td>2017</td><td>东信和平</td><td>2025-07-28</td><td>2025-07-29</td><td>低开买</td><td>26.89</td><td>12300</td><td>331012</td><td>2025-07-31</td><td>67</td><td>24.85</td><td>305105</td><td>3</td><td class="pnl-neg">-25,907</td><td class="pnl-neg">-7.83%</td></tr>
-<tr><td>2097</td><td>山河智能</td><td>2025-07-25</td><td>2025-07-28</td><td>涨2%买</td><td>11.23</td><td>29600</td><td>332680</td><td>2025-08-18</td><td>59</td><td>18.8</td><td>555479</td><td>16</td><td class="pnl-pos">222,799</td><td class="pnl-pos">66.97%</td></tr>
-<tr><td>300781</td><td>因赛集团</td><td>2025-07-25</td><td>2025-07-28</td><td>低开买</td><td>44.88</td><td>7400</td><td>332378</td><td>2025-07-29</td><td>146</td><td>45.7</td><td>337571</td><td>2</td><td class="pnl-pos">5,194</td><td class="pnl-pos">1.56%</td></tr>
-<tr><td>657</td><td>中钨高新</td><td>2025-07-24</td><td>2025-07-25</td><td>涨2%买</td><td>18.16</td><td>18300</td><td>332521</td><td>2025-07-28</td><td>66</td><td>18.01</td><td>328990</td><td>2</td><td class="pnl-neg">-3,531</td><td class="pnl-neg">-1.06%</td></tr>
-<tr><td>2497</td><td>雅化集团</td><td>2025-07-23</td><td>2025-07-24</td><td>低开买</td><td>14.73</td><td>22600</td><td>333164</td><td>2025-07-28</td><td>70</td><td>15.75</td><td>355310</td><td>3</td><td class="pnl-pos">22,145</td><td class="pnl-pos">6.65%</td></tr>
-<tr><td>2266</td><td>浙富控股</td><td>2025-07-23</td><td>2025-07-24</td><td>涨2%买</td><td>4.56</td><td>73000</td><td>333103</td><td>2025-07-25</td><td>92</td><td>4.0</td><td>291475</td><td>2</td><td class="pnl-neg">-41,628</td><td class="pnl-neg">-12.50%</td></tr>
-<tr><td>528</td><td>柳    工</td><td>2025-07-22</td><td>2025-07-23</td><td>涨2%买</td><td>12.2</td><td>27300</td><td>333305</td><td>2025-07-24</td><td>140</td><td>11.57</td><td>315293</td><td>2</td><td class="pnl-neg">-18,012</td><td class="pnl-neg">-5.40%</td></tr>
-<tr><td>600580</td><td>卧龙电驱</td><td>2025-07-21</td><td>2025-07-22</td><td>涨2%买</td><td>23.57</td><td>14100</td><td>332634</td><td>2025-07-24</td><td>89</td><td>23.97</td><td>337369</td><td>3</td><td class="pnl-pos">4,735</td><td class="pnl-pos">1.42%</td></tr>
-<tr><td>300718</td><td>长盛轴承</td><td>2025-07-21</td><td>2025-07-22</td><td>涨2%买</td><td>97.01</td><td>3400</td><td>330105</td><td>2025-07-23</td><td>173</td><td>93.36</td><td>316853</td><td>2</td><td class="pnl-neg">-13,253</td><td class="pnl-neg">-4.01%</td></tr>
-<tr><td>2167</td><td>东方锆业</td><td>2025-07-18</td><td>2025-07-21</td><td>涨2%买</td><td>12.1</td><td>27500</td><td>332939</td><td>2025-07-22</td><td>260</td><td>12.5</td><td>343131</td><td>2</td><td class="pnl-pos">10,192</td><td class="pnl-pos">3.06%</td></tr>
-<tr><td>617</td><td>中油资本</td><td>2025-07-18</td><td>2025-07-21</td><td>低开买</td><td>9.48</td><td>35100</td><td>333014</td><td>2025-07-22</td><td>222</td><td>9.23</td><td>323390</td><td>2</td><td class="pnl-neg">-9,624</td><td class="pnl-neg">-2.89%</td></tr>
-<tr><td>158</td><td>常山北明</td><td>2025-07-17</td><td>2025-07-18</td><td>低开买</td><td>24.0</td><td>13800</td><td>331465</td><td>2025-07-21</td><td>133</td><td>24.13</td><td>332395</td><td>2</td><td class="pnl-pos">930</td><td class="pnl-pos">0.28%</td></tr>
-<tr><td>2017</td><td>东信和平</td><td>2025-07-16</td><td>2025-07-17</td><td>涨2%买</td><td>18.6</td><td>17900</td><td>333292</td><td>2025-07-18</td><td>66</td><td>18.48</td><td>330197</td><td>2</td><td class="pnl-neg">-3,096</td><td class="pnl-neg">-0.93%</td></tr>
-<tr><td>514</td><td>渝 开 发</td><td>2025-07-15</td><td>2025-07-16</td><td>低开买</td><td>6.96</td><td>47800</td><td>332954</td><td>2025-07-17</td><td>201</td><td>6.59</td><td>314435</td><td>2</td><td class="pnl-neg">-18,519</td><td class="pnl-neg">-5.56%</td></tr>
-<tr><td>678</td><td>襄阳轴承</td><td>2025-07-14</td><td>2025-07-15</td><td>涨2%买</td><td>17.05</td><td>19500</td><td>332827</td><td>2025-07-16</td><td>74</td><td>17.06</td><td>332071</td><td>2</td><td class="pnl-neg">-755</td><td class="pnl-neg">-0.23%</td></tr>
-<tr><td>831</td><td>中国稀土</td><td>2025-07-11</td><td>2025-07-14</td><td>涨2%买</td><td>41.54</td><td>8000</td><td>332623</td><td>2025-07-15</td><td>203</td><td>37.77</td><td>301616</td><td>2</td><td class="pnl-neg">-31,006</td><td class="pnl-neg">-9.32%</td></tr>
-<tr><td>617</td><td>中油资本</td><td>2025-07-08</td><td>2025-07-09</td><td>涨2%买</td><td>8.82</td><td>37700</td><td>332893</td><td>2025-07-14</td><td>94</td><td>9.21</td><td>346592</td><td>4</td><td class="pnl-pos">13,699</td><td class="pnl-pos">4.12%</td></tr>
-<tr><td>601</td><td>韶能股份</td><td>2025-07-07</td><td>2025-07-08</td><td>涨2%买</td><td>6.24</td><td>53300</td><td>332986</td><td>2025-07-09</td><td>92</td><td>6.45</td><td>343166</td><td>2</td><td class="pnl-pos">10,180</td><td class="pnl-pos">3.06%</td></tr>
-<tr><td>670</td><td>盈方微</td><td>2025-07-04</td><td>2025-07-07</td><td>低开买</td><td>7.85</td><td>42400</td><td>333106</td><td>2025-07-08</td><td>151</td><td>7.91</td><td>334781</td><td>2</td><td class="pnl-pos">1,674</td><td class="pnl-pos">0.50%</td></tr>
-<tr><td>1298</td><td>好上好</td><td>2025-07-03</td><td>2025-07-04</td><td>低开买</td><td>36.75</td><td>9000</td><td>331015</td><td>2025-07-07</td><td>86</td><td>33.02</td><td>296645</td><td>2</td><td class="pnl-neg">-34,369</td><td class="pnl-neg">-10.38%</td></tr>
-<tr><td>737</td><td>北方铜业</td><td>2025-07-02</td><td>2025-07-03</td><td>涨2%买</td><td>12.56</td><td>26500</td><td>333006</td><td>2025-07-04</td><td>64</td><td>11.34</td><td>299969</td><td>2</td><td class="pnl-neg">-33,036</td><td class="pnl-neg">-9.92%</td></tr>
-<tr><td>2165</td><td>红 宝 丽</td><td>2025-07-01</td><td>2025-07-02</td><td>涨2%买</td><td>10.31</td><td>32300</td><td>333351</td><td>2025-07-03</td><td>93</td><td>10.1</td><td>325643</td><td>2</td><td class="pnl-neg">-7,708</td><td class="pnl-neg">-2.31%</td></tr>
-<tr><td>519</td><td>中兵红箭</td><td>2025-06-30</td><td>2025-07-01</td><td>涨2%买</td><td>22.33</td><td>14900</td><td>332950</td><td>2025-07-02</td><td>95</td><td>21.25</td><td>316055</td><td>2</td><td class="pnl-neg">-16,895</td><td class="pnl-neg">-5.07%</td></tr>
-<tr><td>2104</td><td>恒宝股份</td><td>2025-06-26</td><td>2025-06-27</td><td>涨2%买</td><td>17.76</td><td>18700</td><td>332344</td><td>2025-07-21</td><td>77</td><td>21.44</td><td>400207</td><td>17</td><td class="pnl-pos">67,863</td><td class="pnl-pos">20.42%</td></tr>
-<tr><td>300059</td><td>东方财富</td><td>2025-06-25</td><td>2025-06-26</td><td>低开买</td><td>23.52</td><td>14100</td><td>331897</td><td>2025-07-01</td><td>63</td><td>22.88</td><td>322028</td><td>4</td><td class="pnl-neg">-9,870</td><td class="pnl-neg">-2.97%</td></tr>
-<tr><td>2074</td><td>国轩高科</td><td>2025-06-24</td><td>2025-06-25</td><td>涨2%买</td><td>31.04</td><td>10700</td><td>332379</td><td>2025-06-27</td><td>61</td><td>32.21</td><td>344027</td><td>3</td><td class="pnl-pos">11,648</td><td class="pnl-pos">3.50%</td></tr>
-<tr><td>2017</td><td>东信和平</td><td>2025-06-24</td><td>2025-06-25</td><td>低开买</td><td>17.09</td><td>19400</td><td>331811</td><td>2025-06-26</td><td>108</td><td>16.53</td><td>320105</td><td>2</td><td class="pnl-neg">-11,706</td><td class="pnl-neg">-3.53%</td></tr>
-<tr><td>2235</td><td>安妮股份</td><td>2025-06-20</td><td>2025-06-23</td><td>涨2%买</td><td>9.21</td><td>36100</td><td>332769</td><td>2025-06-25</td><td>70</td><td>9.42</td><td>339450</td><td>3</td><td class="pnl-pos">6,681</td><td class="pnl-pos">2.01%</td></tr>
-<tr><td>2017</td><td>东信和平</td><td>2025-06-17</td><td>2025-06-18</td><td>低开买</td><td>14.32</td><td>23200</td><td>332490</td><td>2025-06-23</td><td>59</td><td>16.15</td><td>374006</td><td>4</td><td class="pnl-pos">41,516</td><td class="pnl-pos">12.49%</td></tr>
-<tr><td>300468</td><td>四方精创</td><td>2025-06-16</td><td>2025-06-17</td><td>低开买</td><td>36.16</td><td>9200</td><td>332938</td><td>2025-06-25</td><td>56</td><td>45.6</td><td>418765</td><td>7</td><td class="pnl-pos">85,827</td><td class="pnl-pos">25.78%</td></tr>
-<tr><td>300251</td><td>光线传媒</td><td>2025-06-16</td><td>2025-06-17</td><td>涨2%买</td><td>22.54</td><td>14700</td><td>331633</td><td>2025-06-18</td><td>101</td><td>20.4</td><td>299340</td><td>2</td><td class="pnl-neg">-32,292</td><td class="pnl-neg">-9.74%</td></tr>
-<tr><td>2190</td><td>成飞集成</td><td>2025-06-13</td><td>2025-06-16</td><td>低开买</td><td>36.36</td><td>9100</td><td>331141</td><td>2025-06-17</td><td>96</td><td>37.0</td><td>336094</td><td>2</td><td class="pnl-pos">4,953</td><td class="pnl-pos">1.50%</td></tr>
-<tr><td>2734</td><td>利民股份</td><td>2025-06-11</td><td>2025-06-12</td><td>涨2%买</td><td>23.06</td><td>14400</td><td>332361</td><td>2025-06-17</td><td>91</td><td>22.49</td><td>323273</td><td>4</td><td class="pnl-neg">-9,088</td><td class="pnl-neg">-2.73%</td></tr>
-<tr><td>2298</td><td>中电鑫龙</td><td>2025-06-10</td><td>2025-06-11</td><td>低开买</td><td>8.21</td><td>40500</td><td>332771</td><td>2025-06-12</td><td>99</td><td>7.23</td><td>292288</td><td>2</td><td class="pnl-neg">-40,483</td><td class="pnl-neg">-12.17%</td></tr>
-<tr><td>2639</td><td>雪人集团</td><td>2025-05-30</td><td>2025-06-03</td><td>低开买</td><td>11.33</td><td>29400</td><td>333369</td><td>2025-06-11</td><td>61</td><td>11.23</td><td>329568</td><td>7</td><td class="pnl-neg">-3,801</td><td class="pnl-neg">-1.14%</td></tr>
-<tr><td>600468</td><td>百利电气</td><td>2025-05-30</td><td>2025-06-03</td><td>低开买</td><td>7.0</td><td>47500</td><td>332766</td><td>2025-06-16</td><td>76</td><td>8.13</td><td>385480</td><td>10</td><td class="pnl-pos">52,714</td><td class="pnl-pos">15.84%</td></tr>
-<tr><td>2094</td><td>青岛金王</td><td>2025-05-29</td><td>2025-05-30</td><td>涨2%买</td><td>9.99</td><td>33300</td><td>332793</td><td>2025-06-03</td><td>69</td><td>9.88</td><td>328412</td><td>2</td><td class="pnl-neg">-4,381</td><td class="pnl-neg">-1.32%</td></tr>
-<tr><td>2365</td><td>永安药业</td><td>2025-05-28</td><td>2025-05-29</td><td>低开买</td><td>23.93</td><td>13900</td><td>332893</td><td>2025-06-03</td><td>103</td><td>20.41</td><td>283189</td><td>3</td><td class="pnl-neg">-49,705</td><td class="pnl-neg">-14.93%</td></tr>
-<tr><td>2342</td><td>巨力索具</td><td>2025-05-28</td><td>2025-05-29</td><td>涨2%买</td><td>5.7</td><td>58400</td><td>333252</td><td>2025-05-30</td><td>57</td><td>5.88</td><td>342774</td><td>2</td><td class="pnl-pos">9,523</td><td class="pnl-pos">2.86%</td></tr>
-<tr><td>600105</td><td>永鼎股份</td><td>2025-05-26</td><td>2025-05-27</td><td>低开买</td><td>8.22</td><td>40500</td><td>333176</td><td>2025-05-29</td><td>136</td><td>8.65</td><td>349695</td><td>3</td><td class="pnl-pos">16,518</td><td class="pnl-pos">4.96%</td></tr>
-<tr><td>2882</td><td>金龙羽</td><td>2025-05-23</td><td>2025-05-26</td><td>低开买</td><td>21.7</td><td>15300</td><td>332276</td><td>2025-05-29</td><td>109</td><td>23.05</td><td>352030</td><td>4</td><td class="pnl-pos">19,755</td><td class="pnl-pos">5.95%</td></tr>
-<tr><td>2229</td><td>鸿博股份</td><td>2025-05-22</td><td>2025-05-23</td><td>低开买</td><td>15.8</td><td>21000</td><td>332065</td><td>2025-05-27</td><td>58</td><td>16.64</td><td>348811</td><td>3</td><td class="pnl-pos">16,746</td><td class="pnl-pos">5.04%</td></tr>
-<tr><td>2040</td><td>南 京 港</td><td>2025-05-21</td><td>2025-05-22</td><td>低开买</td><td>11.77</td><td>28300</td><td>333358</td><td>2025-05-26</td><td>66</td><td>11.36</td><td>320910</td><td>3</td><td class="pnl-neg">-12,448</td><td class="pnl-neg">-3.73%</td></tr>
-<tr><td>2074</td><td>国轩高科</td><td>2025-05-21</td><td>2025-05-22</td><td>涨2%买</td><td>27.08</td><td>12300</td><td>333363</td><td>2025-05-23</td><td>70</td><td>25.15</td><td>308788</td><td>2</td><td class="pnl-neg">-24,574</td><td class="pnl-neg">-7.37%</td></tr>
-<tr><td>2292</td><td>奥飞娱乐</td><td>2025-05-20</td><td>2025-05-21</td><td>涨2%买</td><td>9.97</td><td>33400</td><td>333111</td><td>2025-05-22</td><td>62</td><td>10.14</td><td>338067</td><td>2</td><td class="pnl-pos">4,956</td><td class="pnl-pos">1.49%</td></tr>
-<tr><td>2123</td><td>梦网科技</td><td>2025-05-20</td><td>2025-05-21</td><td>涨2%买</td><td>16.22</td><td>20500</td><td>332735</td><td>2025-05-22</td><td>97</td><td>15.5</td><td>317178</td><td>2</td><td class="pnl-neg">-15,557</td><td class="pnl-neg">-4.68%</td></tr>
-<tr><td>2389</td><td>航天彩虹</td><td>2025-05-19</td><td>2025-05-20</td><td>涨2%买</td><td>22.06</td><td>15100</td><td>333412</td><td>2025-05-21</td><td>249</td><td>20.59</td><td>310350</td><td>2</td><td class="pnl-neg">-23,062</td><td class="pnl-neg">-6.92%</td></tr>
-<tr><td>2165</td><td>红 宝 丽</td><td>2025-04-01</td><td>2025-04-02</td><td>低开买</td><td>6.11</td><td>54500</td><td>333261</td><td>2025-05-20</td><td>73</td><td>11.59</td><td>630518</td><td>31</td><td class="pnl-pos">297,257</td><td class="pnl-pos">89.20%</td></tr>
-<tr><td>300687</td><td>赛意信息</td><td>2025-03-31</td><td>2025-04-01</td><td>低开买</td><td>31.03</td><td>10700</td><td>332287</td><td>2025-04-02</td><td>331</td><td>31.01</td><td>331210</td><td>2</td><td class="pnl-neg">-1,077</td><td class="pnl-neg">-0.32%</td></tr>
-<tr><td>2342</td><td>巨力索具</td><td>2025-03-28</td><td>2025-03-31</td><td>低开买</td><td>6.32</td><td>52700</td><td>333331</td><td>2025-04-01</td><td>64</td><td>5.39</td><td>283542</td><td>2</td><td class="pnl-neg">-49,789</td><td class="pnl-neg">-14.94%</td></tr>
-<tr><td>837</td><td>秦川机床</td><td>2025-03-26</td><td>2025-03-27</td><td>低开买</td><td>13.64</td><td>24400</td><td>333082</td><td>2025-03-31</td><td>76</td><td>13.97</td><td>340255</td><td>3</td><td class="pnl-pos">7,172</td><td class="pnl-pos">2.15%</td></tr>
-<tr><td>2278</td><td>神开股份</td><td>2025-03-21</td><td>2025-03-24</td><td>低开买</td><td>11.13</td><td>29900</td><td>333053</td><td>2025-03-25</td><td>52</td><td>11.04</td><td>329502</td><td>2</td><td class="pnl-neg">-3,551</td><td class="pnl-neg">-1.07%</td></tr>
-<tr><td>2093</td><td>国脉科技</td><td>2025-03-19</td><td>2025-03-20</td><td>低开买</td><td>13.88</td><td>24000</td><td>333387</td><td>2025-03-24</td><td>80</td><td>12.74</td><td>305210</td><td>3</td><td class="pnl-neg">-28,177</td><td class="pnl-neg">-8.45%</td></tr>
-<tr><td>815</td><td>美利云</td><td>2025-03-18</td><td>2025-03-19</td><td>涨2%买</td><td>17.07</td><td>19500</td><td>333225</td><td>2025-03-20</td><td>131</td><td>15.48</td><td>301317</td><td>2</td><td class="pnl-neg">-31,908</td><td class="pnl-neg">-9.58%</td></tr>
-<tr><td>2896</td><td>中大力德</td><td>2025-03-17</td><td>2025-03-18</td><td>涨2%买</td><td>84.89</td><td>3900</td><td>331354</td><td>2025-03-19</td><td>88</td><td>82.99</td><td>323079</td><td>2</td><td class="pnl-neg">-8,275</td><td class="pnl-neg">-2.50%</td></tr>
-<tr><td>678</td><td>襄阳轴承</td><td>2025-03-17</td><td>2025-03-18</td><td>涨2%买</td><td>14.48</td><td>23000</td><td>333399</td><td>2025-03-27</td><td>74</td><td>12.44</td><td>285605</td><td>8</td><td class="pnl-neg">-47,793</td><td class="pnl-neg">-14.34%</td></tr>
-<tr><td>2105</td><td>信隆健康</td><td>2025-03-14</td><td>2025-03-17</td><td>涨2%买</td><td>12.68</td><td>26200</td><td>332445</td><td>2025-03-18</td><td>83</td><td>11.74</td><td>307035</td><td>2</td><td class="pnl-neg">-25,411</td><td class="pnl-neg">-7.64%</td></tr>
-<tr><td>665</td><td>湖北广电</td><td>2025-03-12</td><td>2025-03-13</td><td>低开买</td><td>7.0</td><td>47500</td><td>332766</td><td>2025-03-17</td><td>83</td><td>6.38</td><td>302505</td><td>3</td><td class="pnl-neg">-30,261</td><td class="pnl-neg">-9.09%</td></tr>
-<tr><td>831</td><td>中国稀土</td><td>2025-03-11</td><td>2025-03-12</td><td>低开买</td><td>33.1</td><td>10000</td><td>331265</td><td>2025-03-13</td><td>238</td><td>32.51</td><td>324515</td><td>2</td><td class="pnl-neg">-6,750</td><td class="pnl-neg">-2.04%</td></tr>
-<tr><td>2031</td><td>巨轮智能</td><td>2025-03-04</td><td>2025-03-05</td><td>低开买</td><td>10.5</td><td>31700</td><td>333116</td><td>2025-03-12</td><td>73</td><td>10.3</td><td>325922</td><td>6</td><td class="pnl-neg">-7,194</td><td class="pnl-neg">-2.16%</td></tr>
-<tr><td>16</td><td>深康佳Ａ</td><td>2025-03-03</td><td>2025-03-04</td><td>涨2%买</td><td>5.88</td><td>56700</td><td>333390</td><td>2025-03-05</td><td>188</td><td>5.5</td><td>311289</td><td>2</td><td class="pnl-neg">-22,102</td><td class="pnl-neg">-6.63%</td></tr>
-<tr><td>2582</td><td>好想你</td><td>2025-02-28</td><td>2025-03-03</td><td>涨2%买</td><td>11.05</td><td>30100</td><td>332769</td><td>2025-03-04</td><td>131</td><td>8.83</td><td>265305</td><td>2</td><td class="pnl-neg">-67,464</td><td class="pnl-neg">-20.27%</td></tr>
-<tr><td>158</td><td>常山北明</td><td>2025-02-24</td><td>2025-02-25</td><td>涨2%买</td><td>28.02</td><td>11800</td><td>330893</td><td>2025-03-03</td><td>73</td><td>25.11</td><td>295765</td><td>5</td><td class="pnl-neg">-35,129</td><td class="pnl-neg">-10.62%</td></tr>
-<tr><td>300766</td><td>每日互动</td><td>2025-02-18</td><td>2025-02-19</td><td>低开买</td><td>57.6</td><td>5700</td><td>328583</td><td>2025-02-25</td><td>75</td><td>52.65</td><td>299565</td><td>5</td><td class="pnl-neg">-29,018</td><td class="pnl-neg">-8.83%</td></tr>
-<tr><td>977</td><td>浪潮信息</td><td>2025-02-17</td><td>2025-02-18</td><td>低开买</td><td>65.89</td><td>5000</td><td>329714</td><td>2025-02-19</td><td>71</td><td>64.46</td><td>321720</td><td>2</td><td class="pnl-neg">-7,994</td><td class="pnl-neg">-2.42%</td></tr>
-<tr><td>600126</td><td>杭钢股份</td><td>2025-02-14</td><td>2025-02-17</td><td>涨2%买</td><td>11.36</td><td>29300</td><td>333196</td><td>2025-03-18</td><td>54</td><td>12.04</td><td>352137</td><td>22</td><td class="pnl-pos">18,941</td><td class="pnl-pos">5.68%</td></tr>
-<tr><td>600186</td><td>莲花控股</td><td>2025-02-11</td><td>2025-02-12</td><td>涨2%买</td><td>7.61</td><td>43700</td><td>332788</td><td>2025-02-14</td><td>67</td><td>7.0</td><td>305350</td><td>3</td><td class="pnl-neg">-27,439</td><td class="pnl-neg">-8.25%</td></tr>
-<tr><td>34</td><td>神州数码</td><td>2025-02-10</td><td>2025-02-11</td><td>涨2%买</td><td>44.48</td><td>7400</td><td>329432</td><td>2025-02-12</td><td>95</td><td>44.66</td><td>329889</td><td>2</td><td class="pnl-pos">458</td><td class="pnl-pos">0.14%</td></tr>
-<tr><td>2594</td><td>比亚迪</td><td>2025-02-06</td><td>2025-02-07</td><td>涨2%买</td><td>104.42</td><td>3100</td><td>323953</td><td>2025-02-11</td><td>59</td><td>108.64</td><td>336178</td><td>3</td><td class="pnl-pos">12,225</td><td class="pnl-pos">3.77%</td></tr>
-<tr><td>2530</td><td>金财互联</td><td>2025-01-24</td><td>2025-01-27</td><td>涨2%买</td><td>11.22</td><td>29600</td><td>332378</td><td>2025-02-07</td><td>55</td><td>12.23</td><td>361357</td><td>4</td><td class="pnl-pos">28,979</td><td class="pnl-pos">8.72%</td></tr>
-<tr><td>1356</td><td>富岭股份</td><td>2025-01-23</td><td>2025-01-24</td><td>低开买</td><td>19.03</td><td>17500</td><td>333291</td><td>2025-01-27</td><td>72</td><td>14.74</td><td>257486</td><td>2</td><td class="pnl-neg">-75,806</td><td class="pnl-neg">-22.74%</td></tr>
-<tr><td>837</td><td>秦川机床</td><td>2025-01-22</td><td>2025-01-23</td><td>涨2%买</td><td>10.65</td><td>31200</td><td>332508</td><td>2025-01-24</td><td>213</td><td>10.24</td><td>318913</td><td>2</td><td class="pnl-neg">-13,595</td><td class="pnl-neg">-4.09%</td></tr>
-<tr><td>300661</td><td>圣邦股份</td><td>2025-01-17</td><td>2025-01-22</td><td>低开买</td><td>66.37</td><td>5000</td><td>332116</td><td>2025-01-23</td><td>234</td><td>69.31</td><td>345926</td><td>2</td><td class="pnl-pos">13,811</td><td class="pnl-pos">4.16%</td></tr>
-<tr><td>2119</td><td>康强电子</td><td>2025-01-17</td><td>2025-01-21</td><td>低开买</td><td>18.9</td><td>17600</td><td>332906</td><td>2025-01-22</td><td>96</td><td>17.88</td><td>314122</td><td>2</td><td class="pnl-neg">-18,784</td><td class="pnl-neg">-5.64%</td></tr>
-<tr><td>2312</td><td>川发龙蟒</td><td>2025-01-17</td><td>2025-01-21</td><td>涨2%买</td><td>14.73</td><td>22600</td><td>333137</td><td>2025-01-22</td><td>173</td><td>13.46</td><td>303649</td><td>2</td><td class="pnl-neg">-29,489</td><td class="pnl-neg">-8.85%</td></tr>
-<tr><td>688256</td><td>寒武纪-U</td><td>2025-01-16</td><td>2025-01-20</td><td>低开买</td><td>591.0</td><td>500</td><td>295736</td><td>2025-01-21</td><td>108</td><td>625.0</td><td>311938</td><td>2</td><td class="pnl-pos">16,201</td><td class="pnl-pos">5.48%</td></tr>
-<tr><td>600601</td><td>方正科技</td><td>2025-01-16</td><td>2025-01-20</td><td>涨2%买</td><td>5.52</td><td>60300</td><td>333014</td><td>2025-01-21</td><td>73</td><td>5.63</td><td>338878</td><td>2</td><td class="pnl-pos">5,864</td><td class="pnl-pos">1.76%</td></tr>
-<tr><td>2031</td><td>巨轮智能</td><td>2025-01-17</td><td>2025-01-20</td><td>低开买</td><td>7.04</td><td>47300</td><td>333258</td><td>2025-02-18</td><td>53</td><td>8.08</td><td>381496</td><td>16</td><td class="pnl-pos">48,238</td><td class="pnl-pos">14.47%</td></tr>
-<tr><td>300394</td><td>天孚通信</td><td>2025-01-16</td><td>2025-01-17</td><td>涨2%买</td><td>74.33</td><td>4400</td><td>327302</td><td>2025-01-20</td><td>107</td><td>80.19</td><td>352201</td><td>2</td><td class="pnl-pos">24,899</td><td class="pnl-pos">7.61%</td></tr>
-<tr><td>759</td><td>中百集团</td><td>2025-01-16</td><td>2025-01-17</td><td>低开买</td><td>10.15</td><td>32800</td><td>333186</td><td>2025-01-20</td><td>100</td><td>10.08</td><td>330029</td><td>2</td><td class="pnl-neg">-3,157</td><td class="pnl-neg">-0.95%</td></tr>
-<tr><td>16</td><td>深康佳Ａ</td><td>2025-01-16</td><td>2025-01-17</td><td>低开买</td><td>6.63</td><td>50200</td><td>333092</td><td>2025-01-20</td><td>127</td><td>5.96</td><td>298654</td><td>2</td><td class="pnl-neg">-34,439</td><td class="pnl-neg">-10.34%</td></tr>
+<tr>
+<td>600733</td>
+<td>北汽蓝谷</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td data-sort="1767052800">2025-12-30</td>
+<td>低开买</td>
+<td>7.94</td>
+<td>41900</td>
+<td>332952</td>
+<td data-sort="1767139200">2025-12-31</td>
+<td>284</td>
+<td>8.03</td>
+<td>335851</td>
+<td>2</td>
+<td class="pnl-pos">2,899</td>
+<td class="pnl-pos">0.87%</td>
+<td class="balance">1,590,370</td>
+</tr>
+<tr>
+<td>600271</td>
+<td>航天信息</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td data-sort="1767052800">2025-12-30</td>
+<td>低开买</td>
+<td>10.54</td>
+<td>31600</td>
+<td>333330</td>
+<td data-sort="1767139200">2025-12-31</td>
+<td>107</td>
+<td>11.69</td>
+<td>368739</td>
+<td>2</td>
+<td class="pnl-pos">35,409</td>
+<td class="pnl-pos">10.62%</td>
+<td class="balance">1,587,471</td>
+</tr>
+<tr>
+<td>002104</td>
+<td>恒宝股份</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td data-sort="1766707200">2025-12-26</td>
+<td>低开买</td>
+<td>20.18</td>
+<td>16500</td>
+<td>333236</td>
+<td data-sort="1767052800">2025-12-30</td>
+<td>133</td>
+<td>21.49</td>
+<td>353946</td>
+<td>3</td>
+<td class="pnl-pos">20,711</td>
+<td class="pnl-pos">6.21%</td>
+<td class="balance">1,552,062</td>
+</tr>
+<tr>
+<td>002413</td>
+<td>雷科防务</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td data-sort="1766620800">2025-12-25</td>
+<td>低开买</td>
+<td>8.96</td>
+<td>37100</td>
+<td>332681</td>
+<td data-sort="1766707200">2025-12-26</td>
+<td>102</td>
+<td>9.43</td>
+<td>349223</td>
+<td>2</td>
+<td class="pnl-pos">16,542</td>
+<td class="pnl-pos">4.97%</td>
+<td class="balance">1,399,112</td>
+</tr>
+<tr>
+<td>002519</td>
+<td>银河电子</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td data-sort="1766534400">2025-12-24</td>
+<td>低开买</td>
+<td>5.52</td>
+<td>60300</td>
+<td>333122</td>
+<td data-sort="1766620800">2025-12-25</td>
+<td>276</td>
+<td>6.11</td>
+<td>367770</td>
+<td>2</td>
+<td class="pnl-pos">34,648</td>
+<td class="pnl-pos">10.40%</td>
+<td class="balance">1,339,354</td>
+</tr>
+<tr>
+<td>002235</td>
+<td>安妮股份</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td data-sort="1766448000">2025-12-23</td>
+<td>低开买</td>
+<td>10.9</td>
+<td>30500</td>
+<td>332716</td>
+<td data-sort="1766534400">2025-12-24</td>
+<td>213</td>
+<td>11.02</td>
+<td>335505</td>
+<td>2</td>
+<td class="pnl-pos">2,789</td>
+<td class="pnl-pos">0.84%</td>
+<td class="balance">1,304,706</td>
+</tr>
+<tr>
+<td>002202</td>
+<td>金风科技</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td data-sort="1766448000">2025-12-23</td>
+<td>涨2%买</td>
+<td>17.3196</td>
+<td>19200</td>
+<td>332802</td>
+<td data-sort="1766534400">2025-12-24</td>
+<td>144</td>
+<td>17.43</td>
+<td>334053</td>
+<td>2</td>
+<td class="pnl-pos">1,251</td>
+<td class="pnl-pos">0.38%</td>
+<td class="balance">1,301,917</td>
+</tr>
+<tr>
+<td>600105</td>
+<td>永鼎股份</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td data-sort="1766534400">2025-12-24</td>
+<td>低开买</td>
+<td>20.77</td>
+<td>16000</td>
+<td>332585</td>
+<td data-sort="1766620800">2025-12-25</td>
+<td>78</td>
+<td>23.53</td>
+<td>375802</td>
+<td>2</td>
+<td class="pnl-pos">43,217</td>
+<td class="pnl-pos">12.99%</td>
+<td class="balance">1,382,570</td>
+</tr>
+<tr>
+<td>002163</td>
+<td>海南发展</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>低开买</td>
+<td>15.87</td>
+<td>20900</td>
+<td>331948</td>
+<td data-sort="1767052800">2025-12-30</td>
+<td>59</td>
+<td>22.25</td>
+<td>464188</td>
+<td>7</td>
+<td class="pnl-pos">132,240</td>
+<td class="pnl-pos">39.84%</td>
+<td class="balance">1,531,352</td>
+</tr>
+<tr>
+<td>603019</td>
+<td>中科曙光</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>低开买</td>
+<td>86.99</td>
+<td>3800</td>
+<td>330826</td>
+<td data-sort="1766448000">2025-12-23</td>
+<td>213</td>
+<td>87.66</td>
+<td>332508</td>
+<td>2</td>
+<td class="pnl-pos">1,682</td>
+<td class="pnl-pos">0.51%</td>
+<td class="balance">1,300,665</td>
+</tr>
+<tr>
+<td>000002</td>
+<td>万  科Ａ</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>低开买</td>
+<td>4.88</td>
+<td>68200</td>
+<td>333082</td>
+<td data-sort="1766448000">2025-12-23</td>
+<td>188</td>
+<td>4.79</td>
+<td>326090</td>
+<td>2</td>
+<td class="pnl-neg">-6,992</td>
+<td class="pnl-neg">-2.10%</td>
+<td class="balance">1,298,983</td>
+</tr>
+<tr>
+<td>600330</td>
+<td>天通股份</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>低开买</td>
+<td>10.8</td>
+<td>30800</td>
+<td>332906</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>187</td>
+<td>12.0</td>
+<td>368934</td>
+<td>2</td>
+<td class="pnl-pos">36,029</td>
+<td class="pnl-pos">10.82%</td>
+<td class="balance">1,305,975</td>
+</tr>
+<tr>
+<td>002229</td>
+<td>鸿博股份</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>低开买</td>
+<td>15.47</td>
+<td>21500</td>
+<td>332871</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>504</td>
+<td>15.91</td>
+<td>341449</td>
+<td>2</td>
+<td class="pnl-pos">8,578</td>
+<td class="pnl-pos">2.58%</td>
+<td class="balance">1,269,946</td>
+</tr>
+<tr>
+<td>002217</td>
+<td>合力泰</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>低开买</td>
+<td>3.06</td>
+<td>108800</td>
+<td>333194</td>
+<td data-sort="1766361600">2025-12-22</td>
+<td>723</td>
+<td>3.12</td>
+<td>338845</td>
+<td>2</td>
+<td class="pnl-pos">5,651</td>
+<td class="pnl-pos">1.70%</td>
+<td class="balance">1,261,368</td>
+</tr>
+<tr>
+<td>300394</td>
+<td>天孚通信</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>低开买</td>
+<td>215.23</td>
+<td>1500</td>
+<td>323103</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>249</td>
+<td>214.03</td>
+<td>320467</td>
+<td>2</td>
+<td class="pnl-neg">-2,636</td>
+<td class="pnl-neg">-0.82%</td>
+<td class="balance">1,243,999</td>
+</tr>
+<tr>
+<td>002402</td>
+<td>和而泰</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>低开买</td>
+<td>38.02</td>
+<td>8700</td>
+<td>331038</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>231</td>
+<td>38.85</td>
+<td>337386</td>
+<td>2</td>
+<td class="pnl-pos">6,348</td>
+<td class="pnl-pos">1.92%</td>
+<td class="balance">1,248,533</td>
+</tr>
+<tr>
+<td>002031</td>
+<td>巨轮智能</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>低开买</td>
+<td>7.38</td>
+<td>45100</td>
+<td>333104</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>426</td>
+<td>7.21</td>
+<td>324585</td>
+<td>2</td>
+<td class="pnl-neg">-8,518</td>
+<td class="pnl-neg">-2.56%</td>
+<td class="balance">1,244,970</td>
+</tr>
+<tr>
+<td>002050</td>
+<td>三花智控</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>低开买</td>
+<td>43.13</td>
+<td>7700</td>
+<td>332366</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>133</td>
+<td>42.88</td>
+<td>329581</td>
+<td>2</td>
+<td class="pnl-neg">-2,785</td>
+<td class="pnl-neg">-0.84%</td>
+<td class="balance">1,242,185</td>
+</tr>
+<tr>
+<td>002512</td>
+<td>达华智能</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>低开买</td>
+<td>5.81</td>
+<td>57300</td>
+<td>333179</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>298</td>
+<td>6.03</td>
+<td>344897</td>
+<td>2</td>
+<td class="pnl-pos">11,718</td>
+<td class="pnl-pos">3.52%</td>
+<td class="balance">1,255,717</td>
+</tr>
+<tr>
+<td>600635</td>
+<td>大众公用</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td data-sort="1766016000">2025-12-18</td>
+<td>低开买</td>
+<td>6.44</td>
+<td>51700</td>
+<td>333214</td>
+<td data-sort="1766102400">2025-12-19</td>
+<td>582</td>
+<td>6.42</td>
+<td>331316</td>
+<td>2</td>
+<td class="pnl-neg">-1,898</td>
+<td class="pnl-neg">-0.57%</td>
+<td class="balance">1,246,635</td>
+</tr>
+<tr>
+<td>001280</td>
+<td>中国铀业</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>涨2%买</td>
+<td>69.3498</td>
+<td>4800</td>
+<td>333145</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>185</td>
+<td>64.65</td>
+<td>309761</td>
+<td>2</td>
+<td class="pnl-neg">-23,384</td>
+<td class="pnl-neg">-7.02%</td>
+<td class="balance">1,253,488</td>
+</tr>
+<tr>
+<td>000078</td>
+<td>海王生物</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>低开买</td>
+<td>4.12</td>
+<td>80800</td>
+<td>333162</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>187</td>
+<td>4.12</td>
+<td>332297</td>
+<td>2</td>
+<td class="pnl-neg">-865</td>
+<td class="pnl-neg">-0.26%</td>
+<td class="balance">1,276,872</td>
+</tr>
+<tr>
+<td>603122</td>
+<td>合富中国</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>涨2%买</td>
+<td>26.0712</td>
+<td>12700</td>
+<td>331369</td>
+<td data-sort="1765929600">2025-12-17</td>
+<td>67</td>
+<td>27.45</td>
+<td>347987</td>
+<td>2</td>
+<td class="pnl-pos">16,619</td>
+<td class="pnl-pos">5.02%</td>
+<td class="balance">1,277,737</td>
+</tr>
+<tr>
+<td>000572</td>
+<td>海马汽车</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>低开买</td>
+<td>9.06</td>
+<td>36700</td>
+<td>332768</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>57</td>
+<td>9.76</td>
+<td>357547</td>
+<td>2</td>
+<td class="pnl-pos">24,779</td>
+<td class="pnl-pos">7.45%</td>
+<td class="balance">1,261,119</td>
+</tr>
+<tr>
+<td>600977</td>
+<td>中国电影</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>低开买</td>
+<td>17.84</td>
+<td>18600</td>
+<td>332089</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>163</td>
+<td>15.86</td>
+<td>294465</td>
+<td>2</td>
+<td class="pnl-neg">-37,624</td>
+<td class="pnl-neg">-11.33%</td>
+<td class="balance">1,236,339</td>
+</tr>
+<tr>
+<td>002632</td>
+<td>道明光学</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>低开买</td>
+<td>12.87</td>
+<td>25800</td>
+<td>332311</td>
+<td data-sort="1765843200">2025-12-16</td>
+<td>517</td>
+<td>12.25</td>
+<td>315481</td>
+<td>2</td>
+<td class="pnl-neg">-16,830</td>
+<td class="pnl-neg">-5.06%</td>
+<td class="balance">1,273,964</td>
+</tr>
+<tr>
+<td>000888</td>
+<td>峨眉山Ａ</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>低开买</td>
+<td>12.52</td>
+<td>26600</td>
+<td>333298</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>1066</td>
+<td>12.67</td>
+<td>336415</td>
+<td>2</td>
+<td class="pnl-pos">3,117</td>
+<td class="pnl-pos">0.94%</td>
+<td class="balance">1,290,794</td>
+</tr>
+<tr>
+<td>000063</td>
+<td>中兴通讯</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>低开买</td>
+<td>36.9</td>
+<td>9000</td>
+<td>332365</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>88</td>
+<td>36.84</td>
+<td>330963</td>
+<td>2</td>
+<td class="pnl-neg">-1,402</td>
+<td class="pnl-neg">-0.42%</td>
+<td class="balance">1,287,677</td>
+</tr>
+<tr>
+<td>000678</td>
+<td>襄阳轴承</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>涨2%买</td>
+<td>15.0552</td>
+<td>22100</td>
+<td>332986</td>
+<td data-sort="1765756800">2025-12-15</td>
+<td>202</td>
+<td>15.39</td>
+<td>339507</td>
+<td>2</td>
+<td class="pnl-pos">6,521</td>
+<td class="pnl-pos">1.96%</td>
+<td class="balance">1,289,079</td>
+</tr>
+<tr>
+<td>002728</td>
+<td>特一药业</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>低开买</td>
+<td>12.28</td>
+<td>27100</td>
+<td>333054</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>832</td>
+<td>11.74</td>
+<td>317581</td>
+<td>2</td>
+<td class="pnl-neg">-15,473</td>
+<td class="pnl-neg">-4.65%</td>
+<td class="balance">1,311,852</td>
+</tr>
+<tr>
+<td>002291</td>
+<td>遥望科技</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>低开买</td>
+<td>6.72</td>
+<td>49500</td>
+<td>332906</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>986</td>
+<td>6.38</td>
+<td>315241</td>
+<td>2</td>
+<td class="pnl-neg">-17,664</td>
+<td class="pnl-neg">-5.31%</td>
+<td class="balance">1,327,324</td>
+</tr>
+<tr>
+<td>002759</td>
+<td>天际股份</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>低开买</td>
+<td>35.3</td>
+<td>9400</td>
+<td>332085</td>
+<td data-sort="1765497600">2025-12-12</td>
+<td>208</td>
+<td>32.27</td>
+<td>302792</td>
+<td>2</td>
+<td class="pnl-neg">-29,293</td>
+<td class="pnl-neg">-8.82%</td>
+<td class="balance">1,282,558</td>
+</tr>
+<tr>
+<td>601360</td>
+<td>三六零</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>低开买</td>
+<td>11.98</td>
+<td>27800</td>
+<td>333310</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>186</td>
+<td>11.54</td>
+<td>320234</td>
+<td>2</td>
+<td class="pnl-neg">-13,076</td>
+<td class="pnl-neg">-3.92%</td>
+<td class="balance">1,344,989</td>
+</tr>
+<tr>
+<td>300589</td>
+<td>江龙船艇</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>低开买</td>
+<td>22.81</td>
+<td>14600</td>
+<td>333292</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>301</td>
+<td>22.81</td>
+<td>332426</td>
+<td>2</td>
+<td class="pnl-neg">-866</td>
+<td class="pnl-neg">-0.26%</td>
+<td class="balance">1,358,064</td>
+</tr>
+<tr>
+<td>002400</td>
+<td>省广集团</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>低开买</td>
+<td>8.67</td>
+<td>38400</td>
+<td>333194</td>
+<td data-sort="1765411200">2025-12-11</td>
+<td>412</td>
+<td>8.39</td>
+<td>321596</td>
+<td>2</td>
+<td class="pnl-neg">-11,598</td>
+<td class="pnl-neg">-3.48%</td>
+<td class="balance">1,358,930</td>
+</tr>
+<tr>
+<td>002279</td>
+<td>久其软件</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>低开买</td>
+<td>8.63</td>
+<td>38600</td>
+<td>333384</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>690</td>
+<td>8.3</td>
+<td>319803</td>
+<td>2</td>
+<td class="pnl-neg">-13,581</td>
+<td class="pnl-neg">-4.07%</td>
+<td class="balance">1,370,528</td>
+</tr>
+<tr>
+<td>920091</td>
+<td>大鹏工业</td>
+<td data-sort="1763683200">2025-11-21</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>低开买</td>
+<td>50.52</td>
+<td>6500</td>
+<td>328642</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>1679</td>
+<td>54.19</td>
+<td>351601</td>
+<td>2</td>
+<td class="pnl-pos">22,958</td>
+<td class="pnl-pos">6.99%</td>
+<td class="balance">1,384,109</td>
+</tr>
+<tr>
+<td>301171</td>
+<td>易点天下</td>
+<td data-sort="1763683200">2025-11-21</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>低开买</td>
+<td>37.8</td>
+<td>8800</td>
+<td>332906</td>
+<td data-sort="1765324800">2025-12-10</td>
+<td>477</td>
+<td>36.99</td>
+<td>324926</td>
+<td>2</td>
+<td class="pnl-neg">-7,980</td>
+<td class="pnl-neg">-2.40%</td>
+<td class="balance">1,361,151</td>
+</tr>
+<tr>
+<td>601566</td>
+<td>九牧王</td>
+<td data-sort="1763596800">2025-11-20</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>低开买</td>
+<td>13.67</td>
+<td>24300</td>
+<td>332446</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>77</td>
+<td>14.9</td>
+<td>361418</td>
+<td>2</td>
+<td class="pnl-pos">28,972</td>
+<td class="pnl-pos">8.71%</td>
+<td class="balance">1,369,131</td>
+</tr>
+<tr>
+<td>002213</td>
+<td>大为股份</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>低开买</td>
+<td>26.65</td>
+<td>12500</td>
+<td>333391</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>591</td>
+<td>27.54</td>
+<td>343630</td>
+<td>2</td>
+<td class="pnl-pos">10,239</td>
+<td class="pnl-pos">3.07%</td>
+<td class="balance">1,340,159</td>
+</tr>
+<tr>
+<td>300094</td>
+<td>国联水产</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>低开买</td>
+<td>4.1</td>
+<td>81200</td>
+<td>333186</td>
+<td data-sort="1765238400">2025-12-09</td>
+<td>622</td>
+<td>4.1</td>
+<td>332320</td>
+<td>2</td>
+<td class="pnl-neg">-865</td>
+<td class="pnl-neg">-0.26%</td>
+<td class="balance">1,329,920</td>
+</tr>
+<tr>
+<td>000798</td>
+<td>中水渔业</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>低开买</td>
+<td>11.07</td>
+<td>30000</td>
+<td>332365</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>447</td>
+<td>11.65</td>
+<td>348871</td>
+<td>2</td>
+<td class="pnl-pos">16,505</td>
+<td class="pnl-pos">4.97%</td>
+<td class="balance">1,330,785</td>
+</tr>
+<tr>
+<td>600756</td>
+<td>浪潮软件</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>低开买</td>
+<td>18.85</td>
+<td>17600</td>
+<td>332025</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>482</td>
+<td>19.58</td>
+<td>343987</td>
+<td>2</td>
+<td class="pnl-pos">11,962</td>
+<td class="pnl-pos">3.60%</td>
+<td class="balance">1,314,280</td>
+</tr>
+<tr>
+<td>300058</td>
+<td>蓝色光标</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>低开买</td>
+<td>9.2</td>
+<td>36200</td>
+<td>333306</td>
+<td data-sort="1765152000">2025-12-08</td>
+<td>106</td>
+<td>9.57</td>
+<td>345810</td>
+<td>2</td>
+<td class="pnl-pos">12,504</td>
+<td class="pnl-pos">3.75%</td>
+<td class="balance">1,302,318</td>
+</tr>
+<tr>
+<td>002131</td>
+<td>利欧股份</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>低开买</td>
+<td>4.93</td>
+<td>67500</td>
+<td>333041</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>230</td>
+<td>4.98</td>
+<td>335545</td>
+<td>2</td>
+<td class="pnl-pos">2,504</td>
+<td class="pnl-pos">0.75%</td>
+<td class="balance">1,289,813</td>
+</tr>
+<tr>
+<td>000681</td>
+<td>视觉中国</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>低开买</td>
+<td>22.88</td>
+<td>14500</td>
+<td>332025</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>525</td>
+<td>22.5</td>
+<td>325662</td>
+<td>2</td>
+<td class="pnl-neg">-6,362</td>
+<td class="pnl-neg">-1.92%</td>
+<td class="balance">1,287,310</td>
+</tr>
+<tr>
+<td>600410</td>
+<td>华胜天成</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td>低开买</td>
+<td>18.93</td>
+<td>17500</td>
+<td>331540</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>232</td>
+<td>18.14</td>
+<td>316878</td>
+<td>2</td>
+<td class="pnl-neg">-14,661</td>
+<td class="pnl-neg">-4.42%</td>
+<td class="balance">1,288,774</td>
+</tr>
+<tr>
+<td>601606</td>
+<td>长城军工</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>低开买</td>
+<td>49.0</td>
+<td>6700</td>
+<td>328562</td>
+<td data-sort="1764892800">2025-12-05</td>
+<td>225</td>
+<td>49.86</td>
+<td>333460</td>
+<td>2</td>
+<td class="pnl-pos">4,898</td>
+<td class="pnl-pos">1.49%</td>
+<td class="balance">1,293,672</td>
+</tr>
+<tr>
+<td>600157</td>
+<td>永泰能源</td>
+<td data-sort="1763078400">2025-11-14</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td>低开买</td>
+<td>1.65</td>
+<td>201900</td>
+<td>333401</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>368</td>
+<td>1.61</td>
+<td>324474</td>
+<td>2</td>
+<td class="pnl-neg">-8,927</td>
+<td class="pnl-neg">-2.68%</td>
+<td class="balance">1,256,806</td>
+</tr>
+<tr>
+<td>600408</td>
+<td>安泰集团</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>低开买</td>
+<td>4.55</td>
+<td>73200</td>
+<td>333326</td>
+<td data-sort="1764806400">2025-12-04</td>
+<td>75</td>
+<td>5.2</td>
+<td>379955</td>
+<td>3</td>
+<td class="pnl-pos">46,629</td>
+<td class="pnl-pos">13.99%</td>
+<td class="balance">1,303,435</td>
+</tr>
+<tr>
+<td>002309</td>
+<td>中利集团</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>低开买</td>
+<td>3.17</td>
+<td>105000</td>
+<td>333116</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td>973</td>
+<td>3.25</td>
+<td>340635</td>
+<td>2</td>
+<td class="pnl-pos">7,520</td>
+<td class="pnl-pos">2.26%</td>
+<td class="balance">1,265,734</td>
+</tr>
+<tr>
+<td>002506</td>
+<td>协鑫集成</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>低开买</td>
+<td>2.61</td>
+<td>127600</td>
+<td>333302</td>
+<td data-sort="1764720000">2025-12-03</td>
+<td>1007</td>
+<td>2.53</td>
+<td>322247</td>
+<td>2</td>
+<td class="pnl-neg">-11,055</td>
+<td class="pnl-neg">-3.32%</td>
+<td class="balance">1,258,214</td>
+</tr>
+<tr>
+<td>002451</td>
+<td>摩恩电气</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>低开买</td>
+<td>10.66</td>
+<td>31200</td>
+<td>332858</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>180</td>
+<td>11.02</td>
+<td>343205</td>
+<td>2</td>
+<td class="pnl-pos">10,347</td>
+<td class="pnl-pos">3.11%</td>
+<td class="balance">1,269,270</td>
+</tr>
+<tr>
+<td>601888</td>
+<td>中国中免</td>
+<td data-sort="1762732800">2025-11-10</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>低开买</td>
+<td>78.77</td>
+<td>4200</td>
+<td>331098</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>194</td>
+<td>83.17</td>
+<td>348685</td>
+<td>2</td>
+<td class="pnl-pos">17,587</td>
+<td class="pnl-pos">5.31%</td>
+<td class="balance">1,258,922</td>
+</tr>
+<tr>
+<td>600745</td>
+<td>闻泰科技</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>低开买</td>
+<td>40.8</td>
+<td>8100</td>
+<td>330744</td>
+<td data-sort="1764633600">2025-12-02</td>
+<td>178</td>
+<td>40.0</td>
+<td>323417</td>
+<td>2</td>
+<td class="pnl-neg">-7,327</td>
+<td class="pnl-neg">-2.22%</td>
+<td class="balance">1,241,336</td>
+</tr>
+<tr>
+<td>002709</td>
+<td>天赐材料</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>低开买</td>
+<td>40.48</td>
+<td>8200</td>
+<td>332201</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>124</td>
+<td>42.39</td>
+<td>346972</td>
+<td>2</td>
+<td class="pnl-pos">14,771</td>
+<td class="pnl-pos">4.45%</td>
+<td class="balance">1,248,663</td>
+</tr>
+<tr>
+<td>002196</td>
+<td>方正电机</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>低开买</td>
+<td>13.49</td>
+<td>24600</td>
+<td>332119</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>450</td>
+<td>13.13</td>
+<td>322416</td>
+<td>2</td>
+<td class="pnl-neg">-9,703</td>
+<td class="pnl-neg">-2.92%</td>
+<td class="balance">1,233,892</td>
+</tr>
+<tr>
+<td>601600</td>
+<td>中国铝业</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>低开买</td>
+<td>10.39</td>
+<td>32000</td>
+<td>332746</td>
+<td data-sort="1764547200">2025-12-01</td>
+<td>251</td>
+<td>10.69</td>
+<td>341464</td>
+<td>2</td>
+<td class="pnl-pos">8,718</td>
+<td class="pnl-pos">2.62%</td>
+<td class="balance">1,243,595</td>
+</tr>
+<tr>
+<td>601179</td>
+<td>中国西电</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>低开买</td>
+<td>8.24</td>
+<td>40400</td>
+<td>333162</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>240</td>
+<td>8.33</td>
+<td>335926</td>
+<td>2</td>
+<td class="pnl-pos">2,764</td>
+<td class="pnl-pos">0.83%</td>
+<td class="balance">1,234,876</td>
+</tr>
+<tr>
+<td>002050</td>
+<td>三花智控</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>低开买</td>
+<td>43.2</td>
+<td>7700</td>
+<td>332906</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>101</td>
+<td>42.98</td>
+<td>330350</td>
+<td>2</td>
+<td class="pnl-neg">-2,556</td>
+<td class="pnl-neg">-0.77%</td>
+<td class="balance">1,232,112</td>
+</tr>
+<tr>
+<td>000559</td>
+<td>万向钱潮</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>低开买</td>
+<td>11.81</td>
+<td>28200</td>
+<td>333308</td>
+<td data-sort="1764288000">2025-11-28</td>
+<td>229</td>
+<td>12.53</td>
+<td>352710</td>
+<td>2</td>
+<td class="pnl-pos">19,402</td>
+<td class="pnl-pos">5.82%</td>
+<td class="balance">1,234,668</td>
+</tr>
+<tr>
+<td>000338</td>
+<td>潍柴动力</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>低开买</td>
+<td>16.97</td>
+<td>19600</td>
+<td>332878</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>630</td>
+<td>16.98</td>
+<td>332209</td>
+<td>2</td>
+<td class="pnl-neg">-669</td>
+<td class="pnl-neg">-0.20%</td>
+<td class="balance">1,215,266</td>
+</tr>
+<tr>
+<td>600550</td>
+<td>保变电气</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>低开买</td>
+<td>9.68</td>
+<td>34400</td>
+<td>333258</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>811</td>
+<td>9.3</td>
+<td>319344</td>
+<td>2</td>
+<td class="pnl-neg">-13,914</td>
+<td class="pnl-neg">-4.18%</td>
+<td class="balance">1,221,605</td>
+</tr>
+<tr>
+<td>300444</td>
+<td>双杰电气</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>低开买</td>
+<td>9.65</td>
+<td>34500</td>
+<td>333191</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>525</td>
+<td>9.29</td>
+<td>319928</td>
+<td>2</td>
+<td class="pnl-neg">-13,263</td>
+<td class="pnl-neg">-3.98%</td>
+<td class="balance">1,235,519</td>
+</tr>
+<tr>
+<td>300062</td>
+<td>中能电气</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>低开买</td>
+<td>8.26</td>
+<td>40300</td>
+<td>333144</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>753</td>
+<td>8.26</td>
+<td>332279</td>
+<td>2</td>
+<td class="pnl-neg">-865</td>
+<td class="pnl-neg">-0.26%</td>
+<td class="balance">1,248,783</td>
+</tr>
+<tr>
+<td>603530</td>
+<td>神马电力</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>低开买</td>
+<td>40.08</td>
+<td>8300</td>
+<td>332930</td>
+<td data-sort="1764201600">2025-11-27</td>
+<td>1849</td>
+<td>39.5</td>
+<td>327260</td>
+<td>2</td>
+<td class="pnl-neg">-5,670</td>
+<td class="pnl-neg">-1.70%</td>
+<td class="balance">1,215,935</td>
+</tr>
+<tr>
+<td>300591</td>
+<td>万里马</td>
+<td data-sort="1762214400">2025-11-04</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>低开买</td>
+<td>10.03</td>
+<td>33200</td>
+<td>333262</td>
+<td data-sort="1764115200">2025-11-26</td>
+<td>410</td>
+<td>10.23</td>
+<td>339024</td>
+<td>2</td>
+<td class="pnl-pos">5,762</td>
+<td class="pnl-pos">1.73%</td>
+<td class="balance">1,249,648</td>
+</tr>
+<tr>
+<td>601929</td>
+<td>吉视传媒</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>低开买</td>
+<td>3.75</td>
+<td>88800</td>
+<td>333266</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>246</td>
+<td>3.94</td>
+<td>349242</td>
+<td>2</td>
+<td class="pnl-pos">15,976</td>
+<td class="pnl-pos">4.79%</td>
+<td class="balance">1,243,885</td>
+</tr>
+<tr>
+<td>600667</td>
+<td>太极实业</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>低开买</td>
+<td>7.67</td>
+<td>43400</td>
+<td>333144</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>672</td>
+<td>7.9</td>
+<td>342243</td>
+<td>2</td>
+<td class="pnl-pos">9,099</td>
+<td class="pnl-pos">2.73%</td>
+<td class="balance">1,227,909</td>
+</tr>
+<tr>
+<td>002611</td>
+<td>东方精工</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>低开买</td>
+<td>17.29</td>
+<td>19200</td>
+<td>332233</td>
+<td data-sort="1764028800">2025-11-25</td>
+<td>489</td>
+<td>17.35</td>
+<td>332520</td>
+<td>2</td>
+<td class="pnl-pos">287</td>
+<td class="pnl-pos">0.09%</td>
+<td class="balance">1,218,811</td>
+</tr>
+<tr>
+<td>000777</td>
+<td>中核科技</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td data-sort="1763683200">2025-11-21</td>
+<td>低开买</td>
+<td>21.01</td>
+<td>15800</td>
+<td>332223</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>1237</td>
+<td>20.54</td>
+<td>323948</td>
+<td>2</td>
+<td class="pnl-neg">-8,276</td>
+<td class="pnl-neg">-2.49%</td>
+<td class="balance">1,218,524</td>
+</tr>
+<tr>
+<td>600635</td>
+<td>大众公用</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td data-sort="1763596800">2025-11-20</td>
+<td>低开买</td>
+<td>6.74</td>
+<td>49400</td>
+<td>333222</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>143</td>
+<td>6.96</td>
+<td>343205</td>
+<td>3</td>
+<td class="pnl-pos">9,983</td>
+<td class="pnl-pos">3.00%</td>
+<td class="balance">1,226,799</td>
+</tr>
+<tr>
+<td>002402</td>
+<td>和而泰</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>低开买</td>
+<td>51.25</td>
+<td>6500</td>
+<td>333391</td>
+<td data-sort="1763942400">2025-11-24</td>
+<td>60</td>
+<td>46.98</td>
+<td>304820</td>
+<td>4</td>
+<td class="pnl-neg">-28,571</td>
+<td class="pnl-neg">-8.57%</td>
+<td class="balance">1,216,816</td>
+</tr>
+<tr>
+<td>603686</td>
+<td>福龙马</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>低开买</td>
+<td>27.16</td>
+<td>12200</td>
+<td>331617</td>
+<td data-sort="1763683200">2025-11-21</td>
+<td>131</td>
+<td>25.37</td>
+<td>308957</td>
+<td>3</td>
+<td class="pnl-neg">-22,660</td>
+<td class="pnl-neg">-6.83%</td>
+<td class="balance">1,245,387</td>
+</tr>
+<tr>
+<td>601012</td>
+<td>隆基绿能</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>涨2%买</td>
+<td>21.2058</td>
+<td>15700</td>
+<td>333197</td>
+<td data-sort="1763596800">2025-11-20</td>
+<td>74</td>
+<td>20.1</td>
+<td>315002</td>
+<td>2</td>
+<td class="pnl-neg">-18,195</td>
+<td class="pnl-neg">-5.46%</td>
+<td class="balance">1,268,047</td>
+</tr>
+<tr>
+<td>600021</td>
+<td>上海电力</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>低开买</td>
+<td>25.8</td>
+<td>12900</td>
+<td>333086</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>241</td>
+<td>25.32</td>
+<td>326040</td>
+<td>2</td>
+<td class="pnl-neg">-7,046</td>
+<td class="pnl-neg">-2.12%</td>
+<td class="balance">1,286,243</td>
+</tr>
+<tr>
+<td>300450</td>
+<td>先导智能</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>低开买</td>
+<td>54.97</td>
+<td>6000</td>
+<td>330083</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>305</td>
+<td>50.89</td>
+<td>304790</td>
+<td>2</td>
+<td class="pnl-neg">-25,293</td>
+<td class="pnl-neg">-7.66%</td>
+<td class="balance">1,293,289</td>
+</tr>
+<tr>
+<td>300274</td>
+<td>阳光电源</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>低开买</td>
+<td>183.69</td>
+<td>1800</td>
+<td>330906</td>
+<td data-sort="1763510400">2025-11-19</td>
+<td>146</td>
+<td>176.5</td>
+<td>317128</td>
+<td>2</td>
+<td class="pnl-neg">-13,778</td>
+<td class="pnl-neg">-4.16%</td>
+<td class="balance">1,318,582</td>
+</tr>
+<tr>
+<td>002217</td>
+<td>合力泰</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>低开买</td>
+<td>3.28</td>
+<td>101500</td>
+<td>333186</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>622</td>
+<td>3.24</td>
+<td>328268</td>
+<td>2</td>
+<td class="pnl-neg">-4,918</td>
+<td class="pnl-neg">-1.48%</td>
+<td class="balance">1,332,360</td>
+</tr>
+<tr>
+<td>601138</td>
+<td>工业富联</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>低开买</td>
+<td>64.39</td>
+<td>5100</td>
+<td>328651</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>96</td>
+<td>64.72</td>
+<td>329478</td>
+<td>2</td>
+<td class="pnl-pos">826</td>
+<td class="pnl-pos">0.25%</td>
+<td class="balance">1,346,623</td>
+</tr>
+<tr>
+<td>300476</td>
+<td>胜宏科技</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td data-sort="1763078400">2025-11-14</td>
+<td>低开买</td>
+<td>282.18</td>
+<td>1100</td>
+<td>310646</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>287</td>
+<td>281.18</td>
+<td>308741</td>
+<td>2</td>
+<td class="pnl-neg">-1,905</td>
+<td class="pnl-neg">-0.61%</td>
+<td class="balance">1,348,539</td>
+</tr>
+<tr>
+<td>300655</td>
+<td>晶瑞电材</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td data-sort="1763078400">2025-11-14</td>
+<td>低开买</td>
+<td>15.9</td>
+<td>20900</td>
+<td>332575</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>470</td>
+<td>15.81</td>
+<td>329834</td>
+<td>2</td>
+<td class="pnl-neg">-2,741</td>
+<td class="pnl-neg">-0.82%</td>
+<td class="balance">1,345,797</td>
+</tr>
+<tr>
+<td>603986</td>
+<td>兆易创新</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>低开买</td>
+<td>207.81</td>
+<td>1600</td>
+<td>332762</td>
+<td data-sort="1763424000">2025-11-18</td>
+<td>232</td>
+<td>202.5</td>
+<td>323417</td>
+<td>2</td>
+<td class="pnl-neg">-9,345</td>
+<td class="pnl-neg">-2.81%</td>
+<td class="balance">1,337,278</td>
+</tr>
+<tr>
+<td>300059</td>
+<td>东方财富</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>低开买</td>
+<td>24.59</td>
+<td>13500</td>
+<td>332230</td>
+<td data-sort="1763337600">2025-11-17</td>
+<td>85</td>
+<td>24.51</td>
+<td>330289</td>
+<td>3</td>
+<td class="pnl-neg">-1,941</td>
+<td class="pnl-neg">-0.58%</td>
+<td class="balance">1,350,443</td>
+</tr>
+<tr>
+<td>600601</td>
+<td>方正科技</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>低开买</td>
+<td>11.19</td>
+<td>29700</td>
+<td>332608</td>
+<td data-sort="1763078400">2025-11-14</td>
+<td>387</td>
+<td>10.81</td>
+<td>320479</td>
+<td>2</td>
+<td class="pnl-neg">-12,130</td>
+<td class="pnl-neg">-3.65%</td>
+<td class="balance">1,352,384</td>
+</tr>
+<tr>
+<td>300308</td>
+<td>中际旭创</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>低开买</td>
+<td>489.28</td>
+<td>600</td>
+<td>293802</td>
+<td data-sort="1763078400">2025-11-14</td>
+<td>142</td>
+<td>462.82</td>
+<td>277192</td>
+<td>2</td>
+<td class="pnl-neg">-16,611</td>
+<td class="pnl-neg">-5.65%</td>
+<td class="balance">1,364,514</td>
+</tr>
+<tr>
+<td>600871</td>
+<td>石化油服</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>低开买</td>
+<td>2.35</td>
+<td>141700</td>
+<td>333261</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>233</td>
+<td>2.63</td>
+<td>372000</td>
+<td>2</td>
+<td class="pnl-pos">38,739</td>
+<td class="pnl-pos">11.62%</td>
+<td class="balance">1,381,125</td>
+</tr>
+<tr>
+<td>002490</td>
+<td>山东墨龙</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>低开买</td>
+<td>7.47</td>
+<td>44600</td>
+<td>333428</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>116</td>
+<td>8.45</td>
+<td>376191</td>
+<td>2</td>
+<td class="pnl-pos">42,763</td>
+<td class="pnl-pos">12.83%</td>
+<td class="balance">1,342,386</td>
+</tr>
+<tr>
+<td>002542</td>
+<td>中化岩土</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>低开买</td>
+<td>3.73</td>
+<td>89300</td>
+<td>333355</td>
+<td data-sort="1762992000">2025-11-13</td>
+<td>1395</td>
+<td>3.74</td>
+<td>333381</td>
+<td>2</td>
+<td class="pnl-pos">26</td>
+<td class="pnl-pos">0.01%</td>
+<td class="balance">1,299,622</td>
+</tr>
+<tr>
+<td>000852</td>
+<td>石化机械</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td>低开买</td>
+<td>7.22</td>
+<td>46100</td>
+<td>333108</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>263</td>
+<td>7.5</td>
+<td>345127</td>
+<td>2</td>
+<td class="pnl-pos">12,020</td>
+<td class="pnl-pos">3.61%</td>
+<td class="balance">1,299,597</td>
+</tr>
+<tr>
+<td>600460</td>
+<td>士兰微</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td>低开买</td>
+<td>30.18</td>
+<td>11000</td>
+<td>332245</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>533</td>
+<td>28.86</td>
+<td>316888</td>
+<td>2</td>
+<td class="pnl-neg">-15,357</td>
+<td class="pnl-neg">-4.62%</td>
+<td class="balance">1,287,577</td>
+</tr>
+<tr>
+<td>300179</td>
+<td>四方达</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td data-sort="1762732800">2025-11-10</td>
+<td>涨2%买</td>
+<td>14.331</td>
+<td>23200</td>
+<td>332745</td>
+<td data-sort="1762905600">2025-11-12</td>
+<td>181</td>
+<td>17.49</td>
+<td>405037</td>
+<td>3</td>
+<td class="pnl-pos">72,293</td>
+<td class="pnl-pos">21.73%</td>
+<td class="balance">1,302,934</td>
+</tr>
+<tr>
+<td>600121</td>
+<td>郑州煤电</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td data-sort="1762732800">2025-11-10</td>
+<td>涨2%买</td>
+<td>5.559</td>
+<td>59900</td>
+<td>333250</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td>552</td>
+<td>5.36</td>
+<td>320486</td>
+<td>2</td>
+<td class="pnl-neg">-12,764</td>
+<td class="pnl-neg">-3.83%</td>
+<td class="balance">1,230,641</td>
+</tr>
+<tr>
+<td>002208</td>
+<td>合肥城建</td>
+<td data-sort="1760659200">2025-10-17</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>低开买</td>
+<td>11.7</td>
+<td>28400</td>
+<td>332545</td>
+<td data-sort="1762819200">2025-11-11</td>
+<td>192</td>
+<td>11.63</td>
+<td>329697</td>
+<td>3</td>
+<td class="pnl-neg">-2,848</td>
+<td class="pnl-neg">-0.86%</td>
+<td class="balance">1,243,406</td>
+</tr>
+<tr>
+<td>002185</td>
+<td>华天科技</td>
+<td data-sort="1760659200">2025-10-17</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>低开买</td>
+<td>11.83</td>
+<td>28100</td>
+<td>332688</td>
+<td data-sort="1762732800">2025-11-10</td>
+<td>393</td>
+<td>12.1</td>
+<td>339398</td>
+<td>2</td>
+<td class="pnl-pos">6,709</td>
+<td class="pnl-pos">2.02%</td>
+<td class="balance">1,246,254</td>
+</tr>
+<tr>
+<td>000063</td>
+<td>中兴通讯</td>
+<td data-sort="1760572800">2025-10-16</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>低开买</td>
+<td>41.4</td>
+<td>8000</td>
+<td>331465</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>149</td>
+<td>41.72</td>
+<td>333159</td>
+<td>2</td>
+<td class="pnl-pos">1,694</td>
+<td class="pnl-pos">0.51%</td>
+<td class="balance">1,237,193</td>
+</tr>
+<tr>
+<td>601212</td>
+<td>白银有色</td>
+<td data-sort="1760572800">2025-10-16</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>低开买</td>
+<td>5.03</td>
+<td>66200</td>
+<td>333252</td>
+<td data-sort="1762732800">2025-11-10</td>
+<td>190</td>
+<td>5.28</td>
+<td>348907</td>
+<td>2</td>
+<td class="pnl-pos">15,655</td>
+<td class="pnl-pos">4.70%</td>
+<td class="balance">1,239,545</td>
+</tr>
+<tr>
+<td>000158</td>
+<td>常山北明</td>
+<td data-sort="1760572800">2025-10-16</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>低开买</td>
+<td>23.79</td>
+<td>14000</td>
+<td>333326</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>300</td>
+<td>22.9</td>
+<td>320023</td>
+<td>2</td>
+<td class="pnl-neg">-13,303</td>
+<td class="pnl-neg">-3.99%</td>
+<td class="balance">1,223,890</td>
+</tr>
+<tr>
+<td>600268</td>
+<td>国电南自</td>
+<td data-sort="1760486400">2025-10-15</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>低开买</td>
+<td>11.8</td>
+<td>28200</td>
+<td>333026</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>497</td>
+<td>13.11</td>
+<td>369036</td>
+<td>2</td>
+<td class="pnl-pos">36,011</td>
+<td class="pnl-pos">10.81%</td>
+<td class="balance">1,233,843</td>
+</tr>
+<tr>
+<td>002364</td>
+<td>中恒电气</td>
+<td data-sort="1760486400">2025-10-15</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>低开买</td>
+<td>24.07</td>
+<td>13800</td>
+<td>332431</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>188</td>
+<td>27.4</td>
+<td>377439</td>
+<td>2</td>
+<td class="pnl-pos">45,008</td>
+<td class="pnl-pos">13.54%</td>
+<td class="balance">1,197,832</td>
+</tr>
+<tr>
+<td>600580</td>
+<td>卧龙电驱</td>
+<td data-sort="1760486400">2025-10-15</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>低开买</td>
+<td>44.45</td>
+<td>7400</td>
+<td>329193</td>
+<td data-sort="1762473600">2025-11-07</td>
+<td>147</td>
+<td>44.79</td>
+<td>330849</td>
+<td>2</td>
+<td class="pnl-pos">1,656</td>
+<td class="pnl-pos">0.50%</td>
+<td class="balance">1,235,499</td>
+</tr>
+<tr>
+<td>000981</td>
+<td>山子高科</td>
+<td data-sort="1760400000">2025-10-14</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>低开买</td>
+<td>3.72</td>
+<td>89500</td>
+<td>333206</td>
+<td data-sort="1762387200">2025-11-06</td>
+<td>94</td>
+<td>3.77</td>
+<td>336807</td>
+<td>2</td>
+<td class="pnl-pos">3,601</td>
+<td class="pnl-pos">1.08%</td>
+<td class="balance">1,152,824</td>
+</tr>
+<tr>
+<td>600010</td>
+<td>包钢股份</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>低开买</td>
+<td>2.75</td>
+<td>121100</td>
+<td>333291</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>95</td>
+<td>2.72</td>
+<td>328799</td>
+<td>3</td>
+<td class="pnl-neg">-4,492</td>
+<td class="pnl-neg">-1.35%</td>
+<td class="balance">1,149,223</td>
+</tr>
+<tr>
+<td>603690</td>
+<td>至纯科技</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td data-sort="1762214400">2025-11-04</td>
+<td>低开买</td>
+<td>30.54</td>
+<td>10900</td>
+<td>333152</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>714</td>
+<td>30.2</td>
+<td>328587</td>
+<td>2</td>
+<td class="pnl-neg">-4,565</td>
+<td class="pnl-neg">-1.37%</td>
+<td class="balance">1,153,715</td>
+</tr>
+<tr>
+<td>600745</td>
+<td>闻泰科技</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td data-sort="1762214400">2025-11-04</td>
+<td>涨2%买</td>
+<td>42.6666</td>
+<td>7800</td>
+<td>333065</td>
+<td data-sort="1762300800">2025-11-05</td>
+<td>63</td>
+<td>43.08</td>
+<td>335419</td>
+<td>2</td>
+<td class="pnl-pos">2,354</td>
+<td class="pnl-pos">0.71%</td>
+<td class="balance">1,158,280</td>
+</tr>
+<tr>
+<td>300127</td>
+<td>银河磁体</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>低开买</td>
+<td>34.05</td>
+<td>9700</td>
+<td>330549</td>
+<td data-sort="1762214400">2025-11-04</td>
+<td>1728</td>
+<td>33.07</td>
+<td>320201</td>
+<td>2</td>
+<td class="pnl-neg">-10,347</td>
+<td class="pnl-neg">-3.13%</td>
+<td class="balance">1,155,926</td>
+</tr>
+<tr>
+<td>000831</td>
+<td>中国稀土</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>低开买</td>
+<td>52.0</td>
+<td>6400</td>
+<td>333066</td>
+<td data-sort="1762214400">2025-11-04</td>
+<td>436</td>
+<td>49.4</td>
+<td>315591</td>
+<td>2</td>
+<td class="pnl-neg">-17,475</td>
+<td class="pnl-neg">-5.25%</td>
+<td class="balance">1,166,273</td>
+</tr>
+<tr>
+<td>603011</td>
+<td>合锻智能</td>
+<td data-sort="1760054400">2025-10-10</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>涨2%买</td>
+<td>24.2556</td>
+<td>13700</td>
+<td>332567</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>249</td>
+<td>23.57</td>
+<td>322327</td>
+<td>2</td>
+<td class="pnl-neg">-10,240</td>
+<td class="pnl-neg">-3.08%</td>
+<td class="balance">1,183,749</td>
+</tr>
+<tr>
+<td>000021</td>
+<td>深科技</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>低开买</td>
+<td>28.6</td>
+<td>11600</td>
+<td>332025</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>201</td>
+<td>27.15</td>
+<td>314373</td>
+<td>2</td>
+<td class="pnl-neg">-17,652</td>
+<td class="pnl-neg">-5.32%</td>
+<td class="balance">1,206,709</td>
+</tr>
+<tr>
+<td>601899</td>
+<td>紫金矿业</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>低开买</td>
+<td>31.11</td>
+<td>10700</td>
+<td>333143</td>
+<td data-sort="1762128000">2025-11-03</td>
+<td>132</td>
+<td>30.0</td>
+<td>320422</td>
+<td>2</td>
+<td class="pnl-neg">-12,721</td>
+<td class="pnl-neg">-3.82%</td>
+<td class="balance">1,193,988</td>
+</tr>
+<tr>
+<td>603799</td>
+<td>华友钴业</td>
+<td data-sort="1759190400">2025-09-30</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>低开买</td>
+<td>62.5</td>
+<td>5300</td>
+<td>331515</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>104</td>
+<td>64.81</td>
+<td>342874</td>
+<td>2</td>
+<td class="pnl-pos">11,360</td>
+<td class="pnl-pos">3.43%</td>
+<td class="balance">1,224,361</td>
+</tr>
+<tr>
+<td>600030</td>
+<td>中信证券</td>
+<td data-sort="1759104000">2025-09-29</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>低开买</td>
+<td>30.19</td>
+<td>11000</td>
+<td>332355</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>213</td>
+<td>29.38</td>
+<td>322598</td>
+<td>2</td>
+<td class="pnl-neg">-9,757</td>
+<td class="pnl-neg">-2.94%</td>
+<td class="balance">1,213,001</td>
+</tr>
+<tr>
+<td>002670</td>
+<td>国盛证券</td>
+<td data-sort="1759104000">2025-09-29</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>低开买</td>
+<td>21.45</td>
+<td>15500</td>
+<td>332741</td>
+<td data-sort="1761868800">2025-10-31</td>
+<td>477</td>
+<td>20.91</td>
+<td>323521</td>
+<td>2</td>
+<td class="pnl-neg">-9,219</td>
+<td class="pnl-neg">-2.77%</td>
+<td class="balance">1,222,759</td>
+</tr>
+<tr>
+<td>601127</td>
+<td>赛力斯</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>涨2%买</td>
+<td>160.0482</td>
+<td>2000</td>
+<td>320352</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>128</td>
+<td>162.94</td>
+<td>325293</td>
+<td>2</td>
+<td class="pnl-pos">4,941</td>
+<td class="pnl-pos">1.54%</td>
+<td class="balance">1,243,269</td>
+</tr>
+<tr>
+<td>601218</td>
+<td>吉鑫科技</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>涨2%买</td>
+<td>5.7732</td>
+<td>57700</td>
+<td>333380</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>755</td>
+<td>5.68</td>
+<td>327146</td>
+<td>2</td>
+<td class="pnl-neg">-6,234</td>
+<td class="pnl-neg">-1.87%</td>
+<td class="balance">1,237,036</td>
+</tr>
+<tr>
+<td>000988</td>
+<td>华工科技</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>低开买</td>
+<td>84.0</td>
+<td>3900</td>
+<td>327862</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>150</td>
+<td>86.63</td>
+<td>337249</td>
+<td>2</td>
+<td class="pnl-pos">9,387</td>
+<td class="pnl-pos">2.86%</td>
+<td class="balance">1,191,379</td>
+</tr>
+<tr>
+<td>000977</td>
+<td>浪潮信息</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>低开买</td>
+<td>68.9</td>
+<td>4800</td>
+<td>330984</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>177</td>
+<td>68.17</td>
+<td>326627</td>
+<td>2</td>
+<td class="pnl-neg">-4,357</td>
+<td class="pnl-neg">-1.32%</td>
+<td class="balance">1,181,992</td>
+</tr>
+<tr>
+<td>002298</td>
+<td>中电鑫龙</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>低开买</td>
+<td>11.91</td>
+<td>27900</td>
+<td>332554</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>222</td>
+<td>12.18</td>
+<td>339210</td>
+<td>2</td>
+<td class="pnl-pos">6,656</td>
+<td class="pnl-pos">2.00%</td>
+<td class="balance">1,203,191</td>
+</tr>
+<tr>
+<td>002129</td>
+<td>TCL中环</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>低开买</td>
+<td>8.82</td>
+<td>37700</td>
+<td>332780</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>286</td>
+<td>8.98</td>
+<td>337936</td>
+<td>2</td>
+<td class="pnl-pos">5,157</td>
+<td class="pnl-pos">1.55%</td>
+<td class="balance">1,196,536</td>
+</tr>
+<tr>
+<td>600556</td>
+<td>天下秀</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>低开买</td>
+<td>5.55</td>
+<td>60000</td>
+<td>333266</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>233</td>
+<td>5.98</td>
+<td>358154</td>
+<td>2</td>
+<td class="pnl-pos">24,888</td>
+<td class="pnl-pos">7.47%</td>
+<td class="balance">1,238,328</td>
+</tr>
+<tr>
+<td>300750</td>
+<td>宁德时代</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761609600">2025-10-28</td>
+<td>低开买</td>
+<td>386.16</td>
+<td>800</td>
+<td>309175</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>74</td>
+<td>400.0</td>
+<td>319424</td>
+<td>2</td>
+<td class="pnl-pos">10,249</td>
+<td class="pnl-pos">3.31%</td>
+<td class="balance">1,213,440</td>
+</tr>
+<tr>
+<td>601727</td>
+<td>上海电气</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td data-sort="1761696000">2025-10-29</td>
+<td>低开买</td>
+<td>9.51</td>
+<td>35000</td>
+<td>333116</td>
+<td data-sort="1761782400">2025-10-30</td>
+<td>126</td>
+<td>9.39</td>
+<td>328058</td>
+<td>2</td>
+<td class="pnl-neg">-5,058</td>
+<td class="pnl-neg">-1.52%</td>
+<td class="balance">1,231,978</td>
+</tr>
+<tr>
+<td>600126</td>
+<td>杭钢股份</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>低开买</td>
+<td>8.86</td>
+<td>37600</td>
+<td>333402</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>699</td>
+<td>9.1</td>
+<td>341544</td>
+<td>2</td>
+<td class="pnl-pos">8,142</td>
+<td class="pnl-pos">2.44%</td>
+<td class="balance">1,186,349</td>
+</tr>
+<tr>
+<td>002371</td>
+<td>北方华创</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>低开买</td>
+<td>406.02</td>
+<td>800</td>
+<td>325075</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>192</td>
+<td>429.1</td>
+<td>342662</td>
+<td>2</td>
+<td class="pnl-pos">17,586</td>
+<td class="pnl-pos">5.41%</td>
+<td class="balance">1,178,208</td>
+</tr>
+<tr>
+<td>600895</td>
+<td>张江高科</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>低开买</td>
+<td>44.87</td>
+<td>7400</td>
+<td>332303</td>
+<td data-sort="1761523200">2025-10-27</td>
+<td>182</td>
+<td>46.04</td>
+<td>340082</td>
+<td>2</td>
+<td class="pnl-pos">7,779</td>
+<td class="pnl-pos">2.34%</td>
+<td class="balance">1,160,621</td>
+</tr>
+<tr>
+<td>300604</td>
+<td>长川科技</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>涨2%买</td>
+<td>81.8754</td>
+<td>4000</td>
+<td>327763</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>108</td>
+<td>88.62</td>
+<td>353842</td>
+<td>2</td>
+<td class="pnl-pos">26,079</td>
+<td class="pnl-pos">7.96%</td>
+<td class="balance">1,152,842</td>
+</tr>
+<tr>
+<td>002549</td>
+<td>凯美特气</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>低开买</td>
+<td>25.0</td>
+<td>13300</td>
+<td>332766</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>173</td>
+<td>24.53</td>
+<td>325661</td>
+<td>2</td>
+<td class="pnl-neg">-7,104</td>
+<td class="pnl-neg">-2.13%</td>
+<td class="balance">1,126,763</td>
+</tr>
+<tr>
+<td>300115</td>
+<td>长盈精密</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td>低开买</td>
+<td>35.9</td>
+<td>9200</td>
+<td>330544</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>445</td>
+<td>35.28</td>
+<td>323991</td>
+<td>2</td>
+<td class="pnl-neg">-6,552</td>
+<td class="pnl-neg">-1.98%</td>
+<td class="balance">1,118,483</td>
+</tr>
+<tr>
+<td>002600</td>
+<td>领益智造</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td>低开买</td>
+<td>14.82</td>
+<td>22400</td>
+<td>332233</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>189</td>
+<td>14.59</td>
+<td>326227</td>
+<td>2</td>
+<td class="pnl-neg">-6,006</td>
+<td class="pnl-neg">-1.81%</td>
+<td class="balance">1,106,954</td>
+</tr>
+<tr>
+<td>002065</td>
+<td>东华软件</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>低开买</td>
+<td>10.01</td>
+<td>33200</td>
+<td>332597</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td>589</td>
+<td>9.93</td>
+<td>329082</td>
+<td>2</td>
+<td class="pnl-neg">-3,515</td>
+<td class="pnl-neg">-1.06%</td>
+<td class="balance">1,112,960</td>
+</tr>
+<tr>
+<td>603019</td>
+<td>中科曙光</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>低开买</td>
+<td>108.5</td>
+<td>3000</td>
+<td>325760</td>
+<td data-sort="1761264000">2025-10-24</td>
+<td>51</td>
+<td>113.92</td>
+<td>341145</td>
+<td>2</td>
+<td class="pnl-pos">15,385</td>
+<td class="pnl-pos">4.72%</td>
+<td class="balance">1,133,867</td>
+</tr>
+<tr>
+<td>002097</td>
+<td>山河智能</td>
+<td data-sort="1758240000">2025-09-19</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>低开买</td>
+<td>12.8</td>
+<td>26000</td>
+<td>333066</td>
+<td data-sort="1761177600">2025-10-23</td>
+<td>92</td>
+<td>13.53</td>
+<td>351147</td>
+<td>3</td>
+<td class="pnl-pos">18,081</td>
+<td class="pnl-pos">5.43%</td>
+<td class="balance">1,125,035</td>
+</tr>
+<tr>
+<td>601138</td>
+<td>工业富联</td>
+<td data-sort="1758153600">2025-09-18</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>低开买</td>
+<td>62.94</td>
+<td>5200</td>
+<td>327549</td>
+<td data-sort="1761091200">2025-10-22</td>
+<td>65</td>
+<td>65.46</td>
+<td>339779</td>
+<td>2</td>
+<td class="pnl-pos">12,230</td>
+<td class="pnl-pos">3.73%</td>
+<td class="balance">1,116,475</td>
+</tr>
+<tr>
+<td>600699</td>
+<td>均胜电子</td>
+<td data-sort="1758067200">2025-09-17</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>低开买</td>
+<td>29.97</td>
+<td>11100</td>
+<td>332933</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>123</td>
+<td>32.47</td>
+<td>359768</td>
+<td>2</td>
+<td class="pnl-pos">26,835</td>
+<td class="pnl-pos">8.06%</td>
+<td class="balance">1,104,246</td>
+</tr>
+<tr>
+<td>000737</td>
+<td>北方铜业</td>
+<td data-sort="1758067200">2025-09-17</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>涨2%买</td>
+<td>15.555</td>
+<td>21400</td>
+<td>333143</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>381</td>
+<td>15.92</td>
+<td>340074</td>
+<td>2</td>
+<td class="pnl-pos">6,932</td>
+<td class="pnl-pos">2.08%</td>
+<td class="balance">1,077,410</td>
+</tr>
+<tr>
+<td>600143</td>
+<td>金发科技</td>
+<td data-sort="1758067200">2025-09-17</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>低开买</td>
+<td>19.16</td>
+<td>17300</td>
+<td>331733</td>
+<td data-sort="1761004800">2025-10-21</td>
+<td>247</td>
+<td>19.6</td>
+<td>338469</td>
+<td>2</td>
+<td class="pnl-pos">6,737</td>
+<td class="pnl-pos">2.03%</td>
+<td class="balance">1,070,479</td>
+</tr>
+<tr>
+<td>002195</td>
+<td>岩山科技</td>
+<td data-sort="1757980800">2025-09-16</td>
+<td data-sort="1760659200">2025-10-17</td>
+<td>低开买</td>
+<td>7.31</td>
+<td>45500</td>
+<td>332871</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>102</td>
+<td>7.34</td>
+<td>333369</td>
+<td>2</td>
+<td class="pnl-pos">498</td>
+<td class="pnl-pos">0.15%</td>
+<td class="balance">1,107,792</td>
+</tr>
+<tr>
+<td>600977</td>
+<td>中国电影</td>
+<td data-sort="1757894400">2025-09-15</td>
+<td data-sort="1760572800">2025-10-16</td>
+<td>低开买</td>
+<td>13.73</td>
+<td>24200</td>
+<td>332531</td>
+<td data-sort="1760659200">2025-10-17</td>
+<td>786</td>
+<td>13.24</td>
+<td>319831</td>
+<td>2</td>
+<td class="pnl-neg">-12,700</td>
+<td class="pnl-neg">-3.82%</td>
+<td class="balance">1,107,294</td>
+</tr>
+<tr>
+<td>600171</td>
+<td>上海贝岭</td>
+<td data-sort="1757894400">2025-09-15</td>
+<td data-sort="1760486400">2025-10-15</td>
+<td>低开买</td>
+<td>35.33</td>
+<td>9400</td>
+<td>332367</td>
+<td data-sort="1760572800">2025-10-16</td>
+<td>577</td>
+<td>34.96</td>
+<td>328032</td>
+<td>2</td>
+<td class="pnl-neg">-4,335</td>
+<td class="pnl-neg">-1.30%</td>
+<td class="balance">1,119,995</td>
+</tr>
+<tr>
+<td>300661</td>
+<td>圣邦股份</td>
+<td data-sort="1757894400">2025-09-15</td>
+<td data-sort="1760400000">2025-10-14</td>
+<td>低开买</td>
+<td>87.21</td>
+<td>3800</td>
+<td>331663</td>
+<td data-sort="1760486400">2025-10-15</td>
+<td>541</td>
+<td>81.7</td>
+<td>309901</td>
+<td>2</td>
+<td class="pnl-neg">-21,762</td>
+<td class="pnl-neg">-6.56%</td>
+<td class="balance">1,124,330</td>
+</tr>
+<tr>
+<td>600111</td>
+<td>北方稀土</td>
+<td data-sort="1757635200">2025-09-12</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td>涨2%买</td>
+<td>54.66180000000001</td>
+<td>6000</td>
+<td>328233</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>78</td>
+<td>52.22</td>
+<td>312756</td>
+<td>6</td>
+<td class="pnl-neg">-15,477</td>
+<td class="pnl-neg">-4.72%</td>
+<td class="balance">1,063,742</td>
+</tr>
+<tr>
+<td>600103</td>
+<td>青山纸业</td>
+<td data-sort="1757635200">2025-09-12</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td>低开买</td>
+<td>3.39</td>
+<td>98200</td>
+<td>333164</td>
+<td data-sort="1760400000">2025-10-14</td>
+<td>121</td>
+<td>3.63</td>
+<td>355824</td>
+<td>2</td>
+<td class="pnl-pos">22,660</td>
+<td class="pnl-pos">6.80%</td>
+<td class="balance">1,146,091</td>
+</tr>
+<tr>
+<td>300252</td>
+<td>金信诺</td>
+<td data-sort="1757548800">2025-09-11</td>
+<td data-sort="1760054400">2025-10-10</td>
+<td>低开买</td>
+<td>14.18</td>
+<td>23400</td>
+<td>332077</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td>1010</td>
+<td>13.73</td>
+<td>320703</td>
+<td>2</td>
+<td class="pnl-neg">-11,374</td>
+<td class="pnl-neg">-3.42%</td>
+<td class="balance">1,126,127</td>
+</tr>
+<tr>
+<td>002131</td>
+<td>利欧股份</td>
+<td data-sort="1757462400">2025-09-10</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td>低开买</td>
+<td>5.71</td>
+<td>58300</td>
+<td>333159</td>
+<td data-sort="1760054400">2025-10-10</td>
+<td>113</td>
+<td>5.8</td>
+<td>337531</td>
+<td>2</td>
+<td class="pnl-pos">4,372</td>
+<td class="pnl-pos">1.31%</td>
+<td class="balance">1,141,480</td>
+</tr>
+<tr>
+<td>600050</td>
+<td>中国联通</td>
+<td data-sort="1757462400">2025-09-10</td>
+<td data-sort="1760054400">2025-10-10</td>
+<td>低开买</td>
+<td>5.45</td>
+<td>61100</td>
+<td>333261</td>
+<td data-sort="1760313600">2025-10-13</td>
+<td>381</td>
+<td>5.42</td>
+<td>330566</td>
+<td>2</td>
+<td class="pnl-neg">-2,695</td>
+<td class="pnl-neg">-0.81%</td>
+<td class="balance">1,123,431</td>
+</tr>
+<tr>
+<td>002467</td>
+<td>二六三</td>
+<td data-sort="1757462400">2025-09-10</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td>低开买</td>
+<td>6.4</td>
+<td>52000</td>
+<td>333066</td>
+<td data-sort="1760054400">2025-10-10</td>
+<td>978</td>
+<td>6.34</td>
+<td>329086</td>
+<td>2</td>
+<td class="pnl-neg">-3,979</td>
+<td class="pnl-neg">-1.19%</td>
+<td class="balance">1,137,500</td>
+</tr>
+<tr>
+<td>002176</td>
+<td>江特电机</td>
+<td data-sort="1757289600">2025-09-08</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td>低开买</td>
+<td>9.68</td>
+<td>34400</td>
+<td>333258</td>
+<td data-sort="1759104000">2025-09-29</td>
+<td>402</td>
+<td>9.8</td>
+<td>336513</td>
+<td>2</td>
+<td class="pnl-pos">3,255</td>
+<td class="pnl-pos">0.98%</td>
+<td class="balance">1,083,458</td>
+</tr>
+<tr>
+<td>002617</td>
+<td>露笑科技</td>
+<td data-sort="1757289600">2025-09-08</td>
+<td data-sort="1759104000">2025-09-29</td>
+<td>低开买</td>
+<td>9.39</td>
+<td>35400</td>
+<td>332671</td>
+<td data-sort="1759190400">2025-09-30</td>
+<td>258</td>
+<td>9.28</td>
+<td>327920</td>
+<td>2</td>
+<td class="pnl-neg">-4,751</td>
+<td class="pnl-neg">-1.43%</td>
+<td class="balance">1,078,707</td>
+</tr>
+<tr>
+<td>600118</td>
+<td>中国卫星</td>
+<td data-sort="1757289600">2025-09-08</td>
+<td data-sort="1759190400">2025-09-30</td>
+<td>低开买</td>
+<td>35.76</td>
+<td>9300</td>
+<td>332834</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td>490</td>
+<td>37.29</td>
+<td>346172</td>
+<td>2</td>
+<td class="pnl-pos">13,339</td>
+<td class="pnl-pos">4.01%</td>
+<td class="balance">1,137,107</td>
+</tr>
+<tr>
+<td>300014</td>
+<td>亿纬锂能</td>
+<td data-sort="1757030400">2025-09-05</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td>涨2%买</td>
+<td>79.3152</td>
+<td>4200</td>
+<td>333390</td>
+<td data-sort="1759968000">2025-10-09</td>
+<td>166</td>
+<td>90.27</td>
+<td>378451</td>
+<td>4</td>
+<td class="pnl-pos">45,061</td>
+<td class="pnl-pos">13.52%</td>
+<td class="balance">1,123,769</td>
+</tr>
+<tr>
+<td>002426</td>
+<td>胜利精密</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td>低开买</td>
+<td>3.6</td>
+<td>92500</td>
+<td>333266</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td>870</td>
+<td>3.5</td>
+<td>323167</td>
+<td>2</td>
+<td class="pnl-neg">-10,099</td>
+<td class="pnl-neg">-3.03%</td>
+<td class="balance">1,080,203</td>
+</tr>
+<tr>
+<td>601288</td>
+<td>农业银行</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td>低开买</td>
+<td>6.43</td>
+<td>51800</td>
+<td>333340</td>
+<td data-sort="1758844800">2025-09-26</td>
+<td>295</td>
+<td>6.5</td>
+<td>336094</td>
+<td>2</td>
+<td class="pnl-pos">2,754</td>
+<td class="pnl-pos">0.83%</td>
+<td class="balance">1,090,302</td>
+</tr>
+<tr>
+<td>002251</td>
+<td>步步高</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td>低开买</td>
+<td>5.42</td>
+<td>61400</td>
+<td>333054</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td>109</td>
+<td>5.81</td>
+<td>356092</td>
+<td>2</td>
+<td class="pnl-pos">23,038</td>
+<td class="pnl-pos">6.92%</td>
+<td class="balance">1,087,549</td>
+</tr>
+<tr>
+<td>002115</td>
+<td>三维通信</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td>低开买</td>
+<td>10.95</td>
+<td>30400</td>
+<td>333146</td>
+<td data-sort="1758758400">2025-09-25</td>
+<td>363</td>
+<td>11.01</td>
+<td>334101</td>
+<td>2</td>
+<td class="pnl-pos">955</td>
+<td class="pnl-pos">0.29%</td>
+<td class="balance">1,064,511</td>
+</tr>
+<tr>
+<td>000564</td>
+<td>供销大集</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td>低开买</td>
+<td>2.71</td>
+<td>122900</td>
+<td>333325</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td>251</td>
+<td>2.63</td>
+<td>322645</td>
+<td>2</td>
+<td class="pnl-neg">-10,680</td>
+<td class="pnl-neg">-3.20%</td>
+<td class="balance">1,063,555</td>
+</tr>
+<tr>
+<td>002547</td>
+<td>春兴精工</td>
+<td data-sort="1756857600">2025-09-03</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td>涨2%买</td>
+<td>5.6712</td>
+<td>58700</td>
+<td>333165</td>
+<td data-sort="1758672000">2025-09-24</td>
+<td>479</td>
+<td>5.52</td>
+<td>323440</td>
+<td>2</td>
+<td class="pnl-neg">-9,725</td>
+<td class="pnl-neg">-2.92%</td>
+<td class="balance">1,074,235</td>
+</tr>
+<tr>
+<td>601099</td>
+<td>太平洋</td>
+<td data-sort="1756771200">2025-09-02</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td>低开买</td>
+<td>4.68</td>
+<td>71100</td>
+<td>333014</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td>325</td>
+<td>4.53</td>
+<td>321503</td>
+<td>2</td>
+<td class="pnl-neg">-11,511</td>
+<td class="pnl-neg">-3.46%</td>
+<td class="balance">1,083,960</td>
+</tr>
+<tr>
+<td>600410</td>
+<td>华胜天成</td>
+<td data-sort="1756771200">2025-09-02</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td>低开买</td>
+<td>21.51</td>
+<td>15400</td>
+<td>331519</td>
+<td data-sort="1758585600">2025-09-23</td>
+<td>99</td>
+<td>20.18</td>
+<td>310212</td>
+<td>2</td>
+<td class="pnl-neg">-21,306</td>
+<td class="pnl-neg">-6.43%</td>
+<td class="balance">1,095,471</td>
+</tr>
+<tr>
+<td>603881</td>
+<td>数据港</td>
+<td data-sort="1756684800">2025-09-01</td>
+<td data-sort="1758240000">2025-09-19</td>
+<td>低开买</td>
+<td>35.78</td>
+<td>9300</td>
+<td>333020</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td>120</td>
+<td>37.15</td>
+<td>344873</td>
+<td>2</td>
+<td class="pnl-pos">11,853</td>
+<td class="pnl-pos">3.56%</td>
+<td class="balance">1,116,777</td>
+</tr>
+<tr>
+<td>300324</td>
+<td>旋极信息</td>
+<td data-sort="1756684800">2025-09-01</td>
+<td data-sort="1758153600">2025-09-18</td>
+<td>低开买</td>
+<td>7.42</td>
+<td>44900</td>
+<td>333424</td>
+<td data-sort="1758240000">2025-09-19</td>
+<td>186</td>
+<td>7.5</td>
+<td>336144</td>
+<td>2</td>
+<td class="pnl-pos">2,719</td>
+<td class="pnl-pos">0.82%</td>
+<td class="balance">1,084,338</td>
+</tr>
+<tr>
+<td>300308</td>
+<td>中际旭创</td>
+<td data-sort="1756684800">2025-09-01</td>
+<td data-sort="1758067200">2025-09-17</td>
+<td>低开买</td>
+<td>404.6</td>
+<td>800</td>
+<td>323938</td>
+<td data-sort="1758153600">2025-09-18</td>
+<td>72</td>
+<td>409.0</td>
+<td>326611</td>
+<td>2</td>
+<td class="pnl-pos">2,672</td>
+<td class="pnl-pos">0.82%</td>
+<td class="balance">1,081,619</td>
+</tr>
+<tr>
+<td>601606</td>
+<td>长城军工</td>
+<td data-sort="1756425600">2025-08-29</td>
+<td data-sort="1757980800">2025-09-16</td>
+<td>低开买</td>
+<td>48.98</td>
+<td>6800</td>
+<td>333330</td>
+<td data-sort="1758067200">2025-09-17</td>
+<td>227</td>
+<td>47.07</td>
+<td>319500</td>
+<td>2</td>
+<td class="pnl-neg">-13,830</td>
+<td class="pnl-neg">-4.15%</td>
+<td class="balance">1,078,946</td>
+</tr>
+<tr>
+<td>300394</td>
+<td>天孚通信</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td>涨2%买</td>
+<td>183.1002</td>
+<td>1800</td>
+<td>329844</td>
+<td data-sort="1757030400">2025-09-05</td>
+<td>103</td>
+<td>186.3</td>
+<td>334736</td>
+<td>2</td>
+<td class="pnl-pos">4,893</td>
+<td class="pnl-pos">1.48%</td>
+<td class="balance">1,001,354</td>
+</tr>
+<tr>
+<td>300476</td>
+<td>胜宏科技</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td data-sort="1757030400">2025-09-05</td>
+<td>低开买</td>
+<td>256.0</td>
+<td>1300</td>
+<td>333066</td>
+<td data-sort="1757894400">2025-09-15</td>
+<td>84</td>
+<td>329.56</td>
+<td>427657</td>
+<td>7</td>
+<td class="pnl-pos">94,591</td>
+<td class="pnl-pos">28.40%</td>
+<td class="balance">1,095,945</td>
+</tr>
+<tr>
+<td>688981</td>
+<td>中芯国际</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td data-sort="1757894400">2025-09-15</td>
+<td>低开买</td>
+<td>110.55</td>
+<td>3000</td>
+<td>331915</td>
+<td data-sort="1757980800">2025-09-16</td>
+<td>189</td>
+<td>109.78</td>
+<td>328747</td>
+<td>2</td>
+<td class="pnl-neg">-3,168</td>
+<td class="pnl-neg">-0.95%</td>
+<td class="balance">1,092,777</td>
+</tr>
+<tr>
+<td>002241</td>
+<td>歌尔股份</td>
+<td data-sort="1756166400">2025-08-26</td>
+<td data-sort="1756857600">2025-09-03</td>
+<td>低开买</td>
+<td>33.21</td>
+<td>10000</td>
+<td>332365</td>
+<td data-sort="1756944000">2025-09-04</td>
+<td>141</td>
+<td>31.73</td>
+<td>316729</td>
+<td>2</td>
+<td class="pnl-neg">-15,637</td>
+<td class="pnl-neg">-4.70%</td>
+<td class="balance">996,461</td>
+</tr>
+<tr>
+<td>600010</td>
+<td>包钢股份</td>
+<td data-sort="1756080000">2025-08-25</td>
+<td data-sort="1756771200">2025-09-02</td>
+<td>低开买</td>
+<td>2.72</td>
+<td>122400</td>
+<td>333194</td>
+<td data-sort="1756857600">2025-09-03</td>
+<td>175</td>
+<td>2.56</td>
+<td>312780</td>
+<td>2</td>
+<td class="pnl-neg">-20,414</td>
+<td class="pnl-neg">-6.13%</td>
+<td class="balance">1,012,098</td>
+</tr>
+<tr>
+<td>002611</td>
+<td>东方精工</td>
+<td data-sort="1756080000">2025-08-25</td>
+<td data-sort="1756684800">2025-09-01</td>
+<td>低开买</td>
+<td>18.7</td>
+<td>17800</td>
+<td>333126</td>
+<td data-sort="1756771200">2025-09-02</td>
+<td>239</td>
+<td>17.89</td>
+<td>317869</td>
+<td>2</td>
+<td class="pnl-neg">-15,257</td>
+<td class="pnl-neg">-4.58%</td>
+<td class="balance">1,032,512</td>
+</tr>
+<tr>
+<td>300418</td>
+<td>昆仑万维</td>
+<td data-sort="1755820800">2025-08-22</td>
+<td data-sort="1756425600">2025-08-29</td>
+<td>低开买</td>
+<td>41.11</td>
+<td>8100</td>
+<td>333257</td>
+<td data-sort="1756684800">2025-09-01</td>
+<td>359</td>
+<td>41.67</td>
+<td>336919</td>
+<td>2</td>
+<td class="pnl-pos">3,662</td>
+<td class="pnl-pos">1.10%</td>
+<td class="balance">1,047,770</td>
+</tr>
+<tr>
+<td>601929</td>
+<td>吉视传媒</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td>涨2%买</td>
+<td>4.0392</td>
+<td>82400</td>
+<td>333096</td>
+<td data-sort="1758499200">2025-09-22</td>
+<td>59</td>
+<td>4.3</td>
+<td>353682</td>
+<td>18</td>
+<td class="pnl-pos">20,586</td>
+<td class="pnl-pos">6.18%</td>
+<td class="balance">1,104,924</td>
+</tr>
+<tr>
+<td>603123</td>
+<td>翠微股份</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td>低开买</td>
+<td>14.03</td>
+<td>23700</td>
+<td>332777</td>
+<td data-sort="1756425600">2025-08-29</td>
+<td>693</td>
+<td>14.13</td>
+<td>334278</td>
+<td>2</td>
+<td class="pnl-pos">1,501</td>
+<td class="pnl-pos">0.45%</td>
+<td class="balance">1,044,107</td>
+</tr>
+<tr>
+<td>300766</td>
+<td>每日互动</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td data-sort="1756252800">2025-08-27</td>
+<td>涨2%买</td>
+<td>48.9396</td>
+<td>6800</td>
+<td>333055</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td>424</td>
+<td>45.1</td>
+<td>306128</td>
+<td>2</td>
+<td class="pnl-neg">-26,927</td>
+<td class="pnl-neg">-8.08%</td>
+<td class="balance">1,042,606</td>
+</tr>
+<tr>
+<td>300352</td>
+<td>北信源</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td data-sort="1756252800">2025-08-27</td>
+<td>低开买</td>
+<td>7.13</td>
+<td>46700</td>
+<td>333237</td>
+<td data-sort="1756339200">2025-08-28</td>
+<td>587</td>
+<td>6.74</td>
+<td>314191</td>
+<td>2</td>
+<td class="pnl-neg">-19,046</td>
+<td class="pnl-neg">-5.72%</td>
+<td class="balance">1,069,533</td>
+</tr>
+<tr>
+<td>002177</td>
+<td>御银股份</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td data-sort="1756166400">2025-08-26</td>
+<td>涨2%买</td>
+<td>9.2718</td>
+<td>35900</td>
+<td>333123</td>
+<td data-sort="1756252800">2025-08-27</td>
+<td>91</td>
+<td>8.41</td>
+<td>301375</td>
+<td>2</td>
+<td class="pnl-neg">-31,748</td>
+<td class="pnl-neg">-9.53%</td>
+<td class="balance">1,088,579</td>
+</tr>
+<tr>
+<td>600703</td>
+<td>三安光电</td>
+<td data-sort="1755648000">2025-08-20</td>
+<td data-sort="1756166400">2025-08-26</td>
+<td>涨2%买</td>
+<td>14.7186</td>
+<td>22600</td>
+<td>332906</td>
+<td data-sort="1756252800">2025-08-27</td>
+<td>131</td>
+<td>15.35</td>
+<td>346285</td>
+<td>2</td>
+<td class="pnl-pos">13,379</td>
+<td class="pnl-pos">4.02%</td>
+<td class="balance">1,120,327</td>
+</tr>
+<tr>
+<td>000536</td>
+<td>华映科技</td>
+<td data-sort="1755648000">2025-08-20</td>
+<td data-sort="1756080000">2025-08-25</td>
+<td>涨2%买</td>
+<td>5.6814</td>
+<td>58600</td>
+<td>333196</td>
+<td data-sort="1756166400">2025-08-26</td>
+<td>75</td>
+<td>5.93</td>
+<td>346872</td>
+<td>2</td>
+<td class="pnl-pos">13,676</td>
+<td class="pnl-pos">4.10%</td>
+<td class="balance">1,106,948</td>
+</tr>
+<tr>
+<td>600839</td>
+<td>四川长虹</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td>涨2%买</td>
+<td>11.9034</td>
+<td>27900</td>
+<td>332370</td>
+<td data-sort="1756080000">2025-08-25</td>
+<td>67</td>
+<td>12.0</td>
+<td>334197</td>
+<td>3</td>
+<td class="pnl-pos">1,827</td>
+<td class="pnl-pos">0.55%</td>
+<td class="balance">1,086,889</td>
+</tr>
+<tr>
+<td>601138</td>
+<td>工业富联</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td data-sort="1755820800">2025-08-22</td>
+<td>低开买</td>
+<td>44.5</td>
+<td>7400</td>
+<td>329563</td>
+<td data-sort="1756166400">2025-08-26</td>
+<td>51</td>
+<td>45.48</td>
+<td>335946</td>
+<td>3</td>
+<td class="pnl-pos">6,383</td>
+<td class="pnl-pos">1.94%</td>
+<td class="balance">1,093,272</td>
+</tr>
+<tr>
+<td>002837</td>
+<td>英维克</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td>低开买</td>
+<td>69.0</td>
+<td>4800</td>
+<td>331465</td>
+<td data-sort="1755734400">2025-08-21</td>
+<td>56</td>
+<td>64.6</td>
+<td>309522</td>
+<td>3</td>
+<td class="pnl-neg">-21,943</td>
+<td class="pnl-neg">-6.62%</td>
+<td class="balance">1,057,327</td>
+</tr>
+<tr>
+<td>002600</td>
+<td>领益智造</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td>涨2%买</td>
+<td>11.3322</td>
+<td>29300</td>
+<td>332299</td>
+<td data-sort="1755820800">2025-08-22</td>
+<td>56</td>
+<td>12.31</td>
+<td>360034</td>
+<td>4</td>
+<td class="pnl-pos">27,735</td>
+<td class="pnl-pos">8.35%</td>
+<td class="balance">1,085,062</td>
+</tr>
+<tr>
+<td>300059</td>
+<td>东方财富</td>
+<td data-sort="1755216000">2025-08-15</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td>涨2%买</td>
+<td>27.2952</td>
+<td>12200</td>
+<td>333267</td>
+<td data-sort="1760918400">2025-10-20</td>
+<td>51</td>
+<td>25.02</td>
+<td>304694</td>
+<td>40</td>
+<td class="pnl-neg">-28,573</td>
+<td class="pnl-neg">-8.57%</td>
+<td class="balance">1,079,219</td>
+</tr>
+<tr>
+<td>300803</td>
+<td>指南针</td>
+<td data-sort="1755216000">2025-08-15</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td>涨2%买</td>
+<td>112.0674</td>
+<td>2900</td>
+<td>325255</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td>95</td>
+<td>126.55</td>
+<td>366334</td>
+<td>2</td>
+<td class="pnl-pos">41,079</td>
+<td class="pnl-pos">12.63%</td>
+<td class="balance">1,079,270</td>
+</tr>
+<tr>
+<td>601162</td>
+<td>天风证券</td>
+<td data-sort="1755216000">2025-08-15</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td>涨2%买</td>
+<td>5.6508</td>
+<td>58900</td>
+<td>333098</td>
+<td data-sort="1755561600">2025-08-19</td>
+<td>96</td>
+<td>5.63</td>
+<td>331010</td>
+<td>2</td>
+<td class="pnl-neg">-2,088</td>
+<td class="pnl-neg">-0.63%</td>
+<td class="balance">1,038,191</td>
+</tr>
+<tr>
+<td>000901</td>
+<td>航天科技</td>
+<td data-sort="1754870400">2025-08-11</td>
+<td data-sort="1754956800">2025-08-12</td>
+<td>涨2%买</td>
+<td>19.023</td>
+<td>17500</td>
+<td>333168</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td>104</td>
+<td>20.7</td>
+<td>361598</td>
+<td>5</td>
+<td class="pnl-pos">28,429</td>
+<td class="pnl-pos">8.53%</td>
+<td class="balance">817,480</td>
+</tr>
+<tr>
+<td>002046</td>
+<td>国机精工</td>
+<td data-sort="1754611200">2025-08-08</td>
+<td data-sort="1754870400">2025-08-11</td>
+<td>涨2%买</td>
+<td>31.671000000000003</td>
+<td>10500</td>
+<td>332811</td>
+<td data-sort="1754956800">2025-08-12</td>
+<td>97</td>
+<td>31.35</td>
+<td>328582</td>
+<td>2</td>
+<td class="pnl-neg">-4,229</td>
+<td class="pnl-neg">-1.27%</td>
+<td class="balance">789,051</td>
+</tr>
+<tr>
+<td>002017</td>
+<td>东信和平</td>
+<td data-sort="1754352000">2025-08-05</td>
+<td data-sort="1754438400">2025-08-06</td>
+<td>涨2%买</td>
+<td>27.7032</td>
+<td>12000</td>
+<td>332704</td>
+<td data-sort="1754870400">2025-08-11</td>
+<td>113</td>
+<td>29.16</td>
+<td>349290</td>
+<td>4</td>
+<td class="pnl-pos">16,586</td>
+<td class="pnl-pos">4.99%</td>
+<td class="balance">793,280</td>
+</tr>
+<tr>
+<td>000558</td>
+<td>天府文旅</td>
+<td data-sort="1753833600">2025-07-30</td>
+<td data-sort="1753920000">2025-07-31</td>
+<td>涨2%买</td>
+<td>6.7218</td>
+<td>49500</td>
+<td>332995</td>
+<td data-sort="1754438400">2025-08-06</td>
+<td>51</td>
+<td>6.62</td>
+<td>327100</td>
+<td>5</td>
+<td class="pnl-neg">-5,895</td>
+<td class="pnl-neg">-1.77%</td>
+<td class="balance">776,694</td>
+</tr>
+<tr>
+<td>002017</td>
+<td>东信和平</td>
+<td data-sort="1753660800">2025-07-28</td>
+<td data-sort="1753747200">2025-07-29</td>
+<td>低开买</td>
+<td>26.89</td>
+<td>12300</td>
+<td>331011</td>
+<td data-sort="1753920000">2025-07-31</td>
+<td>67</td>
+<td>24.85</td>
+<td>305105</td>
+<td>3</td>
+<td class="pnl-neg">-25,907</td>
+<td class="pnl-neg">-7.83%</td>
+<td class="balance">782,589</td>
+</tr>
+<tr>
+<td>002097</td>
+<td>山河智能</td>
+<td data-sort="1753401600">2025-07-25</td>
+<td data-sort="1753660800">2025-07-28</td>
+<td>涨2%买</td>
+<td>11.2302</td>
+<td>29600</td>
+<td>332679</td>
+<td data-sort="1755475200">2025-08-18</td>
+<td>59</td>
+<td>18.8</td>
+<td>555478</td>
+<td>16</td>
+<td class="pnl-pos">222,799</td>
+<td class="pnl-pos">66.97%</td>
+<td class="balance">1,040,279</td>
+</tr>
+<tr>
+<td>300781</td>
+<td>因赛集团</td>
+<td data-sort="1753401600">2025-07-25</td>
+<td data-sort="1753660800">2025-07-28</td>
+<td>低开买</td>
+<td>44.88</td>
+<td>7400</td>
+<td>332377</td>
+<td data-sort="1753747200">2025-07-29</td>
+<td>146</td>
+<td>45.7</td>
+<td>337571</td>
+<td>2</td>
+<td class="pnl-pos">5,194</td>
+<td class="pnl-pos">1.56%</td>
+<td class="balance">808,495</td>
+</tr>
+<tr>
+<td>000657</td>
+<td>中钨高新</td>
+<td data-sort="1753315200">2025-07-24</td>
+<td data-sort="1753401600">2025-07-25</td>
+<td>涨2%买</td>
+<td>18.156</td>
+<td>18300</td>
+<td>332520</td>
+<td data-sort="1753660800">2025-07-28</td>
+<td>66</td>
+<td>18.01</td>
+<td>328989</td>
+<td>2</td>
+<td class="pnl-neg">-3,531</td>
+<td class="pnl-neg">-1.06%</td>
+<td class="balance">803,302</td>
+</tr>
+<tr>
+<td>002497</td>
+<td>雅化集团</td>
+<td data-sort="1753228800">2025-07-23</td>
+<td data-sort="1753315200">2025-07-24</td>
+<td>低开买</td>
+<td>14.73</td>
+<td>22600</td>
+<td>333164</td>
+<td data-sort="1753660800">2025-07-28</td>
+<td>70</td>
+<td>15.75</td>
+<td>355309</td>
+<td>3</td>
+<td class="pnl-pos">22,145</td>
+<td class="pnl-pos">6.65%</td>
+<td class="balance">806,832</td>
+</tr>
+<tr>
+<td>002266</td>
+<td>浙富控股</td>
+<td data-sort="1753228800">2025-07-23</td>
+<td data-sort="1753315200">2025-07-24</td>
+<td>涨2%买</td>
+<td>4.5594</td>
+<td>73000</td>
+<td>333102</td>
+<td data-sort="1753401600">2025-07-25</td>
+<td>92</td>
+<td>4.0</td>
+<td>291474</td>
+<td>2</td>
+<td class="pnl-neg">-41,628</td>
+<td class="pnl-neg">-12.50%</td>
+<td class="balance">784,687</td>
+</tr>
+<tr>
+<td>000528</td>
+<td>柳    工</td>
+<td data-sort="1753142400">2025-07-22</td>
+<td data-sort="1753228800">2025-07-23</td>
+<td>涨2%买</td>
+<td>12.1992</td>
+<td>27300</td>
+<td>333304</td>
+<td data-sort="1753315200">2025-07-24</td>
+<td>140</td>
+<td>11.57</td>
+<td>315292</td>
+<td>2</td>
+<td class="pnl-neg">-18,012</td>
+<td class="pnl-neg">-5.40%</td>
+<td class="balance">826,315</td>
+</tr>
+<tr>
+<td>600580</td>
+<td>卧龙电驱</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td data-sort="1753142400">2025-07-22</td>
+<td>涨2%买</td>
+<td>23.5722</td>
+<td>14100</td>
+<td>332633</td>
+<td data-sort="1753315200">2025-07-24</td>
+<td>89</td>
+<td>23.97</td>
+<td>337368</td>
+<td>3</td>
+<td class="pnl-pos">4,735</td>
+<td class="pnl-pos">1.42%</td>
+<td class="balance">844,327</td>
+</tr>
+<tr>
+<td>300718</td>
+<td>长盛轴承</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td data-sort="1753142400">2025-07-22</td>
+<td>涨2%买</td>
+<td>97.0122</td>
+<td>3400</td>
+<td>330105</td>
+<td data-sort="1753228800">2025-07-23</td>
+<td>173</td>
+<td>93.36</td>
+<td>316852</td>
+<td>2</td>
+<td class="pnl-neg">-13,253</td>
+<td class="pnl-neg">-4.01%</td>
+<td class="balance">839,592</td>
+</tr>
+<tr>
+<td>002167</td>
+<td>东方锆业</td>
+<td data-sort="1752796800">2025-07-18</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td>涨2%买</td>
+<td>12.0972</td>
+<td>27500</td>
+<td>332939</td>
+<td data-sort="1753142400">2025-07-22</td>
+<td>260</td>
+<td>12.5</td>
+<td>343131</td>
+<td>2</td>
+<td class="pnl-pos">10,192</td>
+<td class="pnl-pos">3.06%</td>
+<td class="balance">852,845</td>
+</tr>
+<tr>
+<td>000617</td>
+<td>中油资本</td>
+<td data-sort="1752796800">2025-07-18</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td>低开买</td>
+<td>9.48</td>
+<td>35100</td>
+<td>333014</td>
+<td data-sort="1753142400">2025-07-22</td>
+<td>222</td>
+<td>9.23</td>
+<td>323390</td>
+<td>2</td>
+<td class="pnl-neg">-9,624</td>
+<td class="pnl-neg">-2.89%</td>
+<td class="balance">842,653</td>
+</tr>
+<tr>
+<td>000158</td>
+<td>常山北明</td>
+<td data-sort="1752710400">2025-07-17</td>
+<td data-sort="1752796800">2025-07-18</td>
+<td>低开买</td>
+<td>24.0</td>
+<td>13800</td>
+<td>331465</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td>133</td>
+<td>24.13</td>
+<td>332394</td>
+<td>2</td>
+<td class="pnl-pos">930</td>
+<td class="pnl-pos">0.28%</td>
+<td class="balance">852,277</td>
+</tr>
+<tr>
+<td>002017</td>
+<td>东信和平</td>
+<td data-sort="1752624000">2025-07-16</td>
+<td data-sort="1752710400">2025-07-17</td>
+<td>涨2%买</td>
+<td>18.6048</td>
+<td>17900</td>
+<td>333292</td>
+<td data-sort="1752796800">2025-07-18</td>
+<td>66</td>
+<td>18.48</td>
+<td>330196</td>
+<td>2</td>
+<td class="pnl-neg">-3,096</td>
+<td class="pnl-neg">-0.93%</td>
+<td class="balance">783,484</td>
+</tr>
+<tr>
+<td>000514</td>
+<td>渝 开 发</td>
+<td data-sort="1752537600">2025-07-15</td>
+<td data-sort="1752624000">2025-07-16</td>
+<td>低开买</td>
+<td>6.96</td>
+<td>47800</td>
+<td>332954</td>
+<td data-sort="1752710400">2025-07-17</td>
+<td>201</td>
+<td>6.59</td>
+<td>314435</td>
+<td>2</td>
+<td class="pnl-neg">-18,519</td>
+<td class="pnl-neg">-5.56%</td>
+<td class="balance">786,580</td>
+</tr>
+<tr>
+<td>000678</td>
+<td>襄阳轴承</td>
+<td data-sort="1752451200">2025-07-14</td>
+<td data-sort="1752537600">2025-07-15</td>
+<td>涨2%买</td>
+<td>17.054399999999998</td>
+<td>19500</td>
+<td>332826</td>
+<td data-sort="1752624000">2025-07-16</td>
+<td>74</td>
+<td>17.06</td>
+<td>332071</td>
+<td>2</td>
+<td class="pnl-neg">-755</td>
+<td class="pnl-neg">-0.23%</td>
+<td class="balance">805,099</td>
+</tr>
+<tr>
+<td>000831</td>
+<td>中国稀土</td>
+<td data-sort="1752192000">2025-07-11</td>
+<td data-sort="1752451200">2025-07-14</td>
+<td>涨2%买</td>
+<td>41.5446</td>
+<td>8000</td>
+<td>332622</td>
+<td data-sort="1752537600">2025-07-15</td>
+<td>203</td>
+<td>37.77</td>
+<td>301616</td>
+<td>2</td>
+<td class="pnl-neg">-31,006</td>
+<td class="pnl-neg">-9.32%</td>
+<td class="balance">805,854</td>
+</tr>
+<tr>
+<td>000617</td>
+<td>中油资本</td>
+<td data-sort="1751932800">2025-07-08</td>
+<td data-sort="1752019200">2025-07-09</td>
+<td>涨2%买</td>
+<td>8.823</td>
+<td>37700</td>
+<td>332893</td>
+<td data-sort="1752451200">2025-07-14</td>
+<td>94</td>
+<td>9.21</td>
+<td>346592</td>
+<td>4</td>
+<td class="pnl-pos">13,699</td>
+<td class="pnl-pos">4.12%</td>
+<td class="balance">836,861</td>
+</tr>
+<tr>
+<td>000601</td>
+<td>韶能股份</td>
+<td data-sort="1751846400">2025-07-07</td>
+<td data-sort="1751932800">2025-07-08</td>
+<td>涨2%买</td>
+<td>6.2424</td>
+<td>53300</td>
+<td>332986</td>
+<td data-sort="1752019200">2025-07-09</td>
+<td>92</td>
+<td>6.45</td>
+<td>343166</td>
+<td>2</td>
+<td class="pnl-pos">10,180</td>
+<td class="pnl-pos">3.06%</td>
+<td class="balance">823,162</td>
+</tr>
+<tr>
+<td>000670</td>
+<td>盈方微</td>
+<td data-sort="1751587200">2025-07-04</td>
+<td data-sort="1751846400">2025-07-07</td>
+<td>低开买</td>
+<td>7.85</td>
+<td>42400</td>
+<td>333106</td>
+<td data-sort="1751932800">2025-07-08</td>
+<td>151</td>
+<td>7.91</td>
+<td>334780</td>
+<td>2</td>
+<td class="pnl-pos">1,674</td>
+<td class="pnl-pos">0.50%</td>
+<td class="balance">812,982</td>
+</tr>
+<tr>
+<td>001298</td>
+<td>好上好</td>
+<td data-sort="1751500800">2025-07-03</td>
+<td data-sort="1751587200">2025-07-04</td>
+<td>低开买</td>
+<td>36.75</td>
+<td>9000</td>
+<td>331014</td>
+<td data-sort="1751846400">2025-07-07</td>
+<td>86</td>
+<td>33.02</td>
+<td>296645</td>
+<td>2</td>
+<td class="pnl-neg">-34,369</td>
+<td class="pnl-neg">-10.38%</td>
+<td class="balance">811,307</td>
+</tr>
+<tr>
+<td>000737</td>
+<td>北方铜业</td>
+<td data-sort="1751414400">2025-07-02</td>
+<td data-sort="1751500800">2025-07-03</td>
+<td>涨2%买</td>
+<td>12.5562</td>
+<td>26500</td>
+<td>333005</td>
+<td data-sort="1751587200">2025-07-04</td>
+<td>64</td>
+<td>11.34</td>
+<td>299969</td>
+<td>2</td>
+<td class="pnl-neg">-33,036</td>
+<td class="pnl-neg">-9.92%</td>
+<td class="balance">845,677</td>
+</tr>
+<tr>
+<td>002165</td>
+<td>红 宝 丽</td>
+<td data-sort="1751328000">2025-07-01</td>
+<td data-sort="1751414400">2025-07-02</td>
+<td>涨2%买</td>
+<td>10.3122</td>
+<td>32300</td>
+<td>333350</td>
+<td data-sort="1751500800">2025-07-03</td>
+<td>93</td>
+<td>10.1</td>
+<td>325642</td>
+<td>2</td>
+<td class="pnl-neg">-7,708</td>
+<td class="pnl-neg">-2.31%</td>
+<td class="balance">878,713</td>
+</tr>
+<tr>
+<td>000519</td>
+<td>中兵红箭</td>
+<td data-sort="1751241600">2025-06-30</td>
+<td data-sort="1751328000">2025-07-01</td>
+<td>涨2%买</td>
+<td>22.3278</td>
+<td>14900</td>
+<td>332950</td>
+<td data-sort="1751414400">2025-07-02</td>
+<td>95</td>
+<td>21.25</td>
+<td>316055</td>
+<td>2</td>
+<td class="pnl-neg">-16,895</td>
+<td class="pnl-neg">-5.07%</td>
+<td class="balance">886,421</td>
+</tr>
+<tr>
+<td>002104</td>
+<td>恒宝股份</td>
+<td data-sort="1750896000">2025-06-26</td>
+<td data-sort="1750982400">2025-06-27</td>
+<td>涨2%买</td>
+<td>17.758200000000002</td>
+<td>18700</td>
+<td>332344</td>
+<td data-sort="1753056000">2025-07-21</td>
+<td>77</td>
+<td>21.44</td>
+<td>400206</td>
+<td>17</td>
+<td class="pnl-pos">67,863</td>
+<td class="pnl-pos">20.42%</td>
+<td class="balance">851,347</td>
+</tr>
+<tr>
+<td>300059</td>
+<td>东方财富</td>
+<td data-sort="1750809600">2025-06-25</td>
+<td data-sort="1750896000">2025-06-26</td>
+<td>低开买</td>
+<td>23.52</td>
+<td>14100</td>
+<td>331897</td>
+<td data-sort="1751328000">2025-07-01</td>
+<td>63</td>
+<td>22.88</td>
+<td>322027</td>
+<td>4</td>
+<td class="pnl-neg">-9,870</td>
+<td class="pnl-neg">-2.97%</td>
+<td class="balance">903,316</td>
+</tr>
+<tr>
+<td>002074</td>
+<td>国轩高科</td>
+<td data-sort="1750723200">2025-06-24</td>
+<td data-sort="1750809600">2025-06-25</td>
+<td>涨2%买</td>
+<td>31.0386</td>
+<td>10700</td>
+<td>332378</td>
+<td data-sort="1750982400">2025-06-27</td>
+<td>61</td>
+<td>32.21</td>
+<td>344026</td>
+<td>3</td>
+<td class="pnl-pos">11,648</td>
+<td class="pnl-pos">3.50%</td>
+<td class="balance">913,186</td>
+</tr>
+<tr>
+<td>002017</td>
+<td>东信和平</td>
+<td data-sort="1750723200">2025-06-24</td>
+<td data-sort="1750809600">2025-06-25</td>
+<td>低开买</td>
+<td>17.09</td>
+<td>19400</td>
+<td>331811</td>
+<td data-sort="1750896000">2025-06-26</td>
+<td>108</td>
+<td>16.53</td>
+<td>320104</td>
+<td>2</td>
+<td class="pnl-neg">-11,706</td>
+<td class="pnl-neg">-3.53%</td>
+<td class="balance">901,538</td>
+</tr>
+<tr>
+<td>002235</td>
+<td>安妮股份</td>
+<td data-sort="1750377600">2025-06-20</td>
+<td data-sort="1750636800">2025-06-23</td>
+<td>涨2%买</td>
+<td>9.2106</td>
+<td>36100</td>
+<td>332768</td>
+<td data-sort="1750809600">2025-06-25</td>
+<td>70</td>
+<td>9.42</td>
+<td>339450</td>
+<td>3</td>
+<td class="pnl-pos">6,681</td>
+<td class="pnl-pos">2.01%</td>
+<td class="balance">913,244</td>
+</tr>
+<tr>
+<td>002017</td>
+<td>东信和平</td>
+<td data-sort="1750118400">2025-06-17</td>
+<td data-sort="1750204800">2025-06-18</td>
+<td>低开买</td>
+<td>14.32</td>
+<td>23200</td>
+<td>332489</td>
+<td data-sort="1750636800">2025-06-23</td>
+<td>59</td>
+<td>16.15</td>
+<td>374005</td>
+<td>4</td>
+<td class="pnl-pos">41,516</td>
+<td class="pnl-pos">12.49%</td>
+<td class="balance">820,735</td>
+</tr>
+<tr>
+<td>300251</td>
+<td>光线传媒</td>
+<td data-sort="1750032000">2025-06-16</td>
+<td data-sort="1750118400">2025-06-17</td>
+<td>涨2%买</td>
+<td>22.542</td>
+<td>14700</td>
+<td>331632</td>
+<td data-sort="1750204800">2025-06-18</td>
+<td>101</td>
+<td>20.4</td>
+<td>299340</td>
+<td>2</td>
+<td class="pnl-neg">-32,292</td>
+<td class="pnl-neg">-9.74%</td>
+<td class="balance">779,219</td>
+</tr>
+<tr>
+<td>300468</td>
+<td>四方精创</td>
+<td data-sort="1750032000">2025-06-16</td>
+<td data-sort="1750118400">2025-06-17</td>
+<td>低开买</td>
+<td>36.16</td>
+<td>9200</td>
+<td>332938</td>
+<td data-sort="1750809600">2025-06-25</td>
+<td>56</td>
+<td>45.6</td>
+<td>418765</td>
+<td>7</td>
+<td class="pnl-pos">85,827</td>
+<td class="pnl-pos">25.78%</td>
+<td class="balance">906,562</td>
+</tr>
+<tr>
+<td>002190</td>
+<td>成飞集成</td>
+<td data-sort="1749772800">2025-06-13</td>
+<td data-sort="1750032000">2025-06-16</td>
+<td>低开买</td>
+<td>36.36</td>
+<td>9100</td>
+<td>331140</td>
+<td data-sort="1750118400">2025-06-17</td>
+<td>96</td>
+<td>37.0</td>
+<td>336094</td>
+<td>2</td>
+<td class="pnl-pos">4,953</td>
+<td class="pnl-pos">1.50%</td>
+<td class="balance">811,512</td>
+</tr>
+<tr>
+<td>002734</td>
+<td>利民股份</td>
+<td data-sort="1749600000">2025-06-11</td>
+<td data-sort="1749686400">2025-06-12</td>
+<td>涨2%买</td>
+<td>23.0622</td>
+<td>14400</td>
+<td>332361</td>
+<td data-sort="1750118400">2025-06-17</td>
+<td>91</td>
+<td>22.49</td>
+<td>323273</td>
+<td>4</td>
+<td class="pnl-neg">-9,088</td>
+<td class="pnl-neg">-2.73%</td>
+<td class="balance">806,558</td>
+</tr>
+<tr>
+<td>002298</td>
+<td>中电鑫龙</td>
+<td data-sort="1749513600">2025-06-10</td>
+<td data-sort="1749600000">2025-06-11</td>
+<td>低开买</td>
+<td>8.21</td>
+<td>40500</td>
+<td>332771</td>
+<td data-sort="1749686400">2025-06-12</td>
+<td>99</td>
+<td>7.23</td>
+<td>292288</td>
+<td>2</td>
+<td class="pnl-neg">-40,483</td>
+<td class="pnl-neg">-12.17%</td>
+<td class="balance">762,932</td>
+</tr>
+<tr>
+<td>600468</td>
+<td>百利电气</td>
+<td data-sort="1748563200">2025-05-30</td>
+<td data-sort="1748908800">2025-06-03</td>
+<td>低开买</td>
+<td>7.0</td>
+<td>47500</td>
+<td>332766</td>
+<td data-sort="1750032000">2025-06-16</td>
+<td>76</td>
+<td>8.13</td>
+<td>385480</td>
+<td>10</td>
+<td class="pnl-pos">52,714</td>
+<td class="pnl-pos">15.84%</td>
+<td class="balance">815,646</td>
+</tr>
+<tr>
+<td>002639</td>
+<td>雪人集团</td>
+<td data-sort="1748563200">2025-05-30</td>
+<td data-sort="1748908800">2025-06-03</td>
+<td>低开买</td>
+<td>11.33</td>
+<td>29400</td>
+<td>333368</td>
+<td data-sort="1749600000">2025-06-11</td>
+<td>61</td>
+<td>11.23</td>
+<td>329567</td>
+<td>7</td>
+<td class="pnl-neg">-3,801</td>
+<td class="pnl-neg">-1.14%</td>
+<td class="balance">803,415</td>
+</tr>
+<tr>
+<td>002094</td>
+<td>青岛金王</td>
+<td data-sort="1748476800">2025-05-29</td>
+<td data-sort="1748563200">2025-05-30</td>
+<td>涨2%买</td>
+<td>9.9858</td>
+<td>33300</td>
+<td>332793</td>
+<td data-sort="1748908800">2025-06-03</td>
+<td>69</td>
+<td>9.88</td>
+<td>328412</td>
+<td>2</td>
+<td class="pnl-neg">-4,381</td>
+<td class="pnl-neg">-1.32%</td>
+<td class="balance">856,920</td>
+</tr>
+<tr>
+<td>002365</td>
+<td>永安药业</td>
+<td data-sort="1748390400">2025-05-28</td>
+<td data-sort="1748476800">2025-05-29</td>
+<td>低开买</td>
+<td>23.93</td>
+<td>13900</td>
+<td>332893</td>
+<td data-sort="1748908800">2025-06-03</td>
+<td>103</td>
+<td>20.41</td>
+<td>283188</td>
+<td>3</td>
+<td class="pnl-neg">-49,705</td>
+<td class="pnl-neg">-14.93%</td>
+<td class="balance">807,216</td>
+</tr>
+<tr>
+<td>002342</td>
+<td>巨力索具</td>
+<td data-sort="1748390400">2025-05-28</td>
+<td data-sort="1748476800">2025-05-29</td>
+<td>涨2%买</td>
+<td>5.7018</td>
+<td>58400</td>
+<td>333251</td>
+<td data-sort="1748563200">2025-05-30</td>
+<td>57</td>
+<td>5.88</td>
+<td>342774</td>
+<td>2</td>
+<td class="pnl-pos">9,523</td>
+<td class="pnl-pos">2.86%</td>
+<td class="balance">861,302</td>
+</tr>
+<tr>
+<td>600105</td>
+<td>永鼎股份</td>
+<td data-sort="1748217600">2025-05-26</td>
+<td data-sort="1748304000">2025-05-27</td>
+<td>低开买</td>
+<td>8.22</td>
+<td>40500</td>
+<td>333176</td>
+<td data-sort="1748476800">2025-05-29</td>
+<td>136</td>
+<td>8.65</td>
+<td>349694</td>
+<td>3</td>
+<td class="pnl-pos">16,518</td>
+<td class="pnl-pos">4.96%</td>
+<td class="balance">851,779</td>
+</tr>
+<tr>
+<td>002882</td>
+<td>金龙羽</td>
+<td data-sort="1747958400">2025-05-23</td>
+<td data-sort="1748217600">2025-05-26</td>
+<td>低开买</td>
+<td>21.7</td>
+<td>15300</td>
+<td>332275</td>
+<td data-sort="1748476800">2025-05-29</td>
+<td>109</td>
+<td>23.05</td>
+<td>352030</td>
+<td>4</td>
+<td class="pnl-pos">19,755</td>
+<td class="pnl-pos">5.95%</td>
+<td class="balance">835,261</td>
+</tr>
+<tr>
+<td>002229</td>
+<td>鸿博股份</td>
+<td data-sort="1747872000">2025-05-22</td>
+<td data-sort="1747958400">2025-05-23</td>
+<td>低开买</td>
+<td>15.8</td>
+<td>21000</td>
+<td>332065</td>
+<td data-sort="1748304000">2025-05-27</td>
+<td>58</td>
+<td>16.64</td>
+<td>348811</td>
+<td>3</td>
+<td class="pnl-pos">16,746</td>
+<td class="pnl-pos">5.04%</td>
+<td class="balance">815,506</td>
+</tr>
+<tr>
+<td>002040</td>
+<td>南 京 港</td>
+<td data-sort="1747785600">2025-05-21</td>
+<td data-sort="1747872000">2025-05-22</td>
+<td>低开买</td>
+<td>11.77</td>
+<td>28300</td>
+<td>333357</td>
+<td data-sort="1748217600">2025-05-26</td>
+<td>66</td>
+<td>11.36</td>
+<td>320909</td>
+<td>3</td>
+<td class="pnl-neg">-12,448</td>
+<td class="pnl-neg">-3.73%</td>
+<td class="balance">798,760</td>
+</tr>
+<tr>
+<td>002074</td>
+<td>国轩高科</td>
+<td data-sort="1747785600">2025-05-21</td>
+<td data-sort="1747872000">2025-05-22</td>
+<td>涨2%买</td>
+<td>27.081</td>
+<td>12300</td>
+<td>333362</td>
+<td data-sort="1747958400">2025-05-23</td>
+<td>70</td>
+<td>25.15</td>
+<td>308788</td>
+<td>2</td>
+<td class="pnl-neg">-24,574</td>
+<td class="pnl-neg">-7.37%</td>
+<td class="balance">811,208</td>
+</tr>
+<tr>
+<td>002292</td>
+<td>奥飞娱乐</td>
+<td data-sort="1747699200">2025-05-20</td>
+<td data-sort="1747785600">2025-05-21</td>
+<td>涨2%买</td>
+<td>9.9654</td>
+<td>33400</td>
+<td>333110</td>
+<td data-sort="1747872000">2025-05-22</td>
+<td>62</td>
+<td>10.14</td>
+<td>338066</td>
+<td>2</td>
+<td class="pnl-pos">4,956</td>
+<td class="pnl-pos">1.49%</td>
+<td class="balance">851,339</td>
+</tr>
+<tr>
+<td>002123</td>
+<td>梦网科技</td>
+<td data-sort="1747699200">2025-05-20</td>
+<td data-sort="1747785600">2025-05-21</td>
+<td>涨2%买</td>
+<td>16.218</td>
+<td>20500</td>
+<td>332735</td>
+<td data-sort="1747872000">2025-05-22</td>
+<td>97</td>
+<td>15.5</td>
+<td>317178</td>
+<td>2</td>
+<td class="pnl-neg">-15,557</td>
+<td class="pnl-neg">-4.68%</td>
+<td class="balance">835,783</td>
+</tr>
+<tr>
+<td>002389</td>
+<td>航天彩虹</td>
+<td data-sort="1747612800">2025-05-19</td>
+<td data-sort="1747699200">2025-05-20</td>
+<td>涨2%买</td>
+<td>22.0626</td>
+<td>15100</td>
+<td>333411</td>
+<td data-sort="1747785600">2025-05-21</td>
+<td>249</td>
+<td>20.59</td>
+<td>310349</td>
+<td>2</td>
+<td class="pnl-neg">-23,062</td>
+<td class="pnl-neg">-6.92%</td>
+<td class="balance">846,384</td>
+</tr>
+<tr>
+<td>002165</td>
+<td>红 宝 丽</td>
+<td data-sort="1743465600">2025-04-01</td>
+<td data-sort="1743552000">2025-04-02</td>
+<td>低开买</td>
+<td>6.11</td>
+<td>54500</td>
+<td>333261</td>
+<td data-sort="1747699200">2025-05-20</td>
+<td>73</td>
+<td>11.59</td>
+<td>630518</td>
+<td>31</td>
+<td class="pnl-pos">297,257</td>
+<td class="pnl-pos">89.20%</td>
+<td class="balance">869,446</td>
+</tr>
+<tr>
+<td>300687</td>
+<td>赛意信息</td>
+<td data-sort="1743379200">2025-03-31</td>
+<td data-sort="1743465600">2025-04-01</td>
+<td>低开买</td>
+<td>31.03</td>
+<td>10700</td>
+<td>332286</td>
+<td data-sort="1743552000">2025-04-02</td>
+<td>331</td>
+<td>31.01</td>
+<td>331209</td>
+<td>2</td>
+<td class="pnl-neg">-1,077</td>
+<td class="pnl-neg">-0.32%</td>
+<td class="balance">572,189</td>
+</tr>
+<tr>
+<td>002342</td>
+<td>巨力索具</td>
+<td data-sort="1743120000">2025-03-28</td>
+<td data-sort="1743379200">2025-03-31</td>
+<td>低开买</td>
+<td>6.32</td>
+<td>52700</td>
+<td>333330</td>
+<td data-sort="1743465600">2025-04-01</td>
+<td>64</td>
+<td>5.39</td>
+<td>283541</td>
+<td>2</td>
+<td class="pnl-neg">-49,789</td>
+<td class="pnl-neg">-14.94%</td>
+<td class="balance">573,266</td>
+</tr>
+<tr>
+<td>000837</td>
+<td>秦川机床</td>
+<td data-sort="1742947200">2025-03-26</td>
+<td data-sort="1743033600">2025-03-27</td>
+<td>低开买</td>
+<td>13.64</td>
+<td>24400</td>
+<td>333082</td>
+<td data-sort="1743379200">2025-03-31</td>
+<td>76</td>
+<td>13.97</td>
+<td>340254</td>
+<td>3</td>
+<td class="pnl-pos">7,172</td>
+<td class="pnl-pos">2.15%</td>
+<td class="balance">623,054</td>
+</tr>
+<tr>
+<td>002278</td>
+<td>神开股份</td>
+<td data-sort="1742515200">2025-03-21</td>
+<td data-sort="1742774400">2025-03-24</td>
+<td>低开买</td>
+<td>11.13</td>
+<td>29900</td>
+<td>333053</td>
+<td data-sort="1742860800">2025-03-25</td>
+<td>52</td>
+<td>11.04</td>
+<td>329502</td>
+<td>2</td>
+<td class="pnl-neg">-3,551</td>
+<td class="pnl-neg">-1.07%</td>
+<td class="balance">663,675</td>
+</tr>
+<tr>
+<td>002093</td>
+<td>国脉科技</td>
+<td data-sort="1742342400">2025-03-19</td>
+<td data-sort="1742428800">2025-03-20</td>
+<td>低开买</td>
+<td>13.88</td>
+<td>24000</td>
+<td>333386</td>
+<td data-sort="1742774400">2025-03-24</td>
+<td>80</td>
+<td>12.74</td>
+<td>305209</td>
+<td>3</td>
+<td class="pnl-neg">-28,177</td>
+<td class="pnl-neg">-8.45%</td>
+<td class="balance">667,226</td>
+</tr>
+<tr>
+<td>000815</td>
+<td>美利云</td>
+<td data-sort="1742256000">2025-03-18</td>
+<td data-sort="1742342400">2025-03-19</td>
+<td>涨2%买</td>
+<td>17.0748</td>
+<td>19500</td>
+<td>333225</td>
+<td data-sort="1742428800">2025-03-20</td>
+<td>131</td>
+<td>15.48</td>
+<td>301316</td>
+<td>2</td>
+<td class="pnl-neg">-31,908</td>
+<td class="pnl-neg">-9.58%</td>
+<td class="balance">695,403</td>
+</tr>
+<tr>
+<td>000678</td>
+<td>襄阳轴承</td>
+<td data-sort="1742169600">2025-03-17</td>
+<td data-sort="1742256000">2025-03-18</td>
+<td>涨2%买</td>
+<td>14.484</td>
+<td>23000</td>
+<td>333398</td>
+<td data-sort="1743033600">2025-03-27</td>
+<td>74</td>
+<td>12.44</td>
+<td>285605</td>
+<td>8</td>
+<td class="pnl-neg">-47,793</td>
+<td class="pnl-neg">-14.34%</td>
+<td class="balance">615,882</td>
+</tr>
+<tr>
+<td>002896</td>
+<td>中大力德</td>
+<td data-sort="1742169600">2025-03-17</td>
+<td data-sort="1742256000">2025-03-18</td>
+<td>涨2%买</td>
+<td>84.89460000000001</td>
+<td>3900</td>
+<td>331353</td>
+<td data-sort="1742342400">2025-03-19</td>
+<td>88</td>
+<td>82.99</td>
+<td>323078</td>
+<td>2</td>
+<td class="pnl-neg">-8,275</td>
+<td class="pnl-neg">-2.50%</td>
+<td class="balance">727,311</td>
+</tr>
+<tr>
+<td>002105</td>
+<td>信隆健康</td>
+<td data-sort="1741910400">2025-03-14</td>
+<td data-sort="1742169600">2025-03-17</td>
+<td>涨2%买</td>
+<td>12.6786</td>
+<td>26200</td>
+<td>332445</td>
+<td data-sort="1742256000">2025-03-18</td>
+<td>83</td>
+<td>11.74</td>
+<td>307034</td>
+<td>2</td>
+<td class="pnl-neg">-25,411</td>
+<td class="pnl-neg">-7.64%</td>
+<td class="balance">716,646</td>
+</tr>
+<tr>
+<td>000665</td>
+<td>湖北广电</td>
+<td data-sort="1741737600">2025-03-12</td>
+<td data-sort="1741824000">2025-03-13</td>
+<td>低开买</td>
+<td>7.0</td>
+<td>47500</td>
+<td>332766</td>
+<td data-sort="1742169600">2025-03-17</td>
+<td>83</td>
+<td>6.38</td>
+<td>302504</td>
+<td>3</td>
+<td class="pnl-neg">-30,261</td>
+<td class="pnl-neg">-9.09%</td>
+<td class="balance">742,056</td>
+</tr>
+<tr>
+<td>000831</td>
+<td>中国稀土</td>
+<td data-sort="1741651200">2025-03-11</td>
+<td data-sort="1741737600">2025-03-12</td>
+<td>低开买</td>
+<td>33.1</td>
+<td>10000</td>
+<td>331264</td>
+<td data-sort="1741824000">2025-03-13</td>
+<td>238</td>
+<td>32.51</td>
+<td>324515</td>
+<td>2</td>
+<td class="pnl-neg">-6,750</td>
+<td class="pnl-neg">-2.04%</td>
+<td class="balance">772,318</td>
+</tr>
+<tr>
+<td>002031</td>
+<td>巨轮智能</td>
+<td data-sort="1741046400">2025-03-04</td>
+<td data-sort="1741132800">2025-03-05</td>
+<td>低开买</td>
+<td>10.5</td>
+<td>31700</td>
+<td>333116</td>
+<td data-sort="1741737600">2025-03-12</td>
+<td>73</td>
+<td>10.3</td>
+<td>325922</td>
+<td>6</td>
+<td class="pnl-neg">-7,194</td>
+<td class="pnl-neg">-2.16%</td>
+<td class="balance">779,067</td>
+</tr>
+<tr>
+<td>000016</td>
+<td>深康佳Ａ</td>
+<td data-sort="1740960000">2025-03-03</td>
+<td data-sort="1741046400">2025-03-04</td>
+<td>涨2%买</td>
+<td>5.8752</td>
+<td>56700</td>
+<td>333390</td>
+<td data-sort="1741132800">2025-03-05</td>
+<td>188</td>
+<td>5.5</td>
+<td>311288</td>
+<td>2</td>
+<td class="pnl-neg">-22,102</td>
+<td class="pnl-neg">-6.63%</td>
+<td class="balance">786,261</td>
+</tr>
+<tr>
+<td>002582</td>
+<td>好想你</td>
+<td data-sort="1740700800">2025-02-28</td>
+<td data-sort="1740960000">2025-03-03</td>
+<td>涨2%买</td>
+<td>11.0466</td>
+<td>30100</td>
+<td>332768</td>
+<td data-sort="1741046400">2025-03-04</td>
+<td>131</td>
+<td>8.83</td>
+<td>265304</td>
+<td>2</td>
+<td class="pnl-neg">-67,464</td>
+<td class="pnl-neg">-20.27%</td>
+<td class="balance">808,363</td>
+</tr>
+<tr>
+<td>000158</td>
+<td>常山北明</td>
+<td data-sort="1740355200">2025-02-24</td>
+<td data-sort="1740441600">2025-02-25</td>
+<td>涨2%买</td>
+<td>28.0194</td>
+<td>11800</td>
+<td>330893</td>
+<td data-sort="1740960000">2025-03-03</td>
+<td>73</td>
+<td>25.11</td>
+<td>295764</td>
+<td>5</td>
+<td class="pnl-neg">-35,129</td>
+<td class="pnl-neg">-10.62%</td>
+<td class="balance">875,827</td>
+</tr>
+<tr>
+<td>300766</td>
+<td>每日互动</td>
+<td data-sort="1739836800">2025-02-18</td>
+<td data-sort="1739923200">2025-02-19</td>
+<td>低开买</td>
+<td>57.6</td>
+<td>5700</td>
+<td>328582</td>
+<td data-sort="1740441600">2025-02-25</td>
+<td>75</td>
+<td>52.65</td>
+<td>299565</td>
+<td>5</td>
+<td class="pnl-neg">-29,018</td>
+<td class="pnl-neg">-8.83%</td>
+<td class="balance">910,955</td>
+</tr>
+<tr>
+<td>000977</td>
+<td>浪潮信息</td>
+<td data-sort="1739750400">2025-02-17</td>
+<td data-sort="1739836800">2025-02-18</td>
+<td>低开买</td>
+<td>65.89</td>
+<td>5000</td>
+<td>329713</td>
+<td data-sort="1739923200">2025-02-19</td>
+<td>71</td>
+<td>64.46</td>
+<td>321720</td>
+<td>2</td>
+<td class="pnl-neg">-7,994</td>
+<td class="pnl-neg">-2.42%</td>
+<td class="balance">939,973</td>
+</tr>
+<tr>
+<td>600126</td>
+<td>杭钢股份</td>
+<td data-sort="1739491200">2025-02-14</td>
+<td data-sort="1739750400">2025-02-17</td>
+<td>涨2%买</td>
+<td>11.3628</td>
+<td>29300</td>
+<td>333196</td>
+<td data-sort="1742256000">2025-03-18</td>
+<td>54</td>
+<td>12.04</td>
+<td>352137</td>
+<td>22</td>
+<td class="pnl-pos">18,941</td>
+<td class="pnl-pos">5.68%</td>
+<td class="balance">735,587</td>
+</tr>
+<tr>
+<td>600186</td>
+<td>莲花控股</td>
+<td data-sort="1739232000">2025-02-11</td>
+<td data-sort="1739318400">2025-02-12</td>
+<td>涨2%买</td>
+<td>7.6092</td>
+<td>43700</td>
+<td>332788</td>
+<td data-sort="1739491200">2025-02-14</td>
+<td>67</td>
+<td>7.0</td>
+<td>305349</td>
+<td>3</td>
+<td class="pnl-neg">-27,439</td>
+<td class="pnl-neg">-8.25%</td>
+<td class="balance">899,729</td>
+</tr>
+<tr>
+<td>000034</td>
+<td>神州数码</td>
+<td data-sort="1739145600">2025-02-10</td>
+<td data-sort="1739232000">2025-02-11</td>
+<td>涨2%买</td>
+<td>44.4822</td>
+<td>7400</td>
+<td>329431</td>
+<td data-sort="1739318400">2025-02-12</td>
+<td>95</td>
+<td>44.66</td>
+<td>329889</td>
+<td>2</td>
+<td class="pnl-pos">458</td>
+<td class="pnl-pos">0.14%</td>
+<td class="balance">927,167</td>
+</tr>
+<tr>
+<td>002594</td>
+<td>比亚迪</td>
+<td data-sort="1738800000">2025-02-06</td>
+<td data-sort="1738886400">2025-02-07</td>
+<td>涨2%买</td>
+<td>104.4174</td>
+<td>3100</td>
+<td>323952</td>
+<td data-sort="1739232000">2025-02-11</td>
+<td>59</td>
+<td>108.64</td>
+<td>336178</td>
+<td>3</td>
+<td class="pnl-pos">12,225</td>
+<td class="pnl-pos">3.77%</td>
+<td class="balance">926,710</td>
+</tr>
+<tr>
+<td>002530</td>
+<td>金财互联</td>
+<td data-sort="1737676800">2025-01-24</td>
+<td data-sort="1737936000">2025-01-27</td>
+<td>涨2%买</td>
+<td>11.22</td>
+<td>29600</td>
+<td>332377</td>
+<td data-sort="1738886400">2025-02-07</td>
+<td>55</td>
+<td>12.23</td>
+<td>361356</td>
+<td>4</td>
+<td class="pnl-pos">28,979</td>
+<td class="pnl-pos">8.72%</td>
+<td class="balance">914,485</td>
+</tr>
+<tr>
+<td>001356</td>
+<td>富岭股份</td>
+<td data-sort="1737590400">2025-01-23</td>
+<td data-sort="1737676800">2025-01-24</td>
+<td>低开买</td>
+<td>19.03</td>
+<td>17500</td>
+<td>333291</td>
+<td data-sort="1737936000">2025-01-27</td>
+<td>72</td>
+<td>14.74</td>
+<td>257485</td>
+<td>2</td>
+<td class="pnl-neg">-75,806</td>
+<td class="pnl-neg">-22.74%</td>
+<td class="balance">885,506</td>
+</tr>
+<tr>
+<td>000837</td>
+<td>秦川机床</td>
+<td data-sort="1737504000">2025-01-22</td>
+<td data-sort="1737590400">2025-01-23</td>
+<td>涨2%买</td>
+<td>10.6488</td>
+<td>31200</td>
+<td>332508</td>
+<td data-sort="1737676800">2025-01-24</td>
+<td>213</td>
+<td>10.24</td>
+<td>318913</td>
+<td>2</td>
+<td class="pnl-neg">-13,595</td>
+<td class="pnl-neg">-4.09%</td>
+<td class="balance">961,311</td>
+</tr>
+<tr>
+<td>002312</td>
+<td>川发龙蟒</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td data-sort="1737417600">2025-01-21</td>
+<td>涨2%买</td>
+<td>14.7288</td>
+<td>22600</td>
+<td>333137</td>
+<td data-sort="1737504000">2025-01-22</td>
+<td>173</td>
+<td>13.46</td>
+<td>303648</td>
+<td>2</td>
+<td class="pnl-neg">-29,489</td>
+<td class="pnl-neg">-8.85%</td>
+<td class="balance">979,880</td>
+</tr>
+<tr>
+<td>002031</td>
+<td>巨轮智能</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>低开买</td>
+<td>7.04</td>
+<td>47300</td>
+<td>333258</td>
+<td data-sort="1739836800">2025-02-18</td>
+<td>53</td>
+<td>8.08</td>
+<td>381496</td>
+<td>16</td>
+<td class="pnl-pos">48,238</td>
+<td class="pnl-pos">14.47%</td>
+<td class="balance">947,967</td>
+</tr>
+<tr>
+<td>300661</td>
+<td>圣邦股份</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td data-sort="1737504000">2025-01-22</td>
+<td>低开买</td>
+<td>66.37</td>
+<td>5000</td>
+<td>332115</td>
+<td data-sort="1737590400">2025-01-23</td>
+<td>234</td>
+<td>69.31</td>
+<td>345926</td>
+<td>2</td>
+<td class="pnl-pos">13,811</td>
+<td class="pnl-pos">4.16%</td>
+<td class="balance">974,907</td>
+</tr>
+<tr>
+<td>002119</td>
+<td>康强电子</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td data-sort="1737417600">2025-01-21</td>
+<td>低开买</td>
+<td>18.9</td>
+<td>17600</td>
+<td>332906</td>
+<td data-sort="1737504000">2025-01-22</td>
+<td>96</td>
+<td>17.88</td>
+<td>314121</td>
+<td>2</td>
+<td class="pnl-neg">-18,784</td>
+<td class="pnl-neg">-5.64%</td>
+<td class="balance">961,096</td>
+</tr>
+<tr>
+<td>600601</td>
+<td>方正科技</td>
+<td data-sort="1736985600">2025-01-16</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>涨2%买</td>
+<td>5.5182</td>
+<td>60300</td>
+<td>333013</td>
+<td data-sort="1737417600">2025-01-21</td>
+<td>73</td>
+<td>5.63</td>
+<td>338878</td>
+<td>2</td>
+<td class="pnl-pos">5,864</td>
+<td class="pnl-pos">1.76%</td>
+<td class="balance">993,167</td>
+</tr>
+<tr>
+<td>300394</td>
+<td>天孚通信</td>
+<td data-sort="1736985600">2025-01-16</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td>涨2%买</td>
+<td>74.32740000000001</td>
+<td>4400</td>
+<td>327302</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>107</td>
+<td>80.19</td>
+<td>352201</td>
+<td>2</td>
+<td class="pnl-pos">24,899</td>
+<td class="pnl-pos">7.61%</td>
+<td class="balance">987,303</td>
+</tr>
+<tr>
+<td>000759</td>
+<td>中百集团</td>
+<td data-sort="1736985600">2025-01-16</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td>低开买</td>
+<td>10.15</td>
+<td>32800</td>
+<td>333186</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>100</td>
+<td>10.08</td>
+<td>330029</td>
+<td>2</td>
+<td class="pnl-neg">-3,157</td>
+<td class="pnl-neg">-0.95%</td>
+<td class="balance">962,404</td>
+</tr>
+<tr>
+<td>688256</td>
+<td>寒武纪-U</td>
+<td data-sort="1736985600">2025-01-16</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>低开买</td>
+<td>591.0</td>
+<td>500</td>
+<td>295736</td>
+<td data-sort="1737417600">2025-01-21</td>
+<td>108</td>
+<td>625.0</td>
+<td>311937</td>
+<td>2</td>
+<td class="pnl-pos">16,201</td>
+<td class="pnl-pos">5.48%</td>
+<td class="balance">1,009,369</td>
+</tr>
+<tr>
+<td>000016</td>
+<td>深康佳Ａ</td>
+<td data-sort="1736985600">2025-01-16</td>
+<td data-sort="1737072000">2025-01-17</td>
+<td>低开买</td>
+<td>6.63</td>
+<td>50200</td>
+<td>333092</td>
+<td data-sort="1737331200">2025-01-20</td>
+<td>127</td>
+<td>5.96</td>
+<td>298653</td>
+<td>2</td>
+<td class="pnl-neg">-34,439</td>
+<td class="pnl-neg">-10.34%</td>
+<td class="balance">965,561</td>
+</tr>
 </tbody></table>
 <script>
 let sortCol = -1, sortAsc = true;
@@ -319,8 +4912,13 @@ function sortTable(th) {
   th.classList.add(sortAsc ? "sort-asc" : "sort-desc");
   
   rows.sort((a, b) => {
-    let va = a.children[idx].textContent.replace(/[,%]/g, "");
-    let vb = b.children[idx].textContent.replace(/[,%]/g, "");
+    const cellA = a.children[idx];
+    const cellB = b.children[idx];
+    
+    // 优先使用 data-sort 属性（用于日期排序）
+    let va = cellA.getAttribute("data-sort") || cellA.textContent.replace(/[,%]/g, "");
+    let vb = cellB.getAttribute("data-sort") || cellB.textContent.replace(/[,%]/g, "");
+    
     let na = parseFloat(va), nb = parseFloat(vb);
     if (!isNaN(na) && !isNaN(nb)) { return sortAsc ? na - nb : nb - na; }
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -328,4 +4926,5 @@ function sortTable(th) {
   rows.forEach(r => tbody.appendChild(r));
 }
 </script>
-</body></html>
+</body>
+</html>
