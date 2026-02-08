@@ -30,6 +30,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install markdown converter
+        run: pip install markdown
+
       - name: Prepare Pages content
         run: |
           set -e
@@ -122,52 +130,66 @@ jobs:
             '</html>' \
             > public/index.html
 
-          # Jekyll配置：让GitHub Pages渲染Markdown文件
-          printf '%s\n' \
-            'markdown: GFM' \
-            'theme: jekyll-theme-minimal' \
-            'title: A股量化回测' \
-            'description: 人气策略回测结果' \
-            > public/_config.yml
-
-          # 给所有md文件添加front matter，否则Jekyll不会处理
-          find public -name "*.md" -type f | while read mdfile; do
-            if ! head -1 "$mdfile" | grep -q '^---'; then
-              tmp=$(mktemp)
-              printf '%s\n' '---' 'layout: default' '---' '' > "$tmp"
-              cat "$mdfile" >> "$tmp"
-              mv "$tmp" "$mdfile"
-            fi
-          done
-
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.1'
-          bundler-cache: true
-
-      - name: Install Jekyll
+      - name: Convert Markdown to HTML
         run: |
-          cd public
-          gem install jekyll bundler
-          cat > Gemfile << 'EOF'
-          source "https://rubygems.org"
-          gem "jekyll", "~> 4.3"
-          gem "jekyll-theme-minimal"
-          EOF
-          bundle install
+          python3 << 'PYTHON_SCRIPT'
+          import os
+          import markdown
+          from pathlib import Path
 
-      - name: Build with Jekyll
-        run: |
-          cd public
-          bundle exec jekyll build --destination ../_site
-          
+          HTML_TEMPLATE = '''<!doctype html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>{title}</title>
+            <style>
+              body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }}
+              a {{ color: #0969da; }}
+              pre {{ background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; }}
+              code {{ background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; }}
+              table {{ border-collapse: collapse; width: 100%; }}
+              th, td {{ border: 1px solid #d0d7de; padding: 8px; text-align: left; }}
+              th {{ background: #f6f8fa; }}
+              h1, h2, h3 {{ border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }}
+            </style>
+          </head>
+          <body>
+          {content}
+          </body>
+          </html>'''
+
+          md = markdown.Markdown(extensions=['tables', 'fenced_code'])
+
+          for mdfile in Path('public').rglob('*.md'):
+              with open(mdfile, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              
+              # 转换 .md 链接为 .html
+              import re
+              content = re.sub(r'\]\(([^)]+)\.md\)', r'](\1.html)', content)
+              
+              html_content = md.convert(content)
+              md.reset()
+              
+              title = mdfile.stem
+              full_html = HTML_TEMPLATE.format(title=title, content=html_content)
+              
+              html_file = mdfile.with_suffix('.html')
+              with open(html_file, 'w', encoding='utf-8') as f:
+                  f.write(full_html)
+              
+              # 删除原始 .md 文件
+              mdfile.unlink()
+              print(f'Converted: {mdfile} -> {html_file}')
+          PYTHON_SCRIPT
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '_site'
+          path: 'public'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
