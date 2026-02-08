@@ -113,11 +113,11 @@ jobs:
             '<body style="position:relative">' \
             "  <div class=\"commit-id\">commit: ${COMMIT_ID}</div>" \
             '  <h1>量化统计结果（v0.1）</h1>' \
-            '  <div class="card"><a href="./latest.md">最新统计（latest.md）</a></div>' \
-            '  <div class="card"><a href="./reports/index.md">统计报告列表</a></div>' \
-            '  <div class="card"><a href="./trades/index.md">买卖记录列表</a></div>' \
-            '  <div class="card"><a href="./strategies/index.md">策略配置与说明</a></div>' \
-            '  <div class="card"><a href="./README.md">项目说明（README）</a></div>' \
+            '  <div class="card"><a href="./latest.html">最新统计</a></div>' \
+            '  <div class="card"><a href="./reports/index.html">统计报告列表</a></div>' \
+            '  <div class="card"><a href="./trades/index.html">买卖记录列表</a></div>' \
+            '  <div class="card"><a href="./strategies/index.html">策略配置与说明</a></div>' \
+            '  <div class="card"><a href="./README.html">项目说明（README）</a></div>' \
             '</body>' \
             '</html>' \
             > public/index.html
@@ -129,6 +129,16 @@ jobs:
             'title: A股量化回测' \
             'description: 人气策略回测结果' \
             > public/_config.yml
+
+          # 给所有md文件添加front matter，否则Jekyll不会处理
+          find public -name "*.md" -type f | while read mdfile; do
+            if ! head -1 "$mdfile" | grep -q '^---'; then
+              tmp=$(mktemp)
+              printf '%s\n' '---' 'layout: default' '---' '' > "$tmp"
+              cat "$mdfile" >> "$tmp"
+              mv "$tmp" "$mdfile"
+            fi
+          done
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
