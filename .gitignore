@@ -90,6 +90,8 @@ htmlcov/
 data/backtest/
 data/processed/
 reports/
+!reports/
+!reports/latest.md
 
 # Local scratch and temporary analysis files
 temp_*.py
