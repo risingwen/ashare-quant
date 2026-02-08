@@ -34,7 +34,7 @@ jobs:
         run: |
           set -e
           rm -rf public
-          mkdir -p public
+          mkdir -p public/reports public/strategies public/trades
 
           if [ -f reports/latest.md ]; then
             cp reports/latest.md public/latest.md
@@ -50,6 +50,49 @@ jobs:
 
           cp README.md public/
 
+          if [ -f docs/STRATEGY_REQUIREMENTS.md ]; then
+            cp docs/STRATEGY_REQUIREMENTS.md public/strategies/
+          fi
+
+          cp config/strategies/*.yaml public/strategies/ 2>/dev/null || true
+
+          cp reports/*.md public/reports/ 2>/dev/null || true
+          cp reports/*.png public/reports/ 2>/dev/null || true
+
+          cp reports/trades/*.csv public/trades/ 2>/dev/null || true
+          cp reports/trades/*.md public/trades/ 2>/dev/null || true
+
+          cp data/backtest/trades/*.csv public/trades/ 2>/dev/null || true
+
+          if [ ! -f public/trades/README.md ]; then
+            printf '%s\n' \
+              '# Buy/Sell Records' \
+              '' \
+              'Put trade CSV files under `reports/trades/` to publish them.' \
+              > public/trades/README.md
+          fi
+
+          printf '%s\n' '# 策略配置与说明' > public/strategies/index.md
+          ls public/strategies >/tmp/strategies_list.txt
+          while IFS= read -r f; do
+            [ "$f" = "index.md" ] && continue
+            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/strategies/index.md
+          done < /tmp/strategies_list.txt
+
+          printf '%s\n' '# 统计报告列表' > public/reports/index.md
+          ls public/reports >/tmp/reports_list.txt
+          while IFS= read -r f; do
+            [ "$f" = "index.md" ] && continue
+            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/reports/index.md
+          done < /tmp/reports_list.txt
+
+          printf '%s\n' '# 买卖记录列表' > public/trades/index.md
+          ls public/trades >/tmp/trades_list.txt
+          while IFS= read -r f; do
+            [ "$f" = "index.md" ] && continue
+            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/trades/index.md
+          done < /tmp/trades_list.txt
+
           printf '%s\n' \
             '<!doctype html>' \
             '<html lang="zh-CN">' \
@@ -61,8 +104,11 @@ jobs:
             '</head>' \
             '<body>' \
             '  <h1>量化统计结果（v0.1）</h1>' \
-            '  <div class="card"><a href="./latest.md">打开 latest.md（最新统计）</a></div>' \
-            '  <div class="card"><a href="./README.md">打开 README.md（项目说明）</a></div>' \
+            '  <div class="card"><a href="./latest.md">最新统计（latest.md）</a></div>' \
+            '  <div class="card"><a href="./reports/index.md">统计报告列表</a></div>' \
+            '  <div class="card"><a href="./trades/index.md">买卖记录列表</a></div>' \
+            '  <div class="card"><a href="./strategies/index.md">策略配置与说明</a></div>' \
+            '  <div class="card"><a href="./README.md">项目说明（README）</a></div>' \
             '</body>' \
             '</html>' \
             > public/index.html

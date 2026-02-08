@@ -92,6 +92,13 @@ data/processed/
 reports/
 !reports/
 !reports/latest.md
+!reports/*.md
+!reports/*.png
+!reports/trades/
+!reports/trades/*.csv
+!reports/trades/*.md
+!reports/strategies/
+!reports/strategies/*.md
 
 # Local scratch and temporary analysis files
 temp_*.py
