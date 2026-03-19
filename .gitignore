@@ -94,6 +94,10 @@ reports/
 !reports/latest.md
 !reports/*.md
 !reports/*.png
+!reports/*.csv
+!reports/*.html
+!reports/generated/
+!reports/generated/*.md
 !reports/trades/
 !reports/trades/*.csv
 !reports/trades/*.md

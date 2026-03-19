@@ -42,7 +42,7 @@ jobs:
         run: |
           set -e
           rm -rf public
-          mkdir -p public/reports public/strategies public/trades
+          mkdir -p public/reports public/strategies public/trades public/generated
 
           if [ -f reports/latest.md ]; then
             cp reports/latest.md public/latest.md
@@ -67,6 +67,9 @@ jobs:
 
           cp reports/*.md public/reports/ 2>/dev/null || true
           cp reports/*.png public/reports/ 2>/dev/null || true
+          cp reports/generated/*.md public/generated/ 2>/dev/null || true
+          cp reports/hot_rank_top100_history.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_top100_explorer.html public/ 2>/dev/null || true
 
           cp reports/trades/*.csv public/trades/ 2>/dev/null || true
           cp reports/trades/*.md public/trades/ 2>/dev/null || true
@@ -122,6 +125,7 @@ jobs:
             "  <div class=\"commit-id\">commit: ${COMMIT_ID}</div>" \
             '  <h1>量化统计结果（v0.1）</h1>' \
             '  <div class="card"><a href="./latest.html">最新统计</a></div>' \
+            '  <div class="card"><a href="./hot_rank_top100_explorer.html">热度个股前100历史筛选</a></div>' \
             '  <div class="card"><a href="./reports/index.html">统计报告列表</a></div>' \
             '  <div class="card"><a href="./trades/index.html">买卖记录列表</a></div>' \
             '  <div class="card"><a href="./strategies/index.html">策略配置与说明</a></div>' \
