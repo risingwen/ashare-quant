@@ -13,7 +13,7 @@ PARQUET_GLOB = PROJECT_ROOT / "data" / "parquet" / "ashare_daily" / "**" / "*.pa
 REPORTS_DIR = PROJECT_ROOT / "reports"
 CSV_PATH = REPORTS_DIR / "hot_rank_top100_history.csv"
 HTML_PATH = REPORTS_DIR / "hot_rank_top100_explorer.html"
-RANK_LIMIT = 50
+RANK_LIMIT = 100
 
 
 HTML_TEMPLATE = """<!doctype html>
