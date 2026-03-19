@@ -43,8 +43,15 @@ def render_html_from_csv(csv_path: Path, out_html: Path, title: str) -> None:
         if c == "code" and v.isdigit():
             return v.zfill(6)
 
+        # 比例字段统一为 4 位小数，阅读更稳定。
+        if "pct" in c:
+            try:
+                return f"{float(v):.4f}"
+            except ValueError:
+                return v
+
         # 分类型字段保留原样（整数或日期等）。
-        plain_tokens = ("rank", "days", "shares", "pct", "date", "reason", "condition")
+        plain_tokens = ("rank", "days", "shares", "date", "reason", "condition")
         if any(t in c for t in plain_tokens):
             return v
 
