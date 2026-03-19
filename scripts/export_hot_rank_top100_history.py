@@ -14,6 +14,7 @@ REPORTS_DIR = PROJECT_ROOT / "reports"
 CSV_PATH = REPORTS_DIR / "hot_rank_top100_history.csv"
 HTML_PATH = REPORTS_DIR / "hot_rank_top100_explorer.html"
 RANK_LIMIT = 100
+PARQUET_ROOT = PROJECT_ROOT / "data" / "parquet" / "ashare_daily"
 
 
 HTML_TEMPLATE = """<!doctype html>
@@ -231,6 +232,11 @@ def write_html(rows: list[dict], rank_limit: int) -> None:
 
 
 def main() -> int:
+    # GitHub Actions 中通常不会包含本地大体积 parquet 数据，缺失时直接跳过。
+    if not PARQUET_ROOT.exists() or not any(PARQUET_ROOT.rglob("*.parquet")):
+        print(f"skip: no parquet files found under {PARQUET_ROOT}")
+        return 0
+
     df, trade_dates = load_rows(RANK_LIMIT)
     write_csv(df)
     rows = df.to_dict(orient="records")
