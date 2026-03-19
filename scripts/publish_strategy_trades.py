@@ -26,20 +26,42 @@ def latest_file(prefix: str, suffix: str) -> Path | None:
 
 
 def render_html_from_csv(csv_path: Path, out_html: Path, title: str) -> None:
-    df = pd.read_csv(csv_path)
+    # 统一按字符串读取，避免 code 前导 0 被 pandas 吞掉。
+    df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
     cols = list(df.columns)
 
     thead = "".join([f"<th>{html.escape(c)}</th>" for c in cols])
 
     rows = []
+    def format_cell(col: str, val: str) -> str:
+        c = col.lower()
+        v = (val or "").strip()
+        if v == "":
+            return ""
+
+        # 股票代码统一 6 位展示。
+        if c == "code" and v.isdigit():
+            return v.zfill(6)
+
+        # 分类型字段保留原样（整数或日期等）。
+        plain_tokens = ("rank", "days", "shares", "pct", "date", "reason", "condition")
+        if any(t in c for t in plain_tokens):
+            return v
+
+        # 其余可解析为数字的字段统一按两位小数展示（金额/价格等）。
+        # 这样能覆盖 buy_exec/sell_exec/trigger_xxx/open/high/low/close 等字段。
+        if c != "code":
+            try:
+                return f"{float(v):.2f}"
+            except ValueError:
+                return v
+
+        return v
+
     for _, r in df.iterrows():
         cells = []
         for c in cols:
-            v = r[c]
-            if pd.isna(v):
-                s = ""
-            else:
-                s = str(v)
+            s = format_cell(c, str(r[c]))
             cells.append(f"<td>{html.escape(s)}</td>")
         rows.append(f"<tr>{''.join(cells)}</tr>")
 
