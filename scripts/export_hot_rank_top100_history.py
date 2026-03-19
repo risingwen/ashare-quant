@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Export historical top-100 hot stocks and generate a filterable HTML viewer."""
+"""Export historical hot-rank stocks and generate a readable explorer page."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
 import duckdb
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -11,9 +13,178 @@ PARQUET_GLOB = PROJECT_ROOT / "data" / "parquet" / "ashare_daily" / "**" / "*.pa
 REPORTS_DIR = PROJECT_ROOT / "reports"
 CSV_PATH = REPORTS_DIR / "hot_rank_top100_history.csv"
 HTML_PATH = REPORTS_DIR / "hot_rank_top100_explorer.html"
+RANK_LIMIT = 50
 
 
-def export_csv() -> int:
+HTML_TEMPLATE = """<!doctype html>
+<html lang=\"zh-CN\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />
+  <title>热度个股历史榜单（前__RANK_LIMIT__）</title>
+  <style>
+    :root { --bg:#f4f8f5; --card:#ffffff; --line:#d7e3db; --text:#153126; --muted:#5e7468; --accent:#1b7a4d; }
+    body { margin:0; font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif; background:radial-gradient(circle at 15% 10%,#e8f5ec 0,#f4f8f5 45%); color:var(--text); }
+    .wrap { max-width:1200px; margin:20px auto; padding:0 12px 20px; }
+    .head { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:12px; }
+    h1 { margin:0; font-size:26px; }
+    .meta { color:var(--muted); font-size:13px; }
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+    .grid { display:grid; grid-template-columns: 1.3fr 1fr; gap:12px; }
+    .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+    input, select, button { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    button { cursor:pointer; background:#f0f8f3; font-weight:600; }
+    .btns { display:flex; gap:8px; }
+    .btns button { width:auto; min-width:78px; }
+    .tbl { border:1px solid var(--line); border-radius:10px; max-height:66vh; overflow:auto; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { border-bottom:1px solid var(--line); padding:8px; text-align:left; }
+    th { background:#eef7f1; position:sticky; top:0; z-index:1; }
+    tr:hover { background:#f7fcf9; }
+    .rank { color:var(--accent); font-weight:700; }
+    .hint { font-size:12px; color:var(--muted); margin-top:8px; }
+    @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class=\"wrap\">
+    <div class=\"head\">
+      <h1>热度个股历史榜单（前__RANK_LIMIT__）</h1>
+      <div class=\"meta\" id=\"summary\"></div>
+    </div>
+
+    <div class=\"panel controls\">
+      <div>
+        <label>交易日</label>
+        <select id=\"dateSelect\"></select>
+      </div>
+      <div>
+        <label>名称/代码筛选（当日）</label>
+        <input id=\"dayKeyword\" placeholder=\"如 600519 或 石油\" />
+      </div>
+      <div>
+        <label>查看个股历史（代码）</label>
+        <input id=\"codeInput\" placeholder=\"如 600519\" />
+      </div>
+      <div>
+        <label>操作</label>
+        <div class=\"btns\">
+          <button id=\"prevDay\">上一日</button>
+          <button id=\"nextDay\">下一日</button>
+          <button id=\"queryCode\">查历史</button>
+        </div>
+      </div>
+    </div>
+
+    <div class=\"grid\">
+      <div class=\"panel\">
+        <h3 id=\"dayTitle\">当日榜单</h3>
+        <div class=\"tbl\">
+          <table>
+            <thead><tr><th>排名</th><th>代码</th><th>名称</th></tr></thead>
+            <tbody id=\"dayBody\"></tbody>
+          </table>
+        </div>
+        <div class=\"hint\">点击代码会自动填入右侧历史查询。</div>
+      </div>
+
+      <div class=\"panel\">
+        <h3 id=\"codeTitle\">个股历史排名</h3>
+        <div class=\"tbl\">
+          <table>
+            <thead><tr><th>日期</th><th>排名</th><th>名称</th></tr></thead>
+            <tbody id=\"codeBody\"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script id=\"data-json\" type=\"application/json\">__DATA_JSON__</script>
+  <script>
+    const rows = JSON.parse(document.getElementById('data-json').textContent);
+    const byDate = new Map();
+    const byCode = new Map();
+
+    for (const r of rows) {
+      if (!byDate.has(r.date)) byDate.set(r.date, []);
+      byDate.get(r.date).push(r);
+      if (!byCode.has(r.code)) byCode.set(r.code, []);
+      byCode.get(r.code).push(r);
+    }
+
+    const dates = [...byDate.keys()].sort();
+    const dateSelect = document.getElementById('dateSelect');
+    const dayKeyword = document.getElementById('dayKeyword');
+    const dayBody = document.getElementById('dayBody');
+    const codeBody = document.getElementById('codeBody');
+    const codeInput = document.getElementById('codeInput');
+
+    document.getElementById('summary').textContent = `共 ${rows.length.toLocaleString()} 条记录，${dates.length.toLocaleString()} 个交易日。`;
+
+    for (const d of dates) {
+      const op = document.createElement('option');
+      op.value = d;
+      op.textContent = d;
+      dateSelect.appendChild(op);
+    }
+
+    dateSelect.value = dates[dates.length - 1] || '';
+
+    function renderDay() {
+      const d = dateSelect.value;
+      const kw = dayKeyword.value.trim();
+      const list = (byDate.get(d) || []).slice().sort((a,b)=>a.hot_rank-b.hot_rank);
+      const filtered = kw ? list.filter(x => x.code.includes(kw) || (x.name || '').includes(kw)) : list;
+
+      document.getElementById('dayTitle').textContent = `当日榜单：${d}（${filtered.length} 条）`;
+      dayBody.innerHTML = filtered.map(x => `<tr><td class=\"rank\">${x.hot_rank}</td><td><a href=\"#\" data-code=\"${x.code}\">${x.code}</a></td><td>${x.name || ''}</td></tr>`).join('');
+
+      dayBody.querySelectorAll('a[data-code]').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          codeInput.value = a.dataset.code;
+          renderCode();
+        });
+      });
+    }
+
+    function renderCode() {
+      const code = codeInput.value.trim();
+      if (!code) {
+        document.getElementById('codeTitle').textContent = '个股历史排名';
+        codeBody.innerHTML = '';
+        return;
+      }
+      const list = (byCode.get(code) || []).slice().sort((a,b)=>a.date < b.date ? 1 : -1);
+      document.getElementById('codeTitle').textContent = `个股历史排名：${code}（${list.length} 条）`;
+      codeBody.innerHTML = list.map(x => `<tr><td>${x.date}</td><td class=\"rank\">${x.hot_rank}</td><td>${x.name || ''}</td></tr>`).join('');
+    }
+
+    function shiftDay(step) {
+      const i = dates.indexOf(dateSelect.value);
+      if (i < 0) return;
+      const ni = Math.min(Math.max(i + step, 0), dates.length - 1);
+      dateSelect.value = dates[ni];
+      renderDay();
+    }
+
+    dateSelect.addEventListener('change', renderDay);
+    dayKeyword.addEventListener('input', renderDay);
+    document.getElementById('queryCode').addEventListener('click', renderCode);
+    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') renderCode(); });
+    document.getElementById('prevDay').addEventListener('click', () => shiftDay(-1));
+    document.getElementById('nextDay').addEventListener('click', () => shiftDay(1));
+
+    renderDay();
+  </script>
+</body>
+</html>
+"""
+
+
+def load_rows(rank_limit: int):
     con = duckdb.connect()
     sql = """
     WITH base AS (
@@ -28,7 +199,7 @@ def export_csv() -> int:
         ) AS rn
       FROM read_parquet(?)
       WHERE hot_rank IS NOT NULL
-        AND CAST(hot_rank AS INTEGER) BETWEEN 1 AND 100
+        AND CAST(hot_rank AS INTEGER) BETWEEN 1 AND ?
     )
     SELECT
       strftime(date, '%Y-%m-%d') AS date,
@@ -39,170 +210,37 @@ def export_csv() -> int:
     WHERE rn = 1
     ORDER BY date DESC, hot_rank ASC, code ASC
     """
-
-    df = con.execute(sql, [str(PARQUET_GLOB)]).fetchdf()
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(CSV_PATH, index=False, encoding="utf-8-sig")
-
-    date_count = con.execute(
+    df = con.execute(sql, [str(PARQUET_GLOB), rank_limit]).fetchdf()
+    trade_dates = con.execute(
         "SELECT COUNT(DISTINCT CAST(date AS DATE)) FROM read_parquet(?) WHERE hot_rank IS NOT NULL",
         [str(PARQUET_GLOB)],
     ).fetchone()[0]
-
-    print(f"rows={len(df)}")
-    print(f"trade_dates={date_count}")
-    print(f"csv={CSV_PATH}")
-    return len(df)
+    return df, trade_dates
 
 
-def write_html() -> None:
-    html = """<!doctype html>
-<html lang=\"zh-CN\">
-<head>
-  <meta charset=\"utf-8\" />
-  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />
-  <title>热度个股前100历史筛选</title>
-  <style>
-    :root { --bg:#f7faf7; --card:#ffffff; --line:#dbe7db; --text:#17321f; --muted:#5e7464; --accent:#1f7a4c; }
-    body { margin:0; font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif; background:linear-gradient(180deg,#edf7ef 0%,#f7faf7 100%); color:var(--text); }
-    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 12px 24px; }
-    .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
-    h1 { margin:8px 0 12px; font-size:24px; }
-    .filters { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-    label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
-    input, select { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-    .meta { font-size:13px; color:var(--muted); margin:8px 0 0; }
-    table { width:100%; border-collapse: collapse; font-size:14px; }
-    th, td { border-bottom:1px solid var(--line); padding:8px; text-align:left; }
-    th { background:#f2f8f3; position:sticky; top:0; }
-    .tbl { max-height: 68vh; overflow:auto; border:1px solid var(--line); border-radius:10px; }
-    .rank { font-weight:700; color:var(--accent); }
-    .foot { font-size:12px; color:var(--muted); margin-top:8px; }
-  </style>
-</head>
-<body>
-  <div class=\"wrap\">
-    <h1>热度个股前100历史筛选</h1>
-    <div class=\"panel\">
-      <div class=\"filters\">
-        <div>
-          <label>开始日期</label>
-          <input id=\"dateFrom\" type=\"date\" />
-        </div>
-        <div>
-          <label>结束日期</label>
-          <input id=\"dateTo\" type=\"date\" />
-        </div>
-        <div>
-          <label>股票代码</label>
-          <input id=\"code\" placeholder=\"如 600519\" />
-        </div>
-        <div>
-          <label>股票名称关键字</label>
-          <input id=\"name\" placeholder=\"如 石油/科技\" />
-        </div>
-        <div>
-          <label>最大热度排名</label>
-          <select id=\"maxRank\">
-            <option value=\"10\">前10</option>
-            <option value=\"20\">前20</option>
-            <option value=\"50\">前50</option>
-            <option value=\"100\" selected>前100</option>
-          </select>
-        </div>
-        <div>
-          <label>单页条数</label>
-          <select id=\"limit\">
-            <option value=\"100\">100</option>
-            <option value=\"200\" selected>200</option>
-            <option value=\"500\">500</option>
-          </select>
-        </div>
-      </div>
-      <div class=\"meta\" id=\"meta\">正在加载数据...</div>
-    </div>
+def write_csv(df) -> None:
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    df.to_csv(CSV_PATH, index=False, encoding="utf-8")
 
-    <div class=\"panel tbl\">
-      <table>
-        <thead><tr><th>日期</th><th>代码</th><th>名称</th><th>热度排名</th></tr></thead>
-        <tbody id=\"tbody\"></tbody>
-      </table>
-    </div>
-    <div class=\"foot\">数据源：本地 Parquet -> `reports/hot_rank_top100_history.csv`</div>
-  </div>
 
-<script>
-const state = { rows: [], filtered: [] };
-const $ = id => document.getElementById(id);
-
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const out = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',');
-    if (cols.length < 4) continue;
-    out.push({ date: cols[0], code: cols[1], name: cols[2], hot_rank: Number(cols[3]) });
-  }
-  return out;
-}
-
-function applyFilters() {
-  const dateFrom = $('dateFrom').value;
-  const dateTo = $('dateTo').value;
-  const code = $('code').value.trim();
-  const name = $('name').value.trim();
-  const maxRank = Number($('maxRank').value);
-  const limit = Number($('limit').value);
-
-  let rows = state.rows.filter(r => r.hot_rank <= maxRank);
-  if (dateFrom) rows = rows.filter(r => r.date >= dateFrom);
-  if (dateTo) rows = rows.filter(r => r.date <= dateTo);
-  if (code) rows = rows.filter(r => r.code.includes(code));
-  if (name) rows = rows.filter(r => (r.name || '').includes(name));
-
-  state.filtered = rows;
-  render(limit);
-}
-
-function render(limit) {
-  const tbody = $('tbody');
-  const rows = state.filtered.slice(0, limit);
-  tbody.innerHTML = rows.map(r => `<tr><td>${r.date}</td><td>${r.code}</td><td>${r.name || ''}</td><td class=\"rank\">${r.hot_rank}</td></tr>`).join('');
-  const total = state.filtered.length;
-  $('meta').textContent = `筛选结果 ${total.toLocaleString()} 条，当前显示 ${Math.min(limit, total).toLocaleString()} 条。`;
-}
-
-async function init() {
-  const resp = await fetch('./hot_rank_top100_history.csv');
-  const text = await resp.text();
-  state.rows = parseCSV(text);
-
-  const dates = state.rows.map(r => r.date).sort();
-  if (dates.length) {
-    $('dateFrom').value = dates[0];
-    $('dateTo').value = dates[dates.length - 1];
-  }
-
-  ['dateFrom','dateTo','code','name','maxRank','limit'].forEach(id => $(id).addEventListener('input', applyFilters));
-  applyFilters();
-}
-
-init().catch(err => {
-  $('meta').textContent = '加载失败：' + err;
-});
-</script>
-</body>
-</html>
-"""
+def write_html(rows: list[dict], rank_limit: int) -> None:
+    html = HTML_TEMPLATE.replace("__RANK_LIMIT__", str(rank_limit)).replace(
+        "__DATA_JSON__", json.dumps(rows, ensure_ascii=False)
+    )
     HTML_PATH.write_text(html, encoding="utf-8")
-    print(f"html={HTML_PATH}")
 
 
 def main() -> int:
-    rows = export_csv()
-    write_html()
-    if rows == 0:
-        print("warning: no top100 hot rank rows exported")
+    df, trade_dates = load_rows(RANK_LIMIT)
+    write_csv(df)
+    rows = df.to_dict(orient="records")
+    write_html(rows, RANK_LIMIT)
+
+    print(f"rank_limit={RANK_LIMIT}")
+    print(f"rows={len(df)}")
+    print(f"trade_dates={trade_dates}")
+    print(f"csv={CSV_PATH}")
+    print(f"html={HTML_PATH}")
     return 0
 
 

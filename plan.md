@@ -60,7 +60,9 @@
 - `reports/hot_rank_top100_history.csv`
 - `reports/hot_rank_top100_explorer.html`
 6. 已更新 Pages workflow 首页入口，支持网页筛选浏览。
-7. 下一动作：提交并推送后，跟踪最新 workflow 发布结果。
+7. 已将热度历史数据从前100收敛为前50，并重构页面为“按交易日榜单 + 个股历史排名”双栏视图。
+8. 已去除前端二次加载依赖（数据内嵌 HTML），避免页面停留在“正在加载数据...”。
+9. 下一动作：推送新版筛选页并复查线上可访问性。
 
 ## 7. 下一步执行清单
 1. 运行一轮 `scripts/update_daily_incremental.py`（低并发）。
