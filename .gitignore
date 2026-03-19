@@ -108,3 +108,4 @@ reports/
 temp_*.py
 temp_*.txt
 position_allocation_test_*.json
+public/

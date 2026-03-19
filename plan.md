@@ -63,7 +63,9 @@
 7. 已统一为热度历史前100，并重构页面为“按交易日榜单 + 个股历史排名”双栏视图。
 8. 已去除前端二次加载依赖（数据内嵌 HTML），避免页面停留在“正在加载数据...”。
 9. 已在 Pages workflow 中加入自动重建步骤：部署前自动生成热度前100 `csv+html`，确保数据更新后网页自动同步。
-10. 下一动作：继续按数据补全节奏推进，并观察自动同步发布效果。
+10. 已新增 `scripts/build_pages_local.sh`，可本地一键复现与 CI 一致的 `public/` 发布产物。
+11. 已补充 `docs/LOCAL_REPRODUCTION.md` 与 `reports/strategies/README.md`，方便新成员快速理解与复现。
+12. 下一动作：按文档执行一次策略回测全链路并补充对比报告。
 
 ## 7. 下一步执行清单
 1. 运行一轮 `scripts/update_daily_incremental.py`（低并发）。
