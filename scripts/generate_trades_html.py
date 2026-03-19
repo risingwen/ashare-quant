@@ -16,9 +16,25 @@ import pandas as pd
 
 def generate_html(csv_path: str, output_path: str, init_cash: float = 1_000_000):
     """生成交易记录HTML页面"""
-    
-    # 读取CSV
-    df = pd.read_csv(csv_path)
+
+    # 读取CSV，保留代码前导0。
+    df = pd.read_csv(csv_path, dtype={"code": str})
+
+    # 数值列统一转数值，便于后续计算与展示格式控制。
+    numeric_cols = [
+        "buy_cost",
+        "sell_proceed",
+        "net_pnl",
+        "net_pnl_pct",
+        "buy_price",
+        "sell_price",
+        "buy_shares",
+        "exit_rank",
+        "hold_days",
+    ]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     
     # 确保日期列是datetime类型
     df['signal_date'] = pd.to_datetime(df['signal_date'])
@@ -107,9 +123,9 @@ tr:hover { background: #f1f5f9; }
 <span>盈利: <b class="positive">{wins}</b></span>
 <span>亏损: <b class="negative">{losses}</b></span>
 <span>胜率: <b>{win_rate:.1f}%</b></span>
-<span>总盈亏: <b class="{pnl_class}">{total_pnl:,.0f}</b></span>
+<span>总盈亏: <b class="{pnl_class}">{total_pnl:,.2f}</b></span>
 <span>平均收益率: <b class="{avg_class}">{avg_pnl_pct:.2f}%</b></span>
-<span>最终余额: <b class="balance">{final_balance:,.0f}</b></span>
+<span>最终余额: <b class="balance">{final_balance:,.2f}</b></span>
 </div>
 ''')
     
@@ -135,10 +151,16 @@ tr:hover { background: #f1f5f9; }
 </tr></thead>
 <tbody>
 ''')
-    
+
+    def format_code(v) -> str:
+        s = str(v).strip()
+        if s.endswith(".0"):
+            s = s[:-2]
+        return s.zfill(6) if s.isdigit() else s
+
     # Table rows
     for _, row in df_display.iterrows():
-        code = str(row['code']).zfill(6) if len(str(row['code'])) < 6 else str(row['code'])
+        code = format_code(row["code"])
         name = row['name']
         signal_date = row['signal_date'].strftime('%Y-%m-%d')
         signal_ts = int(row['signal_date'].timestamp())
@@ -150,17 +172,17 @@ tr:hover { background: #f1f5f9; }
         condition = "低开买" if row['entry_condition'] == 'gap_down_open' else "涨2%买"
         buy_price = row['buy_price']
         buy_shares = int(row['buy_shares'])
-        buy_cost = int(row['buy_cost'])
+        buy_cost = float(row['buy_cost'])
         exit_rank = int(row['exit_rank'])
         sell_price = row['sell_price']
-        sell_proceed = int(row['sell_proceed'])
+        sell_proceed = float(row['sell_proceed'])
         hold_days = int(row['hold_days'])
         net_pnl = row['net_pnl']
         net_pnl_pct = row['net_pnl_pct'] * 100
         balance = row['balance']
         
         pnl_class = "pnl-pos" if net_pnl >= 0 else "pnl-neg"
-        pnl_str = f"{net_pnl:,.0f}"
+        pnl_str = f"{net_pnl:,.2f}"
         pnl_pct_str = f"{net_pnl_pct:.2f}%"
         
         html_parts.append(f'''<tr>
@@ -169,17 +191,17 @@ tr:hover { background: #f1f5f9; }
 <td data-sort="{signal_ts}">{signal_date}</td>
 <td data-sort="{entry_ts}">{entry_date}</td>
 <td>{condition}</td>
-<td>{buy_price}</td>
+<td>{buy_price:.2f}</td>
 <td>{buy_shares}</td>
-<td>{buy_cost}</td>
+<td>{buy_cost:,.2f}</td>
 <td data-sort="{exit_ts}">{exit_date}</td>
 <td>{exit_rank}</td>
-<td>{sell_price}</td>
-<td>{sell_proceed}</td>
+<td>{sell_price:.2f}</td>
+<td>{sell_proceed:,.2f}</td>
 <td>{hold_days}</td>
 <td class="{pnl_class}">{pnl_str}</td>
 <td class="{pnl_class}">{pnl_pct_str}</td>
-<td class="balance">{balance:,.0f}</td>
+<td class="balance">{balance:,.2f}</td>
 </tr>
 ''')
     
@@ -225,7 +247,7 @@ function sortTable(th) {
     
     print(f"Generated: {output}")
     print(f"Total trades: {total}, Wins: {wins}, Losses: {losses}, Win rate: {win_rate:.1f}%")
-    print(f"Total PnL: {total_pnl:,.0f}, Avg PnL%: {avg_pnl_pct:.2f}%, Final balance: {final_balance:,.0f}")
+    print(f"Total PnL: {total_pnl:,.2f}, Avg PnL%: {avg_pnl_pct:.2f}%, Final balance: {final_balance:,.2f}")
 
 
 def main():

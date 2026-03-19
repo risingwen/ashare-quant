@@ -151,8 +151,15 @@ HTML_TEMPLATE = """<!doctype html>
       });
     }
 
+    function normalizeCode(raw) {
+      const s = (raw || '').trim();
+      if (/^\\d{1,6}$/.test(s)) return s.padStart(6, '0');
+      return s;
+    }
+
     function renderCode() {
-      const code = codeInput.value.trim();
+      const code = normalizeCode(codeInput.value);
+      codeInput.value = code;
       if (!code) {
         document.getElementById('codeTitle').textContent = '个股历史排名';
         codeBody.innerHTML = '';
@@ -204,7 +211,7 @@ def load_rows(rank_limit: int):
     )
     SELECT
       strftime(date, '%Y-%m-%d') AS date,
-      code,
+      LPAD(CAST(code AS VARCHAR), 6, '0') AS code,
       name,
       hot_rank
     FROM base
