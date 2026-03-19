@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 python3 scripts/export_hot_rank_top100_history.py
 python3 scripts/publish_latest_experiment_to_reports.py
+python3 scripts/publish_strategy_trades.py
 
 if ! python3 -c "import markdown" >/dev/null 2>&1; then
   echo "installing missing dependency: markdown"

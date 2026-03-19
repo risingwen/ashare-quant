@@ -66,6 +66,9 @@
 10. 已新增 `scripts/build_pages_local.sh`，可本地一键复现与 CI 一致的 `public/` 发布产物。
 11. 已补充 `docs/LOCAL_REPRODUCTION.md` 与 `reports/strategies/README.md`，方便新成员快速理解与复现。
 12. 下一动作：按文档执行一次策略回测全链路并补充对比报告。
+13. 已补充“每策略详细说明 + 对应买卖记录入口”，并新增统一交易发布脚本。
+14. 已重构 Pages 首页布局（卡片式导航），提升策略说明与交易记录可达性。
+15. 已为四个策略生成固定名称的最新交易记录页面（drop7/rise2/top20_newentry/first_top10）。
 
 
 ## 8. 大任务执行跟踪（策略全量复现）

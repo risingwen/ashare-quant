@@ -121,18 +121,23 @@ jobs:
             '<head>' \
             '  <meta charset="utf-8" />' \
             '  <meta name="viewport" content="width=device-width, initial-scale=1" />' \
-            '  <title>量化统计结果 v0.1</title>' \
-            '  <style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;max-width:840px;margin:2rem auto;padding:0 1rem;line-height:1.6}.card{border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.2rem;margin-top:1rem}.commit-id{position:absolute;top:1rem;right:1rem;font-size:0.75rem;color:#6b7280;font-family:monospace}</style>' \
+            '  <title>量化策略看板</title>' \
+            '  <style>:root{--bg:#f2f7f4;--card:#ffffff;--line:#d8e4db;--text:#163126;--muted:#5b6f64;--accent:#166534}body{margin:0;font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif;background:radial-gradient(circle at 10% 5%,#e6f3eb 0,#f2f7f4 45%);color:var(--text)}.wrap{max-width:980px;margin:2rem auto;padding:0 1rem 2rem}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}.subtitle{color:var(--muted);margin-top:.5rem}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:1rem}.card{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem}.card:hover{border-color:#9dc6ab;transform:translateY(-1px)}.tag{display:inline-block;font-size:.75rem;color:#14532d;background:#e8f5ec;border:1px solid #c9e6d1;border-radius:999px;padding:.15rem .55rem;margin-bottom:.5rem}.title{font-weight:700}.desc{font-size:.9rem;color:var(--muted);margin-top:.35rem}.commit-id{font-size:.78rem;color:var(--muted);font-family:monospace}</style>' \
             '</head>' \
-            '<body style="position:relative">' \
-            "  <div class=\"commit-id\">commit: ${COMMIT_ID}</div>" \
-            '  <h1>量化统计结果（v0.1）</h1>' \
-            '  <div class="card"><a href="./latest.html">最新统计</a></div>' \
-            '  <div class="card"><a href="./hot_rank_top100_explorer.html">热度个股前100历史筛选</a></div>' \
-            '  <div class="card"><a href="./reports/index.html">统计报告列表</a></div>' \
-            '  <div class="card"><a href="./trades/index.html">买卖记录列表</a></div>' \
-            '  <div class="card"><a href="./strategies/index.html">策略配置与说明</a></div>' \
-            '  <div class="card"><a href="./README.html">项目说明（README）</a></div>' \
+            '<body><div class="wrap">' \
+            '  <div class="top">' \
+            '    <div><h1>量化策略看板</h1><div class="subtitle">策略说明、买卖记录、复现报告与热度筛选的统一入口。</div></div>' \
+            "    <div class=\"commit-id\">commit: ${COMMIT_ID}</div>" \
+            '  </div>' \
+            '  <div class="grid">' \
+            '    <a class="card" href="./latest.html"><span class="tag">推荐先看</span><div class="title">最新统计</div><div class="desc">本次复现入口与关键链接。</div></a>' \
+            '    <a class="card" href="./strategies/index.html"><span class="tag">策略说明</span><div class="title">策略配置与详细说明</div><div class="desc">每个策略的逻辑、参数与对应产物。</div></a>' \
+            '    <a class="card" href="./trades/index.html"><span class="tag">交易明细</span><div class="title">买卖记录列表</div><div class="desc">按策略查看可筛选交易明细。</div></a>' \
+            '    <a class="card" href="./hot_rank_top100_explorer.html"><span class="tag">热度看板</span><div class="title">热度个股前100历史筛选</div><div class="desc">按日期/代码快速查看热度排名。</div></a>' \
+            '    <a class="card" href="./reports/index.html"><span class="tag">报告库</span><div class="title">统计报告列表</div><div class="desc">所有汇总与回测报告入口。</div></a>' \
+            '    <a class="card" href="./README.html"><span class="tag">项目文档</span><div class="title">项目说明（README）</div><div class="desc">环境、数据、脚本、流程说明。</div></a>' \
+            '  </div>' \
+            '</div>' \
             '</body>' \
             '</html>' \
             > public/index.html

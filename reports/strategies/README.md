@@ -1,24 +1,33 @@
 # 策略说明总览
 
-本目录用于展示策略说明文档（会随 Pages 发布）。
+本目录聚合每个策略的详细说明、复现报告与买卖记录入口。
 
-## 策略文档
+## Drop7（主板-7%，创业板/科创板-13%）
 
-- [人气回撤买入策略（主板-7%，创业板/科创板-13%）](./hot_rank_drop7_plan.md)
-- [人气榜 +2% 追涨策略](./hot_rank_rise2_plan.md)
-- [首次入榜前20开盘买策略](./hot_rank_top10_open_plan.md)
-- [首次前10 + 低开或+2%买策略](./hot_rank_first_top10_rise2_or_gapdown_plan.md)
+- [策略说明](./hot_rank_drop7_plan.md)
+- [复现报告](../reproduce_drop7_20260319.md)
+- [买卖记录](../trades/drop7_trades_latest.html)
 
-## 配置文件
+## Rise2（盘中+2%追涨）
 
-策略配置 YAML 在仓库 `config/strategies/`：
+- [策略说明](./hot_rank_rise2_plan.md)
+- [复现报告](../reproduce_rise2_20260319.md)
+- [买卖记录](../trades/rise2_trades_latest.html)
 
-- `hot_rank_drop7.yaml`
-- `hot_rank_rise2.yaml`
-- `hot_rank_top10_open.yaml`
-- `hot_rank_first_top10_rise2_or_gapdown.yaml`
+## Top20 NewEntry（首次入榜前20开盘买）
 
-## 复现入口
+- [策略说明](./hot_rank_top10_open_plan.md)
+- [复现报告](../reproduce_top20_newentry_20260319.md)
+- [买卖记录](../trades/top20_newentry_trades_latest.html)
 
-- 本地完整复现与发布说明：`docs/LOCAL_REPRODUCTION.md`
-- 本地构建 Pages 产物脚本：`scripts/build_pages_local.sh`
+## First Top10（首次前10，低开或+2%买）
+
+- [策略说明](./hot_rank_first_top10_rise2_or_gapdown_plan.md)
+- [复现报告](../reproduce_first_top10_20260319.md)
+- [买卖记录](../trades/first_top10_trades_latest.html)
+
+## 自动化更新说明
+
+- 交易记录发布脚本：`scripts/publish_strategy_trades.py`
+- 本地构建脚本：`scripts/build_pages_local.sh`
+- GitHub Pages 工作流：`.github/workflows/static.yml`
