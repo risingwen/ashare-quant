@@ -279,6 +279,30 @@ class BacktestEngine:
         Returns:
             过滤后的股票池
         """
+        # 向后兼容：部分历史特征文件缺少新字段时，补默认值避免回测中断。
+        if 'is_tradable' not in df_today.columns:
+            df_today = df_today.copy()
+            df_today['is_tradable'] = True
+
+        df_prev = df_prev.copy()
+        if 'days_since_listing' not in df_prev.columns:
+            df_prev['days_since_listing'] = 99999
+        if 'amplitude_prev' not in df_prev.columns:
+            df_prev['amplitude_prev'] = 0.0
+        if 'pct_change_prev' not in df_prev.columns:
+            df_prev['pct_change_prev'] = 0.0
+        if 'max_drop_5d' not in df_prev.columns:
+            df_prev['max_drop_5d'] = pd.NA
+        if 'intraday_drop' not in df_prev.columns:
+            df_prev['intraday_drop'] = pd.NA
+        if 'cum_return_2d' not in df_prev.columns:
+            df_prev['cum_return_2d'] = pd.NA
+        if 'one_word_board_5d' not in df_prev.columns:
+            df_prev['one_word_board_5d'] = 0
+        if 'max_hot_rank_3d' not in df_prev.columns:
+            # 退化为当日人气排名，保证旧特征也可运行。
+            df_prev['max_hot_rank_3d'] = df_prev.get('hot_rank')
+
         # 1. 人气榜前N名（使用昨日T-1的hot_rank）
         df_prev_hot = df_prev[df_prev['hot_rank'].notna()].copy()
         df_prev_hot = df_prev_hot[df_prev_hot['hot_rank'] <= self.hot_top_n]

@@ -67,6 +67,25 @@
 11. 已补充 `docs/LOCAL_REPRODUCTION.md` 与 `reports/strategies/README.md`，方便新成员快速理解与复现。
 12. 下一动作：按文档执行一次策略回测全链路并补充对比报告。
 
+
+## 8. 大任务执行跟踪（策略全量复现）
+### 2026-03-19（已完成）
+1. 目标：复现已跑通策略（drop7 / rise2 / top20_newentry / first_top10）。
+2. 步骤：
+- 逐个执行策略脚本并记录日志
+- 生成/更新交易与报告产物
+- 重新构建本地 Pages 产物并校验入口
+3. 执行结果：
+- 四个策略均已成功复现（含交易明细与组合净值产物）。
+- 已新增复现报告：
+  - `reports/reproduce_summary_20260319.md`
+  - `reports/reproduce_drop7_20260319.md`
+  - `reports/reproduce_rise2_20260319.md`
+  - `reports/reproduce_top20_newentry_20260319.md`
+  - `reports/reproduce_first_top10_20260319.md`
+- `reports/latest.md` 已更新为本次复现入口页。
+- 为兼容历史特征缺失列，已修复 `scripts/backtest_hot_rank_strategy.py` 的向后兼容逻辑（缺列不再中断）。
+
 ## 7. 下一步执行清单
 1. 运行一轮 `scripts/update_daily_incremental.py`（低并发）。
 2. 运行 `scripts/audit_data_integrity.py`，记录覆盖变化。
