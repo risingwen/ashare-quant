@@ -1,0 +1,113 @@
+{
+  "run_time": "2026-03-20 21:56:04",
+  "normal": [
+    {
+      "order_by": "follow",
+      "size": 200,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "follow7d",
+      "size": 200,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SZ002594"
+    },
+    {
+      "order_by": "tweet",
+      "size": 200,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "deal",
+      "size": 200,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    }
+  ],
+  "page_size_test": [
+    {
+      "order_by": "follow",
+      "size": 50,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 50,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "follow",
+      "size": 100,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 100,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "follow",
+      "size": 200,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "follow",
+      "size": 500,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    },
+    {
+      "order_by": "follow",
+      "size": 1000,
+      "extra": {},
+      "count": 5571,
+      "page1_len": 200,
+      "pages_at_200": 28,
+      "first_symbol": "SH600519"
+    }
+  ],
+  "history_param_test": [
+    {
+      "order_by": "follow",
+      "size": 200,
+      "extra": {
+        "date": "2025-01-02"
+      },
+      "count": 0,
+      "page1_len": 0,
+      "pages_at_200": 0,
+      "first_symbol": null
+    },
+    {
+      "order_by": "follow",
+      "size": 200,
+      "extra": {
+        "begin": "2025-01-02",
+        "end": "2025-01-02"
+      },
+      "count": 0,
+      "page1_len": 0,
+      "pages_at_200": 0,
+      "first_symbol": null
+    }
+  ]
+}
