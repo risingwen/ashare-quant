@@ -105,6 +105,15 @@
   - `reports/hot_rank_multi_source_explorer.html`
 - 已接入 `.github/workflows/static.yml` 与 `scripts/build_pages_local.sh`，部署前自动尝试构建多源热度页面（best effort，不阻断主流程）。
 
+### 2026-03-20（补充：平台真实性复核）
+1. 已完成东财/同花顺/雪球/通达信四平台即时复测（2026-03-20 10:57:56）。
+2. 复测结论：
+- 东财：可拉取（100 行快照）。
+- 同花顺：可拉取（100 行快照，含 `hot_value`）。
+- 雪球：可拉取（5571 行快照）。
+- 通达信：未打通稳定可用的人气/热度榜接口。
+3. 已新增核验报告：`reports/hot_source_validation_20260320.md`。
+
 
 ## 8. 大任务执行跟踪（策略全量复现）
 ### 2026-03-19（已完成）
