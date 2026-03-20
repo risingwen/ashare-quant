@@ -41,6 +41,11 @@ jobs:
       - name: Rebuild hot rank explorer assets
         run: python3 scripts/export_hot_rank_top100_history.py
 
+      - name: Rebuild multi-source hot rank assets (best effort)
+        run: |
+          python3 scripts/try_hot_rank_multi_source.py || true
+          python3 scripts/export_hot_rank_multi_source_pages.py || true
+
       - name: Prepare Pages content
         run: |
           set -e
@@ -73,6 +78,10 @@ jobs:
           cp reports/generated/*.md public/generated/ 2>/dev/null || true
           cp reports/hot_rank_top100_history.csv public/ 2>/dev/null || true
           cp reports/hot_rank_top100_explorer.html public/ 2>/dev/null || true
+          cp reports/hot_rank_wencai_last30_normalized.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_snapshot_latest.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_explorer.html public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_summary.json public/ 2>/dev/null || true
 
           cp reports/trades/*.csv public/trades/ 2>/dev/null || true
           cp reports/trades/*.md public/trades/ 2>/dev/null || true
@@ -134,6 +143,7 @@ jobs:
             '    <a class="card" href="./strategies/index.html"><span class="tag">策略说明</span><div class="title">策略配置与详细说明</div><div class="desc">每个策略的逻辑、参数与对应产物。</div></a>' \
             '    <a class="card" href="./trades/index.html"><span class="tag">交易明细</span><div class="title">买卖记录列表</div><div class="desc">按策略查看可筛选交易明细。</div></a>' \
             '    <a class="card" href="./hot_rank_top100_explorer.html"><span class="tag">热度看板</span><div class="title">热度个股前100历史筛选</div><div class="desc">按日期/代码快速查看热度排名。</div></a>' \
+            '    <a class="card" href="./hot_rank_multi_source_explorer.html"><span class="tag">多源热度</span><div class="title">多源热度近30天看板</div><div class="desc">同花顺/开盘啦等来源的统一筛选页。</div></a>' \
             '    <a class="card" href="./reports/index.html"><span class="tag">报告库</span><div class="title">统计报告列表</div><div class="desc">所有汇总与回测报告入口。</div></a>' \
             '    <a class="card" href="./README.html"><span class="tag">项目文档</span><div class="title">项目说明（README）</div><div class="desc">环境、数据、脚本、流程说明。</div></a>' \
             '  </div>' \

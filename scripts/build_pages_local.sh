@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 python3 scripts/export_hot_rank_top100_history.py
+python3 scripts/try_hot_rank_multi_source.py || true
+python3 scripts/export_hot_rank_multi_source_pages.py || true
 python3 scripts/publish_latest_experiment_to_reports.py
 python3 scripts/publish_strategy_trades.py
 
@@ -35,6 +37,10 @@ cp reports/*.png public/reports/ 2>/dev/null || true
 cp reports/generated/*.md public/generated/ 2>/dev/null || true
 cp reports/hot_rank_top100_history.csv public/ 2>/dev/null || true
 cp reports/hot_rank_top100_explorer.html public/ 2>/dev/null || true
+cp reports/hot_rank_wencai_last30_normalized.csv public/ 2>/dev/null || true
+cp reports/hot_rank_multi_source_snapshot_latest.csv public/ 2>/dev/null || true
+cp reports/hot_rank_multi_source_explorer.html public/ 2>/dev/null || true
+cp reports/hot_rank_multi_source_summary.json public/ 2>/dev/null || true
 
 cp reports/trades/*.csv public/trades/ 2>/dev/null || true
 cp reports/trades/*.md public/trades/ 2>/dev/null || true
@@ -85,6 +91,7 @@ cat > public/index.html <<EOF
   <h1>量化统计结果（v0.1）</h1>
   <div class="card"><a href="./latest.html">最新统计</a></div>
   <div class="card"><a href="./hot_rank_top100_explorer.html">热度个股前100历史筛选</a></div>
+  <div class="card"><a href="./hot_rank_multi_source_explorer.html">多源热度近30天看板</a></div>
   <div class="card"><a href="./reports/index.html">统计报告列表</a></div>
   <div class="card"><a href="./trades/index.html">买卖记录列表</a></div>
   <div class="card"><a href="./strategies/index.html">策略配置与说明</a></div>

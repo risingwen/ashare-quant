@@ -74,12 +74,36 @@
 18. 已将收益率比例字段（含 `pct`）统一为四位小数，交易页展示口径一致。
 19. 已同步非交易表页面脚本格式规范：热度历史页面代码统一 6 位，并支持查询输入自动补零。
 20. 已同步 `generate_trades_html.py` 的金额/价格展示口径（金额两位小数、代码前导零保留）。
+21. 已启动多源热度抓取验证（东方财富/雪球/同花顺/开盘啦/通达信），并新增统一实验脚本：
+- `scripts/try_hot_rank_multi_source.py`
+- 当前动作：增加重试与容错，避免单源失败中断全流程。
+- 当前动作：新增问财近30天按日查询汇总（可用日期自动沉淀到 CSV）。
+22. 当前目标：先落地“最近一个月”可拉取数据，再决定是否接入日更自动化。
 
 ### 2026-03-19（补充：交易页显示修复）
 1. 执行 `python3 scripts/publish_strategy_trades.py` 重新生成四个策略交易页。
 2. 校验 `reports/trades/*_trades_latest.html` 的首列代码展示为 6 位字符串。
 3. 校验金额/价格类字段统一为两位小数后，准备随下一次 Pages 发布上线。
 4. 已补充：收益率比例字段统一四位小数并完成四策略页面重建。
+
+### 2026-03-19（补充：多源热度拉取实测）
+1. 已完成 `scripts/try_hot_rank_multi_source.py` 健壮性改造：
+- 单源失败不再中断全流程；
+- 增加重试与退避；
+- 增加问财近30天按日抓取汇总；
+- 输出统一 `attempt_summary.json/csv`。
+2. 最近一次实测时间：`2026-03-19 23:25:55`（本地时区）。
+3. 实测结论（近30天/快照）：
+- 可用：雪球三类热度快照（关注/讨论/交易）、`adata` 同花顺热股100、`pywencai` 同花顺人气榜、`pywencai` 开盘啦关键词榜、`pywencai` 近30天按日人气汇总（29个非空交易日，共2900行）。
+- 不稳定/失败：东方财富明细接口（连接被远端关闭）、`adata` 东方财富人气100（连接被远端关闭）、`qqhsx/wencai`（JSONDecodeError）、`pywencai` 通达信关键词（未返回有效表格）。
+4. 产物目录：
+- `data/experiments/hot_rank_multi_source/20260319_232555/`
+5. 已完成多源热度页面自动化接入：
+- 新增 `scripts/export_hot_rank_multi_source_pages.py`，将最近一次实验结果标准化为：
+  - `reports/hot_rank_wencai_last30_normalized.csv`
+  - `reports/hot_rank_multi_source_snapshot_latest.csv`
+  - `reports/hot_rank_multi_source_explorer.html`
+- 已接入 `.github/workflows/static.yml` 与 `scripts/build_pages_local.sh`，部署前自动尝试构建多源热度页面（best effort，不阻断主流程）。
 
 
 ## 8. 大任务执行跟踪（策略全量复现）
@@ -106,3 +130,4 @@
 3. 若覆盖达到预期，执行 `scripts/prepare_features.py`。
 4. 运行组合实验并发布到 `reports/latest.md`。
 5. push 后跟踪 Pages 日志，失败即修复。
+6. 继续推进多源热度抓取实测，形成可用源清单（含近30天可用性）。
