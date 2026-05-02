@@ -1,0 +1,87 @@
+# 人气榜TOP10开盘买入策略配置
+# 策略逻辑：前一交易日人气榜前10名，开盘价买入，次日不涨停或人气跌破50卖出
+# 这是一种追热点策略，快进快出
+
+# 策略元信息
+strategy:
+  name: "hot_rank_top20_newentry"
+  version: "1.0.0"
+  description: "基于东财人气榜TOP20，筛选首次进入前20的股票，开盘价买入，次日不涨停或人气跌破50则卖出"
+  author: "AShare Quant Team"
+  created_date: "2026-01-05"
+  updated_date: "2026-01-05"
+  
+  # 策略标签（便于分类和筛选）
+  tags:
+    - "人气榜"
+    - "短线"
+    - "追热点"
+    - "TOP10"
+  
+# 继承基础配置
+extends: "../backtest_base.yaml"
+
+# 策略特定参数（所有参数可通过CLI覆盖）
+params:
+  # === 选股池参数 ===
+  hot_top_n: 20                    # 人气榜前20名
+  filter_new_entry: true           # 筛选首次进入前20的股票
+  
+  # === 买入参数 ===
+  entry_time: "open"               # 买入时机：开盘价
+  entry_price_method: "open"       # 成交价方法：开盘价
+  skip_limit_up_open: true         # 跳过一字涨停（无法买入）
+  
+  # === 卖出参数 ===
+  exit_rule: "open_strategy_exit"  # 退出规则：不涨停或人气跌破50
+  sell_if_not_limit_up: true       # 次日不涨停则卖出
+  rank_threshold: 50               # 人气跌破此阈值则卖出
+  max_hold_days: 30                # 最大持仓天数（防止极端情况）
+  
+  # === 仓位管理 ===
+  position_sizing: "equal_amount"  # 等金额分配
+  cash_splits: 3                   # 资金分份数（10万分3份，每份约3.33万）
+  per_trade_cash_frac: 0.333       # 每笔交易占初始资金33.3%（≈ 1/cash_splits）
+  max_positions: 3                 # 最大同时持仓数量（= cash_splits）
+  
+  # === 优先级规则 ===
+  priority_by: "rank"              # 按人气排名优先
+  priority_order: "asc"            # 升序（排名越小越优先）
+  
+  # === 过滤规则 ===
+  additional_filters:
+    filter_st: true                # 过滤ST股票
+    filter_new_ipo: false          # 不过滤新股（TOP10通常不是新股）
+    filter_suspend: true           # 过滤停牌股票
+
+# 覆盖基础配置（如果需要）
+backtest:
+  # 使用基础配置的默认值，如需修改可在此覆盖
+  init_cash: 100000                # 初始资金10万
+  
+  # 交易成本（使用默认值）
+  fee_buy: 0.0003
+  fee_sell: 0.0003
+  stamp_tax_sell: 0.001
+  slippage_bps: 5
+
+# 报告配置（策略特定）
+report:
+  # 分组统计维度
+  groupby:
+    - field: "rank_bucket"
+      bins: [1, 3, 6, 10]
+      labels: ["Top3", "4-6", "7-10"]
+    
+    - field: "hold_days_bucket"
+      bins: [0, 1, 3, 7, "inf"]
+      labels: ["1天", "2-3天", "4-7天", "7天+"]
+    
+    - field: "exit_reason"
+      values: ["not_limit_up", "rank_drop_below_50", "not_limit_up_and_rank_drop", "max_hold_days"]
+  
+  # 特定指标
+  custom_metrics:
+    - "avg_hold_days"              # 平均持仓天数
+    - "limitup_hold_ratio"         # 涨停持仓比例
+    - "skip_limit_up_open_count"   # 一字涨停跳过次数

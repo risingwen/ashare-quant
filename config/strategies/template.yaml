@@ -1,0 +1,47 @@
+# 策略配置模板
+# 复制此文件并修改为你的策略配置
+
+# 策略元信息
+strategy:
+  name: "strategy_template"        # 策略名称（英文，下划线分隔）
+  version: "1.0.0"                 # 策略版本（语义化版本）
+  description: "策略描述"          # 策略简要说明
+  author: "Your Name"              # 策略作者
+  created_date: "2026-01-02"       # 创建日期
+  
+# 继承基础配置（如果需要覆盖，在下面重新定义）
+extends: "../backtest_base.yaml"
+
+# 策略特定参数
+params:
+  # 选股参数
+  universe_size: 100               # 股票池大小
+  
+  # 买入参数
+  entry_signal: "custom"           # 买入信号类型
+  entry_params:
+    param1: value1
+    param2: value2
+  
+  # 卖出参数
+  exit_signal: "custom"            # 卖出信号类型
+  exit_params:
+    param1: value1
+    param2: value2
+  
+  # 仓位管理
+  position_sizing: "equal_weight"  # 仓位分配方法
+  per_trade_cash_frac: 0.1         # 每笔交易资金占比
+  
+  # 止损止盈
+  stop_loss: null                  # 止损点（null表示不设止损）
+  take_profit: null                # 止盈点（null表示不设止盈）
+  
+# 可选：覆盖基础配置
+# backtest:
+#   init_cash: 500000              # 如需更大初始资金
+#   filter_st: false                # 如策略允许ST股票
+
+# 可选：策略特定的涨停规则
+# limit_up_rules:
+#   custom_rule: 0.15

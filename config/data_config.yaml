@@ -1,0 +1,55 @@
+# 数据路径配置
+# 本配置文件定义项目中所有数据存储路径
+
+data:
+  # 原始数据目录（Raw Layer）
+  raw_dir: "data/parquet/ashare_daily"
+  
+  # 处理数据目录（Processed Layer）
+  processed_dir: "data/processed"
+  features_dir: "data/processed/features"
+  universe_dir: "data/processed/universe"
+  signals_dir: "data/processed/signals"
+  
+  # 回测结果目录（Backtest Layer）
+  backtest_dir: "data/backtest"
+  trades_dir: "data/backtest/trades"
+  portfolio_dir: "data/backtest/portfolio"
+  reports_dir: "data/backtest/reports"
+  logs_dir: "data/backtest/logs"
+
+# DuckDB 配置
+duckdb:
+  # 内存限制（根据机器配置调整）
+  memory_limit: "4GB"
+  # 线程数（建议设为CPU核心数）
+  threads: 4
+  # 临时目录
+  temp_directory: "data/.duckdb_temp"
+  
+# 数据读取配置
+read:
+  # Parquet 读取引擎
+  engine: "pyarrow"  # 可选: pyarrow, fastparquet
+  # 是否使用内存映射
+  memory_map: true
+  # 批量读取大小
+  batch_size: 100000
+  
+# 数据写入配置  
+write:
+  # Parquet 压缩算法
+  compression: "snappy"  # 可选: snappy, gzip, zstd, lz4
+  # 是否使用字典编码
+  use_dictionary: true
+  # 行组大小
+  row_group_size: 100000
+  
+# 缓存配置
+cache:
+  # 是否启用缓存
+  enabled: true
+  # 缓存目录
+  cache_dir: "data/.cache"
+  # 缓存过期时间（秒）
+  ttl: 86400  # 24小时

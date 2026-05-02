@@ -1,0 +1,11 @@
+{
+  "run_time": "2026-03-20 09:56:46",
+  "source_run_dir": "data/experiments/hot_rank_multi_source/20260319_232555",
+  "rows_total": 3100,
+  "rows_last30": 2900,
+  "rows_snapshot": 200,
+  "topn": 100,
+  "csv_last30": "reports/hot_rank_wencai_last30_normalized.csv",
+  "csv_snapshot": "reports/hot_rank_multi_source_snapshot_latest.csv",
+  "html": "reports/hot_rank_multi_source_explorer.html"
+}

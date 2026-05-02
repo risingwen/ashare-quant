@@ -1,0 +1,217 @@
+name: Deploy quant reports to Pages
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["master"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install markdown converter
+        run: pip install markdown duckdb
+
+      - name: Rebuild hot rank explorer assets
+        run: python3 scripts/export_hot_rank_top100_history.py
+
+      - name: Rebuild multi-source hot rank assets (best effort)
+        run: |
+          python3 scripts/try_hot_rank_multi_source.py || true
+          python3 scripts/export_hot_rank_multi_source_pages.py || true
+
+      - name: Prepare Pages content
+        run: |
+          set -e
+          rm -rf public
+          mkdir -p public/reports public/strategies public/trades public/generated
+
+          if [ -f reports/latest.md ]; then
+            cp reports/latest.md public/latest.md
+          else
+            printf '%s\n' \
+              '# Daily Quant Notes' \
+              '' \
+              '`reports/latest.md` is not found yet.' \
+              '' \
+              'Please add your latest statistics and analysis in `reports/latest.md`.' \
+              > public/latest.md
+          fi
+
+          cp README.md public/
+
+          if [ -f docs/STRATEGY_REQUIREMENTS.md ]; then
+            cp docs/STRATEGY_REQUIREMENTS.md public/strategies/
+          fi
+
+          cp config/strategies/*.yaml public/strategies/ 2>/dev/null || true
+          cp reports/strategies/*.md public/strategies/ 2>/dev/null || true
+
+          cp reports/*.md public/reports/ 2>/dev/null || true
+          cp reports/*.png public/reports/ 2>/dev/null || true
+          cp reports/generated/*.md public/generated/ 2>/dev/null || true
+          cp reports/hot_rank_top100_history.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_top100_explorer.html public/ 2>/dev/null || true
+          cp reports/hot_rank_wencai_last30_normalized.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_snapshot_latest.csv public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_explorer.html public/ 2>/dev/null || true
+          cp reports/hot_rank_multi_source_summary.json public/ 2>/dev/null || true
+
+          cp reports/trades/*.csv public/trades/ 2>/dev/null || true
+          cp reports/trades/*.md public/trades/ 2>/dev/null || true
+          cp reports/trades/*.html public/trades/ 2>/dev/null || true
+
+          cp data/backtest/trades/*.csv public/trades/ 2>/dev/null || true
+
+          if [ ! -f public/trades/README.md ]; then
+            printf '%s\n' \
+              '# Buy/Sell Records' \
+              '' \
+              'Put trade CSV files under `reports/trades/` to publish them.' \
+              > public/trades/README.md
+          fi
+
+          printf '%s\n' '# 策略配置与说明' > public/strategies/index.md
+          ls public/strategies >/tmp/strategies_list.txt
+          while IFS= read -r f; do
+            [ "$f" = "index.md" ] && continue
+            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/strategies/index.md
+          done < /tmp/strategies_list.txt
+
+          printf '%s\n' '# 统计报告列表' > public/reports/index.md
+          ls public/reports >/tmp/reports_list.txt
+          while IFS= read -r f; do
+            [ "$f" = "index.md" ] && continue
+            printf -- '- [%s](./%s)\n' "$f" "$f" >> public/reports/index.md
+          done < /tmp/reports_list.txt
+
+          # 如果reports/trades/index.md存在则使用它，否则自动生成
+          if [ -f reports/trades/index.md ]; then
+            cp reports/trades/index.md public/trades/index.md
+          else
+            printf '%s\n' '# 买卖记录列表' > public/trades/index.md
+            ls public/trades >/tmp/trades_list.txt
+            while IFS= read -r f; do
+              [ "$f" = "index.md" ] && continue
+              printf -- '- [%s](./%s)\n' "$f" "$f" >> public/trades/index.md
+            done < /tmp/trades_list.txt
+          fi
+
+          COMMIT_ID=$(git rev-parse --short HEAD)
+          printf '%s\n' \
+            '<!doctype html>' \
+            '<html lang="zh-CN">' \
+            '<head>' \
+            '  <meta charset="utf-8" />' \
+            '  <meta name="viewport" content="width=device-width, initial-scale=1" />' \
+            '  <title>量化策略看板</title>' \
+            '  <style>:root{--bg:#f2f7f4;--card:#ffffff;--line:#d8e4db;--text:#163126;--muted:#5b6f64;--accent:#166534}body{margin:0;font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif;background:radial-gradient(circle at 10% 5%,#e6f3eb 0,#f2f7f4 45%);color:var(--text)}.wrap{max-width:980px;margin:2rem auto;padding:0 1rem 2rem}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}.subtitle{color:var(--muted);margin-top:.5rem}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:1rem}.card{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem}.card:hover{border-color:#9dc6ab;transform:translateY(-1px)}.tag{display:inline-block;font-size:.75rem;color:#14532d;background:#e8f5ec;border:1px solid #c9e6d1;border-radius:999px;padding:.15rem .55rem;margin-bottom:.5rem}.title{font-weight:700}.desc{font-size:.9rem;color:var(--muted);margin-top:.35rem}.commit-id{font-size:.78rem;color:var(--muted);font-family:monospace}</style>' \
+            '</head>' \
+            '<body><div class="wrap">' \
+            '  <div class="top">' \
+            '    <div><h1>量化策略看板</h1><div class="subtitle">策略说明、买卖记录、复现报告与热度筛选的统一入口。</div></div>' \
+            "    <div class=\"commit-id\">commit: ${COMMIT_ID}</div>" \
+            '  </div>' \
+            '  <div class="grid">' \
+            '    <a class="card" href="./latest.html"><span class="tag">推荐先看</span><div class="title">最新统计</div><div class="desc">本次复现入口与关键链接。</div></a>' \
+            '    <a class="card" href="./strategies/index.html"><span class="tag">策略说明</span><div class="title">策略配置与详细说明</div><div class="desc">每个策略的逻辑、参数与对应产物。</div></a>' \
+            '    <a class="card" href="./trades/index.html"><span class="tag">交易明细</span><div class="title">买卖记录列表</div><div class="desc">按策略查看可筛选交易明细。</div></a>' \
+            '    <a class="card" href="./hot_rank_top100_explorer.html"><span class="tag">热度看板</span><div class="title">热度个股前100历史筛选</div><div class="desc">按日期/代码快速查看热度排名。</div></a>' \
+            '    <a class="card" href="./hot_rank_multi_source_explorer.html"><span class="tag">多源热度</span><div class="title">多源热度近30天看板</div><div class="desc">同花顺/开盘啦等来源的统一筛选页。</div></a>' \
+            '    <a class="card" href="./reports/index.html"><span class="tag">报告库</span><div class="title">统计报告列表</div><div class="desc">所有汇总与回测报告入口。</div></a>' \
+            '    <a class="card" href="./README.html"><span class="tag">项目文档</span><div class="title">项目说明（README）</div><div class="desc">环境、数据、脚本、流程说明。</div></a>' \
+            '  </div>' \
+            '</div>' \
+            '</body>' \
+            '</html>' \
+            > public/index.html
+
+      - name: Convert Markdown to HTML
+        run: |
+          python3 << 'PYTHON_SCRIPT'
+          import os
+          import markdown
+          from pathlib import Path
+
+          HTML_TEMPLATE = '''<!doctype html>
+          <html lang="zh-CN">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>{title}</title>
+            <style>
+              body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }}
+              a {{ color: #0969da; }}
+              pre {{ background: #f6f8fa; padding: 1rem; overflow-x: auto; border-radius: 6px; }}
+              code {{ background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; }}
+              table {{ border-collapse: collapse; width: 100%; }}
+              th, td {{ border: 1px solid #d0d7de; padding: 8px; text-align: left; }}
+              th {{ background: #f6f8fa; }}
+              h1, h2, h3 {{ border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }}
+            </style>
+          </head>
+          <body>
+          {content}
+          </body>
+          </html>'''
+
+          md = markdown.Markdown(extensions=['tables', 'fenced_code'])
+
+          for mdfile in Path('public').rglob('*.md'):
+              with open(mdfile, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              
+              # 转换 .md 链接为 .html
+              import re
+              content = re.sub(r'\]\(([^)]+)\.md\)', r'](\1.html)', content)
+              
+              html_content = md.convert(content)
+              md.reset()
+              
+              title = mdfile.stem
+              full_html = HTML_TEMPLATE.format(title=title, content=html_content)
+              
+              html_file = mdfile.with_suffix('.html')
+              with open(html_file, 'w', encoding='utf-8') as f:
+                  f.write(full_html)
+              
+              # 删除原始 .md 文件
+              mdfile.unlink()
+              print(f'Converted: {mdfile} -> {html_file}')
+          PYTHON_SCRIPT
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'public'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

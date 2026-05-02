@@ -1,0 +1,3 @@
+trade_date,strategy,code,name,side,price,shares,amount,pnl,pnl_pct,reason
+2026-02-08,hot_rank_drop7,000001,平安银行,BUY,12.34,1000,12340.00,0.00,0.00,triggered_drop_threshold
+2026-02-10,hot_rank_drop7,000001,平安银行,SELL,12.80,1000,12800.00,460.00,3.73,normal_close_exit
