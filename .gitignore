@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 数据库（大文件，不上传）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/*.sqlite
+data/*.sqlite3
+data/*.duckdb
+data/parquet/
+data/*.parquet
+data/*.csv
+data/*.feather
+!data/.gitkeep
+
+# 日志
+logs/
+*.log
+
+# 报告生成内容（动态生成，不上传）
+reports/*/
+reports/latest/
+reports/backtests/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 测试覆盖
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 临时文件
+*.tmp
+*.bak
