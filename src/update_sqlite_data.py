@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-daily", action="store_true")
     parser.add_argument("--skip-popularity", action="store_true")
     parser.add_argument("--skip-limit-pool", action="store_true")
+    parser.add_argument("--skip-lhb", action="store_true")
     parser.add_argument("--max-symbols", type=int, default=None, help="Debug only: limit daily symbols")
     parser.add_argument("--daily-source", choices=["em", "sina"], default="sina", help="Daily data source; sina is more stable for bulk refresh")
     parser.add_argument("--backfill-history", action="store_true", help="Fetch data before each stock's first stored date")
@@ -364,6 +365,119 @@ def update_limit_pool(conn, ak, end_date: str, retries: int, sleep_seconds: floa
     print(f"Limit-up pool update done. rows={len(rows)}")
 
 
+def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_id: str) -> None:
+    """Fetch Dragon-Tiger list (龙虎榜) for end_date and write to lhb_records + lhb_seats."""
+    if not hasattr(ak, "stock_lhb_detail_em"):
+        print("stock_lhb_detail_em not available in installed AkShare")
+        return
+
+    # Check if already fetched for this date
+    existing = conn.execute("SELECT COUNT(*) AS n FROM lhb_records WHERE date = ?", (normalize_date(end_date),)).fetchone()["n"]
+    if existing > 0:
+        print(f"LHB already fetched for {end_date}: {existing} rows, skipping")
+        return
+
+    try:
+        df = call_with_retry(lambda: ak.stock_lhb_detail_em(start_date=end_date, end_date=end_date), retries, sleep_seconds)
+    except Exception as exc:  # noqa: BLE001
+        with conn:
+            insert_issue(conn, run_id, "lhb:eastmoney_lhb_detail", str(exc))
+        print(f"LHB fetch failed: {exc}")
+        return
+    if df is None or df.empty:
+        print(f"LHB returned no rows for {end_date}")
+        return
+
+    rec_sql = """
+    INSERT OR REPLACE INTO lhb_records(
+        date, code, name, reason, close, pct_chg, lhb_net_buy, lhb_buy, lhb_sell,
+        lhb_amount, market_amount, net_buy_ratio, amount_ratio, turnover, float_mv,
+        after_1d, after_2d, after_5d, after_10d, raw_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    seat_sql = """
+    INSERT OR REPLACE INTO lhb_seats(
+        date, code, direction, seat_name, buy_amount, buy_ratio, sell_amount, sell_ratio, net_amount, seat_type
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    rec_rows = []
+    seat_rows_all = []
+    date_str = normalize_date(end_date)
+
+    for _, row in df.iterrows():
+        row_dict = row.to_dict()
+        code = code_value(row_value(row_dict, ["代码"]))
+        name = row_value(row_dict, ["名称"])
+        if not code or not name:
+            continue
+        rec_rows.append((
+            date_str,
+            code,
+            str(name),
+            str(row_value(row_dict, ["上榜原因"]) or ""),
+            to_float(row_value(row_dict, ["收盘价"])),
+            to_float(row_value(row_dict, ["涨跌幅"])),
+            to_float(row_value(row_dict, ["龙虎榜净买额"])),
+            to_float(row_value(row_dict, ["龙虎榜买入额"])),
+            to_float(row_value(row_dict, ["龙虎榜卖出额"])),
+            to_float(row_value(row_dict, ["龙虎榜成交额"])),
+            to_float(row_value(row_dict, ["市场总成交额"])),
+            to_float(row_value(row_dict, ["净买额占总成交比"])),
+            to_float(row_value(row_dict, ["成交额占总成交比"])),
+            to_float(row_value(row_dict, ["换手率"])),
+            to_float(row_value(row_dict, ["流通市值"])),
+            to_float(row_value(row_dict, ["上榜后1日"])),
+            to_float(row_value(row_dict, ["上榜后2日"])),
+            to_float(row_value(row_dict, ["上榜后5日"])),
+            to_float(row_value(row_dict, ["上榜后10日"])),
+            json.dumps(row_dict, ensure_ascii=False, default=str),
+        ))
+
+    with conn:
+        conn.executemany(rec_sql, rec_rows)
+    print(f"LHB records done. count={len(rec_rows)}")
+
+    # Fetch seat details per stock — one API call per (stock, direction)
+    codes_in_date = [r[1] for r in rec_rows]
+    date_compact = date_str.replace("-", "")
+    for code in codes_in_date:
+        time.sleep(sleep_seconds)
+        for direction in ("买入", "卖出"):
+            try:
+                sdf = call_with_retry(
+                    lambda c=code, flag=direction: ak.stock_lhb_stock_detail_em(
+                        symbol=c, date=date_compact, flag=flag
+                    ),
+                    retries,
+                    sleep_seconds,
+                )
+            except Exception:  # noqa: BLE001
+                continue
+            if sdf is None or sdf.empty:
+                continue
+            for _, srow in sdf.iterrows():
+                sd = srow.to_dict()
+                seat_name = sd.get("交易营业部名称", "")
+                seat_rows_all.append((
+                    date_str,
+                    code,
+                    direction,
+                    str(seat_name),
+                    to_float(sd.get("买入金额")),
+                    to_float(sd.get("买入金额-占总成交比例")),
+                    to_float(sd.get("卖出金额")),
+                    to_float(sd.get("卖出金额-占总成交比例")),
+                    to_float(sd.get("净额")),
+                    str(sd.get("类型") or ""),
+                ))
+
+    if seat_rows_all:
+        with conn:
+            conn.executemany(seat_sql, seat_rows_all)
+    print(f"LHB seats done. count={len(seat_rows_all)}")
+
+
 def main() -> None:
     args = parse_args()
     ak, pd = import_deps()
@@ -376,6 +490,8 @@ def main() -> None:
         update_popularity(conn, ak, pd, args.end_date, args.retries, args.sleep, run_id)
     if not args.skip_limit_pool:
         update_limit_pool(conn, ak, args.end_date, args.retries, args.sleep, run_id)
+    if not args.skip_lhb:
+        update_lhb(conn, ak, args.end_date, args.retries, args.sleep, run_id)
 
 
 if __name__ == "__main__":

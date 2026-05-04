@@ -275,6 +275,347 @@ def fetch_strategy_rows(conn: sqlite3.Connection) -> list[dict[str, object]]:
     return [dict(row) for row in conn.execute(sql)]
 
 
+def fetch_lhb_rows(conn: sqlite3.Connection, latest_date: str, days: int = 5) -> list[dict[str, object]]:
+    """Fetch recent LHB records with seat details joined."""
+    data_date = conn.execute("SELECT MAX(date) AS date FROM lhb_records WHERE date <= ?", (latest_date,)).fetchone()["date"]
+    if not data_date:
+        return []
+    offset = f"-{days - 1} day"
+    sql = """
+    SELECT r.date, r.code, r.name, r.reason,
+           r.close, r.pct_chg, r.lhb_net_buy, r.lhb_buy, r.lhb_sell,
+           r.lhb_amount, r.market_amount, r.net_buy_ratio, r.amount_ratio,
+           r.turnover, r.float_mv,
+           r.after_1d, r.after_2d, r.after_5d, r.after_10d
+    FROM lhb_records r
+    WHERE r.date >= date(?, ?)
+    ORDER BY r.date DESC, r.lhb_net_buy DESC
+    """
+    rows = [dict(row) for row in conn.execute(sql, (data_date, offset))]
+    seats: dict[tuple, list] = {}
+    for row in conn.execute(
+        "SELECT date, code, direction, seat_name, net_amount, seat_type FROM lhb_seats WHERE date >= date(?, ?) ORDER BY date DESC, ABS(net_amount) DESC",
+        (data_date, offset),
+    ):
+        key = (row["date"], row["code"])
+        if key not in seats:
+            seats[key] = []
+        if len(seats[key]) < 10:
+            seats[key].append(dict(row))
+    for row in rows:
+        row["seats"] = seats.get((row["date"], row["code"]), [])
+    return rows
+
+
+def render_longhu_html(lhb_rows: list[dict[str, object]], latest_date: str) -> str:
+    def fmt_e8(val: object) -> str:
+        if val is None:
+            return "-"
+        try:
+            v = float(val) / 1e8
+            return f"{v:.2f}亿"
+        except Exception:
+            return "-"
+
+    def pct_class(val: object) -> str:
+        try:
+            v = float(val)
+            return "up" if v > 0 else ("dn" if v < 0 else "")
+        except Exception:
+            return ""
+
+    def fmt_pct_str(val: object) -> str:
+        if val is None:
+            return "-"
+        try:
+            return f"{float(val):.2f}%"
+        except Exception:
+            return "-"
+
+    from collections import OrderedDict
+    by_date: dict[str, list] = OrderedDict()
+    for row in lhb_rows:
+        d = str(row["date"])
+        by_date.setdefault(d, []).append(row)
+
+    date_tabs = ""
+    date_panels = ""
+    for i, (date, rows) in enumerate(by_date.items()):
+        active = "active" if i == 0 else ""
+        date_tabs += f'<button class="dtab {active}" onclick="switchDate(this,\'{date}\')">{date}（{len(rows)}只）</button>'
+        table_rows = ""
+        for r in rows:
+            seat_html = ""
+            for s in r.get("seats", []):
+                direction_cls = "seat-buy" if s["direction"] == "买入" else "seat-sell"
+                seat_html += f'<span class="{direction_cls}">{html.escape(str(s["seat_name"]))}<em>{fmt_e8(s.get("net_amount"))}</em></span>'
+            pct = r.get("pct_chg")
+            net = r.get("lhb_net_buy")
+            a1 = r.get("after_1d")
+            a5 = r.get("after_5d")
+            table_rows += f"""<tr>
+              <td><b>{html.escape(str(r['code']))}</b><br><small>{html.escape(str(r['name']))}</small></td>
+              <td class="{pct_class(pct)}">{fmt_pct_str(pct)}</td>
+              <td class="{pct_class(net)}">{fmt_e8(net)}</td>
+              <td>{fmt_e8(r.get('lhb_buy'))}</td>
+              <td>{fmt_e8(r.get('lhb_sell'))}</td>
+              <td>{fmt_num(r.get('net_buy_ratio'))}%</td>
+              <td class="reason-cell">{html.escape(str(r.get('reason') or ''))}</td>
+              <td class="{pct_class(a1)}">{fmt_pct_str(a1)}</td>
+              <td class="{pct_class(a5)}">{fmt_pct_str(a5)}</td>
+              <td class="seats-cell">{seat_html}</td>
+            </tr>"""
+        date_panels += f"""<div class="dpanel {active}" id="panel-{date}">
+          <table>
+            <thead><tr>
+              <th>代码/名称</th><th>涨跌幅</th><th>净买额</th><th>买入额</th><th>卖出额</th>
+              <th>净买比%</th><th>上榜原因</th><th>后1日</th><th>后5日</th><th>席位</th>
+            </tr></thead>
+            <tbody>{table_rows}</tbody>
+          </table>
+        </div>"""
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>龙虎榜 · A股量化研究</title>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }}
+.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 20px; position: sticky; top: 0; z-index: 100; }}
+.navbar a {{ color: #8b949e; text-decoration: none; font-size: 14px; }} .navbar a:hover {{ color: #e6edf3; }}
+.navbar-brand {{ color: #e6edf3; font-weight: 700; font-size: 16px; }}
+.container {{ max-width: 1400px; margin: 0 auto; padding: 24px 20px; }}
+h1 {{ font-size: 22px; margin-bottom: 6px; }}
+.sub {{ color: #8b949e; font-size: 13px; margin-bottom: 20px; }}
+.date-tabs {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }}
+.dtab {{ background: #21262d; border: 1px solid #30363d; color: #8b949e; padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 13px; transition: all .15s; }}
+.dtab.active, .dtab:hover {{ background: #1f6feb; border-color: #1f6feb; color: #fff; }}
+.dpanel {{ display: none; }} .dpanel.active {{ display: block; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+thead tr {{ background: #161b22; position: sticky; top: 56px; z-index: 10; }}
+th {{ padding: 10px 8px; text-align: left; color: #8b949e; font-weight: 600; border-bottom: 1px solid #30363d; white-space: nowrap; }}
+td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: top; }}
+tr:hover td {{ background: #161b22; }}
+.up {{ color: #3fb950; }} .dn {{ color: #f85149; }}
+.reason-cell {{ max-width: 180px; word-break: break-all; color: #8b949e; font-size: 12px; }}
+.seats-cell {{ max-width: 320px; }}
+.seat-buy {{ display: inline-block; background: rgba(63,185,80,.12); border: 1px solid rgba(63,185,80,.3); color: #3fb950; border-radius: 4px; padding: 2px 6px; margin: 2px; font-size: 11px; }}
+.seat-buy em {{ font-style: normal; color: #8b949e; margin-left: 4px; }}
+.seat-sell {{ display: inline-block; background: rgba(248,81,73,.12); border: 1px solid rgba(248,81,73,.3); color: #f85149; border-radius: 4px; padding: 2px 6px; margin: 2px; font-size: 11px; }}
+.seat-sell em {{ font-style: normal; color: #8b949e; margin-left: 4px; }}
+.empty {{ color: #484f58; text-align: center; padding: 60px; }}
+.footer {{ text-align: center; color: #484f58; font-size: 12px; padding: 48px 0 24px; }}
+</style>
+</head>
+<body>
+<div class="navbar">
+  <span class="navbar-brand">A股量化研究</span>
+  <a href="index.html">首页</a>
+  <a href="report.html">综合报告</a>
+  <a href="hot_rank_iframe.html">人气热榜</a>
+  <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{html.escape(latest_date)}</span>
+</div>
+<div class="container">
+  <h1>🐉 龙虎榜</h1>
+  <p class="sub">来源：东方财富 · 近5个交易日 · 含席位净买卖明细</p>
+  {'<p class="empty">暂无龙虎榜数据，待下次采集后自动更新</p>' if not lhb_rows else f'<div class="date-tabs">{date_tabs}</div>{date_panels}'}
+</div>
+<div class="footer">数据来源：AkShare 东方财富 · 每工作日 02:30 (北京时间) 自动更新</div>
+<script>
+function switchDate(btn, date) {{
+  document.querySelectorAll('.dtab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.dpanel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + date).classList.add('active');
+}}
+</script>
+</body>
+</html>"""
+
+
+def render_emotion_html(summary: dict[str, object]) -> str:
+    recent = summary.get("recent_emotion", [])
+    streak_summary = summary.get("streak_summary", [])
+
+    emotion_series = []
+    for row in recent:
+        lu = row.get("limit_up_count", 0) or 0
+        ld = row.get("limit_down_count", 0) or 0
+        up = row.get("up_ratio_rate") or 0
+        raw = min(lu / 100 * 40, 40) + up * 40 - min(ld / 50 * 20, 20) + 20
+        score = max(0, min(100, raw))
+        emotion_series.append({
+            "date": row["date"],
+            "score": round(score, 1),
+            "limit_up": lu,
+            "limit_down": ld,
+            "up_ratio": round(up * 100, 1),
+            "amount_e8": row.get("amount_e8", 0),
+        })
+
+    chart_labels = json.dumps([r["date"] for r in emotion_series], ensure_ascii=False)
+    chart_scores = json.dumps([r["score"] for r in emotion_series])
+    chart_lu = json.dumps([r["limit_up"] for r in emotion_series])
+    chart_ld = json.dumps([r["limit_down"] for r in emotion_series])
+    chart_amt = json.dumps([r["amount_e8"] for r in emotion_series])
+
+    streak_rows_html = ""
+    for r in streak_summary:
+        lu_rate = r.get("next_limit_up_rate")
+        lu_str = f"{lu_rate*100:.1f}%" if lu_rate is not None else "-"
+        streak_rows_html += f"""<tr>
+          <td><b>{html.escape(str(r['streak']))}板</b></td>
+          <td>{fmt_num(r.get('count'), 0)}</td>
+          <td>{lu_str}</td>
+          <td>{fmt_num(r.get('gap_pct'))}%</td>
+          <td>{fmt_num(r.get('open_to_close_pct'))}%</td>
+          <td>{fmt_num(r.get('median_open_to_close_pct'))}%</td>
+        </tr>"""
+
+    latest_e = emotion_series[-1] if emotion_series else {}
+    score = latest_e.get("score", 0)
+    if score >= 80:
+        label, cls = "极热 🔥", "hot"
+    elif score >= 60:
+        label, cls = "偏暖 ☀️", "warm"
+    elif score >= 40:
+        label, cls = "中性 🌤", "cool"
+    else:
+        label, cls = "偏冷 🌧", "cold"
+
+    amt_val = float(latest_e.get("amount_e8") or 0)
+    amt_str = f"{amt_val/10000:.2f}万亿" if amt_val >= 10000 else f"{amt_val:.0f}亿"
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>市场温度 · A股量化研究</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }}
+.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 20px; position: sticky; top: 0; z-index: 100; }}
+.navbar a {{ color: #8b949e; text-decoration: none; font-size: 14px; }} .navbar a:hover {{ color: #e6edf3; }}
+.navbar-brand {{ color: #e6edf3; font-weight: 700; font-size: 16px; }}
+.container {{ max-width: 1100px; margin: 0 auto; padding: 24px 20px; }}
+h1 {{ font-size: 22px; margin-bottom: 6px; }}
+.sub {{ color: #8b949e; font-size: 13px; margin-bottom: 24px; }}
+.score-row {{ display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }}
+.score-card {{ background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 18px 24px; min-width: 140px; }}
+.score-card .label {{ color: #8b949e; font-size: 12px; margin-bottom: 6px; }}
+.score-card .val {{ font-size: 32px; font-weight: 700; }}
+.score-card .sub2 {{ font-size: 12px; color: #8b949e; margin-top: 4px; }}
+.hot {{ color: #ff7043; }} .warm {{ color: #ffa726; }} .cool {{ color: #42a5f5; }} .cold {{ color: #78909c; }}
+.chart-card {{ background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 24px; }}
+.chart-tabs {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+.ctab {{ background: #21262d; border: 1px solid #30363d; color: #8b949e; padding: 4px 12px; border-radius: 14px; cursor: pointer; font-size: 12px; transition: all .15s; }}
+.ctab.active {{ background: #1f6feb; border-color: #1f6feb; color: #fff; }}
+canvas {{ max-height: 260px; }}
+.streak-section {{ margin-top: 8px; }}
+.streak-section h2 {{ font-size: 15px; margin-bottom: 12px; color: #8b949e; }}
+table {{ width: 100%; border-collapse: collapse; background: #161b22; border-radius: 10px; overflow: hidden; font-size: 13px; }}
+th {{ background: #0d1117; padding: 9px 12px; text-align: left; color: #8b949e; font-weight: 600; border-bottom: 1px solid #21262d; }}
+td {{ padding: 9px 12px; border-bottom: 1px solid #21262d; }}
+tr:last-child td {{ border-bottom: none; }}
+.footer {{ text-align: center; color: #484f58; font-size: 12px; padding: 48px 0 24px; }}
+</style>
+</head>
+<body>
+<div class="navbar">
+  <span class="navbar-brand">A股量化研究</span>
+  <a href="index.html">首页</a>
+  <a href="report.html">综合报告</a>
+  <a href="longhu.html">龙虎榜</a>
+  <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{html.escape(str(summary.get('latest_date', '')))}</span>
+</div>
+<div class="container">
+  <h1>🌡️ 市场温度</h1>
+  <p class="sub">近20个交易日情绪走势 · 涨跌停比 · 成交额 · 连板晋级统计</p>
+  <div class="score-row">
+    <div class="score-card">
+      <div class="label">最新情绪分</div>
+      <div class="val {cls}">{score:.1f}</div>
+      <div class="sub2">{label}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">涨停 / 跌停</div>
+      <div class="val">{latest_e.get('limit_up', '-')} / {latest_e.get('limit_down', '-')}</div>
+      <div class="sub2">{html.escape(str(latest_e.get('date', '')))}</div>
+    </div>
+    <div class="score-card">
+      <div class="label">上涨比例</div>
+      <div class="val">{latest_e.get('up_ratio', '-')}%</div>
+      <div class="sub2">当日上涨家数占比</div>
+    </div>
+    <div class="score-card">
+      <div class="label">成交额</div>
+      <div class="val" style="font-size:24px">{amt_str}</div>
+      <div class="sub2">全市场</div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-tabs">
+      <button class="ctab active" onclick="switchChart(this,'score')">情绪分</button>
+      <button class="ctab" onclick="switchChart(this,'lu')">涨跌停数</button>
+      <button class="ctab" onclick="switchChart(this,'amt')">成交额(亿)</button>
+    </div>
+    <canvas id="chartScore"></canvas>
+    <canvas id="chartLu" style="display:none"></canvas>
+    <canvas id="chartAmt" style="display:none"></canvas>
+  </div>
+  <div class="streak-section">
+    <h2>连板晋级统计（{html.escape(str(summary.get('start_date', '')))} 至今）</h2>
+    <table>
+      <thead><tr><th>连板级别</th><th>信号数</th><th>次日涨停率</th><th>均值跳空%</th><th>均值开收%</th><th>中位数开收%</th></tr></thead>
+      <tbody>{streak_rows_html}</tbody>
+    </table>
+  </div>
+</div>
+<div class="footer">数据来源：AkShare · daily_bars 全量计算 · 每工作日 02:30 (北京时间) 自动更新</div>
+<script>
+const labels = {chart_labels};
+const scores = {chart_scores};
+const lu = {chart_lu};
+const ld = {chart_ld};
+const amt = {chart_amt};
+const cfg = (datasets, yLabel) => ({{
+  type: 'line', data: {{ labels, datasets }},
+  options: {{
+    responsive: true, maintainAspectRatio: true,
+    plugins: {{ legend: {{ labels: {{ color: '#8b949e' }} }} }},
+    scales: {{
+      x: {{ ticks: {{ color: '#484f58', maxTicksLimit: 10 }}, grid: {{ color: '#21262d' }} }},
+      y: {{ ticks: {{ color: '#8b949e' }}, grid: {{ color: '#21262d' }}, title: {{ display: !!yLabel, text: yLabel, color: '#8b949e' }} }}
+    }}
+  }}
+}});
+new Chart(document.getElementById('chartScore'), cfg([
+  {{ label: '情绪分', data: scores, borderColor: '#ffa726', backgroundColor: 'rgba(255,167,38,.08)', tension: .35, fill: true, pointRadius: 3 }}
+], '情绪分 (0-100)'));
+new Chart(document.getElementById('chartLu'), cfg([
+  {{ label: '涨停数', data: lu, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,.08)', tension: .35, fill: true, pointRadius: 3 }},
+  {{ label: '跌停数', data: ld, borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,.08)', tension: .35, fill: true, pointRadius: 3 }}
+], '家数'));
+new Chart(document.getElementById('chartAmt'), cfg([
+  {{ label: '成交额(亿)', data: amt, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.08)', tension: .35, fill: true, pointRadius: 3 }}
+], '亿元'));
+function switchChart(btn, key) {{
+  document.querySelectorAll('.ctab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('chartScore').style.display = key==='score' ? '' : 'none';
+  document.getElementById('chartLu').style.display = key==='lu' ? '' : 'none';
+  document.getElementById('chartAmt').style.display = key==='amt' ? '' : 'none';
+}}
+</script>
+</body>
+</html>"""
+
+
 def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
     conn = connect(args.db)
     counts = conn.execute(
@@ -390,6 +731,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict
     popularity_rows = fetch_popularity_rows(conn, latest_date)
     limit_pool_rows = fetch_limit_pool_rows(conn, latest_date)
     strategy_rows = fetch_strategy_rows(conn)
+    lhb_rows = fetch_lhb_rows(conn, latest_date)
 
     summary: dict[str, object] = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -421,7 +763,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict
         "streak_summary": streak_summary_rows,
         "recent_emotion": recent_emotion_rows,
     }
-    return summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows
+    return summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows, lhb_rows
 
 
 def summary_cards(summary: dict[str, object]) -> str:
@@ -530,7 +872,7 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
 
 def main() -> None:
     args = parse_args()
-    summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows = build_report(args)
+    summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows, lhb_rows = build_report(args)
     latest_date = str(summary["latest_date"])
     dated_dir = args.report_dir / latest_date
     latest_dir = args.report_dir / "latest"
@@ -539,6 +881,8 @@ def main() -> None:
         (output_dir / "report.html").write_text(render_html(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows), encoding="utf-8")
         (output_dir / "report.md").write_text(render_markdown(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows), encoding="utf-8")
         (output_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        (output_dir / "longhu.html").write_text(render_longhu_html(lhb_rows, latest_date), encoding="utf-8")
+        (output_dir / "emotion.html").write_text(render_emotion_html(summary), encoding="utf-8")
         write_csv(output_dir / "latest_top_amount.csv", latest_top_amount, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
         write_csv(output_dir / "latest_hot_candidates.csv", latest_hot, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
         write_csv(output_dir / "latest_popularity_rankings.csv", popularity_rows, ["date", "source", "rank", "code", "name", "score", "pct", "amount_e8", "turnover"])

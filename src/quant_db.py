@@ -116,6 +116,49 @@ CREATE TABLE IF NOT EXISTS strategy_trades (
 );
 
 CREATE INDEX IF NOT EXISTS idx_strategy_trades_strategy_date ON strategy_trades(strategy, signal_date);
+
+CREATE TABLE IF NOT EXISTS lhb_records (
+    date TEXT NOT NULL,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    reason TEXT,
+    close REAL,
+    pct_chg REAL,
+    lhb_net_buy REAL,
+    lhb_buy REAL,
+    lhb_sell REAL,
+    lhb_amount REAL,
+    market_amount REAL,
+    net_buy_ratio REAL,
+    amount_ratio REAL,
+    turnover REAL,
+    float_mv REAL,
+    after_1d REAL,
+    after_2d REAL,
+    after_5d REAL,
+    after_10d REAL,
+    raw_json TEXT,
+    PRIMARY KEY (date, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lhb_records_date ON lhb_records(date);
+CREATE INDEX IF NOT EXISTS idx_lhb_records_code ON lhb_records(code);
+
+CREATE TABLE IF NOT EXISTS lhb_seats (
+    date TEXT NOT NULL,
+    code TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    seat_name TEXT NOT NULL,
+    buy_amount REAL,
+    buy_ratio REAL,
+    sell_amount REAL,
+    sell_ratio REAL,
+    net_amount REAL,
+    seat_type TEXT,
+    PRIMARY KEY (date, code, direction, seat_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lhb_seats_date_code ON lhb_seats(date, code);
 """
 
 
