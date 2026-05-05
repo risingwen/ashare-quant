@@ -1,0 +1,21 @@
+server {
+    listen 8080;
+    listen [::]:8080;
+    server_name _;
+
+    root /data/quant_research/reports/latest;
+    index index.html;
+
+    charset utf-8;
+    charset_types application/json text/plain text/css application/javascript text/csv;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location / {
+        try_files $uri $uri/ /report.html;
+    }
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
@@ -30,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-symbols", type=int, default=None, help="Debug only: limit daily symbols")
     parser.add_argument("--daily-source", choices=["em", "sina", "mootdx"], default="mootdx", help="Daily data source: mootdx (TCP, no IP ban), sina, or em (eastmoney)")
     parser.add_argument("--backfill-history", action="store_true", help="Fetch data before each stock's first stored date")
+    parser.add_argument("--socket-timeout", type=float, default=25.0, help="Default network socket timeout in seconds")
     return parser.parse_args()
 
 
@@ -48,6 +50,11 @@ def next_day(date_text: str) -> str:
 
 def prev_day(date_text: str) -> str:
     return (datetime.strptime(compact_date(date_text), "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")
+
+
+def configure_socket_timeout(timeout_seconds: float) -> None:
+    if timeout_seconds > 0:
+        socket.setdefaulttimeout(timeout_seconds)
 
 
 def call_with_retry(func: Callable, retries: int, sleep_seconds: float):
@@ -69,7 +76,18 @@ def insert_issue(conn, run_id: str, item: str, reason: str) -> None:
     )
 
 
-def fetch_stock_list(conn, ak, retries: int, sleep_seconds: float) -> list[dict[str, str]]:
+def fetch_cached_stock_list(conn) -> list[dict[str, str]]:
+    rows = conn.execute("SELECT code, name FROM stocks ORDER BY code").fetchall()
+    return [{"code": row["code"], "name": row["name"]} for row in rows]
+
+
+def fetch_stock_list(conn, ak, retries: int, sleep_seconds: float, prefer_cache: bool = False) -> list[dict[str, str]]:
+    if prefer_cache:
+        cached = fetch_cached_stock_list(conn)
+        if cached:
+            print(f"Using database stock cache: {len(cached)}; live stock-list skipped")
+            return cached
+
     try:
         if hasattr(ak, "stock_info_a_code_name"):
             df = call_with_retry(lambda: ak.stock_info_a_code_name(), retries, sleep_seconds)
@@ -96,11 +114,49 @@ def fetch_stock_list(conn, ak, retries: int, sleep_seconds: float) -> list[dict[
         print(f"Fetched live stock list: {len(stocks)}")
         return stocks
     except Exception as exc:  # noqa: BLE001
-        rows = conn.execute("SELECT code, name FROM stocks ORDER BY code").fetchall()
-        if not rows:
+        cached = fetch_cached_stock_list(conn)
+        if not cached:
             raise SystemExit(f"Failed to fetch stock list and database has no cache: {exc}") from exc
-        print(f"Using database stock cache: {len(rows)}; live stock-list error: {exc}")
-        return [{"code": row["code"], "name": row["name"]} for row in rows]
+        print(f"Using database stock cache: {len(cached)}; live stock-list error: {exc}")
+        return cached
+
+
+def resolve_effective_end_date(conn, ak, requested_end_date: str, retries: int, sleep_seconds: float) -> tuple[str, bool]:
+    """Return the latest known trading date not after requested_end_date.
+
+    The daily timer may fire on weekends or holidays. Without this guard the
+    pipeline tries to download every stock for a non-trading date, which is
+    slow and can trigger data-source hangs.
+    """
+    requested = normalize_date(requested_end_date)
+    dates: list[str] = []
+
+    if hasattr(ak, "tool_trade_date_hist_sina"):
+        try:
+            df = call_with_retry(lambda: ak.tool_trade_date_hist_sina(), min(retries, 2), sleep_seconds)
+            for column in df.columns:
+                column_dates = []
+                for value in df[column].dropna().tolist():
+                    date_text = normalize_date(value)
+                    if len(date_text) == 10 and date_text <= requested:
+                        column_dates.append(date_text)
+                if column_dates:
+                    dates = column_dates
+                    break
+        except Exception as exc:  # noqa: BLE001
+            print(f"Trade calendar lookup failed; using requested end date: {exc}")
+
+    if dates:
+        effective = max(dates)
+        if effective < requested:
+            print(f"Requested end date {requested} is not a trading day; using {effective}")
+            return effective, True
+        return requested, False
+
+    latest = conn.execute("SELECT MAX(date) AS date FROM daily_bars WHERE date <= ?", (requested,)).fetchone()["date"]
+    if latest and latest < requested:
+        print(f"Trade calendar unavailable; database latest date is {latest}, requested {requested}")
+    return requested, False
 
 
 def df_to_daily_rows(df, code: str) -> list[tuple]:
@@ -497,10 +553,12 @@ def code_value(value: object | None) -> str | None:
     return text.zfill(6) if text.isdigit() and len(text) <= 6 else text
 
 
-def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: float, run_id: str) -> None:
+def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: float, run_id: str, allow_snapshot: bool = True) -> None:
     fetchers: list[tuple[str, Callable]] = []
-    if hasattr(ak, "stock_hot_rank_em"):
+    if hasattr(ak, "stock_hot_rank_em") and allow_snapshot:
         fetchers.append(("eastmoney_hot_rank", lambda: ak.stock_hot_rank_em()))
+    elif hasattr(ak, "stock_hot_rank_em"):
+        print("Skipping eastmoney_hot_rank snapshot on non-trading-day run")
     if hasattr(ak, "stock_hot_rank_wc"):
         fetchers.append(("wencai_hot_rank", lambda: ak.stock_hot_rank_wc(date=end_date)))
 
@@ -674,7 +732,7 @@ def update_market_daily(conn, ak, end_date: str, retries: int, sleep_seconds: fl
     print(f"market_daily update done. date={date_str} zt={zt_count} dt={dt_count}")
 
 
-
+def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_id: str) -> None:
     """Fetch Dragon-Tiger list (龙虎榜) for end_date and write to lhb_records + lhb_seats."""
     if not hasattr(ak, "stock_lhb_detail_em"):
         print("stock_lhb_detail_em not available in installed AkShare")
@@ -789,14 +847,25 @@ def update_market_daily(conn, ak, end_date: str, retries: int, sleep_seconds: fl
 
 def main() -> None:
     args = parse_args()
+    configure_socket_timeout(args.socket_timeout)
     ak, pd = import_deps()
     conn = connect(args.db)
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    stocks = fetch_stock_list(conn, ak, args.retries, args.sleep)
+
+    requested_end_date = normalize_date(args.end_date)
+    effective_end_date, non_trading_run = resolve_effective_end_date(conn, ak, requested_end_date, args.retries, args.sleep)
+    args.end_date = compact_date(effective_end_date)
+
     if not args.skip_daily:
-        update_daily_bars(conn, ak, stocks, args, run_id)
+        latest_daily = conn.execute("SELECT MAX(date) AS date FROM daily_bars").fetchone()["date"]
+        if non_trading_run and latest_daily and latest_daily >= effective_end_date and not args.backfill_history:
+            print(f"Daily bars already current through {latest_daily}; skipping daily update")
+        else:
+            prefer_cache = non_trading_run and not args.backfill_history
+            stocks = fetch_stock_list(conn, ak, args.retries, args.sleep, prefer_cache=prefer_cache)
+            update_daily_bars(conn, ak, stocks, args, run_id)
     if not args.skip_popularity:
-        update_popularity(conn, ak, pd, args.end_date, args.retries, args.sleep, run_id)
+        update_popularity(conn, ak, pd, args.end_date, args.retries, args.sleep, run_id, allow_snapshot=not non_trading_run)
     if not args.skip_limit_pool:
         update_limit_pool(conn, ak, args.end_date, args.retries, args.sleep, run_id)
     update_market_daily(conn, ak, args.end_date, args.retries, args.sleep, run_id)

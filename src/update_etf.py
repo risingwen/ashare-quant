@@ -12,6 +12,7 @@ ETF 数据采集：行情快照 + 技术信号 + 持仓明细。
 from __future__ import annotations
 
 import argparse
+import socket
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -215,11 +216,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sleep", type=float, default=0.3)
     parser.add_argument("--max-etf", type=int, default=None,
                         help="调试用：限制处理ETF数量")
+    parser.add_argument("--socket-timeout", type=float, default=25.0,
+                        help="Default network socket timeout in seconds")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.socket_timeout > 0:
+        socket.setdefaulttimeout(args.socket_timeout)
     # Use autocommit (isolation_level=None) from the start to avoid
     # the executescript-induced transaction state issues in quant_db.connect()
     import sqlite3 as _sqlite3

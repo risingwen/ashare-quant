@@ -18,7 +18,7 @@
 | 龙虎榜 | akshare 东财 |
 | 人气榜 | 东财 `stock_hot_rank_em` |
 | 报告生成 | `generate_report.py` → 静态 HTML → nginx |
-| 定时任务 | `quant-daily.timer`，Mon-Fri UTC 11:45 |
+| 定时任务 | `quant-daily.timer`，Mon-Fri 19:45（服务器本地时间/北京时间） |
 | Python 环境 | `/data/quant_research_venv`，akshare 1.18.60，mootdx 0.11.7 |
 
 ## 3. 数据范围约定
@@ -65,7 +65,7 @@
 | `src/backfill_lhb.py` | 龙虎榜历史补采 |
 | `src/quant_db.py` | DB schema 定义 |
 | `logs/quant-daily-run.sh` | 定时任务执行脚本 |
-| `/etc/systemd/system/quant-daily.timer` | `OnCalendar=Mon..Fri 11:45` (UTC) |
+| `/etc/systemd/system/quant-daily.timer` | `OnCalendar=Mon..Fri 19:45`（服务器本地时间/北京时间） |
 
 ## 8. 报告页面
 
