@@ -15,7 +15,7 @@ import argparse
 import socket
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -344,28 +344,31 @@ def main() -> None:
             codes_to_fetch = codes_to_fetch[:args.max_holdings]
             log(f"  本次上限：{len(codes_to_fetch)} 只")
 
-        import threading
-        db_lock = threading.Lock()
         counter = {"done": 0, "total": len(codes_to_fetch)}
 
         def fetch_one(idx_code):
             idx, code = idx_code
             result = fetch_etf_holdings(code)
             label = f"[{idx+1}/{counter['total']}] {code}"
-            if result:
-                quarter, rows = result
-                with db_lock:
-                    upsert_etf_holdings(conn, code, quarter, rows)
-                    counter["done"] += 1
-                log(f"  {label} {quarter} {len(rows)}只")
-            else:
-                log(f"  {label} 无持仓数据")
+            return label, code, result
 
         if not codes_to_fetch:
             log("  没有需要抓取的持仓")
         else:
             with ThreadPoolExecutor(max_workers=max(1, args.holdings_workers)) as pool:
-                list(pool.map(fetch_one, enumerate(codes_to_fetch)))
+                futures = [
+                    pool.submit(fetch_one, idx_code)
+                    for idx_code in enumerate(codes_to_fetch)
+                ]
+                for future in as_completed(futures):
+                    label, code, result = future.result()
+                    if result:
+                        quarter, rows = result
+                        upsert_etf_holdings(conn, code, quarter, rows)
+                        counter["done"] += 1
+                        log(f"  {label} {quarter} {len(rows)}只")
+                    else:
+                        log(f"  {label} 无持仓数据")
 
     # 汇总
     total_etf = conn.execute("SELECT COUNT(DISTINCT code) n FROM etf_daily").fetchone()["n"]
