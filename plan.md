@@ -61,10 +61,10 @@
 |------|------|
 | `src/update_sqlite_data.py` | 日线数据采集主脚本；含 `fetch_daily_mootdx`、`fetch_daily_akshare`、`fetch_daily_df` 路由 |
 | `src/generate_report.py` | HTML 报告生成；情绪分、ETF 雷达、龙虎榜、行情汇总 |
-| `src/update_etf.py` | ETF 专项采集，`--min-amount 5000`（万） |
+| `src/update_etf.py` | ETF 专项采集，支持 `--max-holdings` 限制每日持仓抓取量 |
 | `src/backfill_lhb.py` | 龙虎榜历史补采 |
 | `src/quant_db.py` | DB schema 定义 |
-| `logs/quant-daily-run.sh` | 定时任务执行脚本 |
+| `deploy/scripts/quant-daily-run.sh` | 定时任务执行脚本模板，部署到 `/data/quant_research/logs/quant-daily-run.sh` |
 | `/etc/systemd/system/quant-daily.timer` | `OnCalendar=Mon..Fri 19:45`（服务器本地时间/北京时间） |
 
 ## 8. 报告页面

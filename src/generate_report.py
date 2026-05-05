@@ -2385,7 +2385,7 @@ body {{
     <p>systemd timer：<code style="color:#79c0ff">quant-daily.timer</code>，触发时间：UTC 11:45（北京时间 19:45），仅工作日</p>
     <p>执行脚本：<code style="color:#79c0ff">/data/quant_research/logs/quant-daily-run.sh</code></p>
     <div class="code-block">1. update_sqlite_data.py         # 全市场行情 + 人气榜 + 涨停池 + 龙虎榜 + 市场涨跌停汇总(market_daily)
-2. update_etf.py --holdings-only # ETF行情 + 技术信号 + 持仓（每日更新持仓）
+2. update_etf.py --holdings-only --max-holdings 40 # ETF持仓增量更新（每日限额，避免卡住整条流水线）
 3. update_shares.py              # 补全 total_shares IS NULL 的股票总股本
 4. screener.py                   # 选股引擎，结果写入 screen_results 表
 5. backtest_new_high_volume.py   # 策略回测
@@ -2410,7 +2410,7 @@ body {{
     <h2>待办 / Roadmap</h2>
     <h3>进行中</h3>
     <ul>
-      <li><strong>ETF持仓全量采集</strong>（update_etf.py --all-holdings）：947 只，后台运行中</li>
+      <li><strong>ETF持仓回补</strong>：定时任务按日增量抓取，避免全量任务长时间阻塞</li>
     </ul>
     <h3>已知问题 / 待排查</h3>
     <ul>

@@ -15,7 +15,7 @@ import argparse
 import socket
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -24,8 +24,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 import akshare as ak
 import pandas as pd
 
-from quant_core import DEFAULT_DB_PATH, normalize_date, to_float
-from quant_db import connect
+from quant_core import DEFAULT_DB_PATH, to_float
+
+
+def log(message: str = "") -> None:
+    print(message, flush=True)
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -37,7 +40,7 @@ def call_with_retry(fn, retries: int = 3, sleep: float = 0.5):
         except Exception as exc:
             if attempt == retries - 1:
                 raise
-            print(f"  retry {attempt+1}/{retries}: {exc}")
+            log(f"  retry {attempt+1}/{retries}: {exc}")
             time.sleep(sleep * (attempt + 1))
 
 
@@ -114,22 +117,20 @@ def fetch_etf_hist(code: str, days: int = 300) -> pd.DataFrame | None:
 
 # ── 持仓 ─────────────────────────────────────────────────────────────────────
 
-def fetch_etf_holdings(code: str, timeout: int = 12) -> tuple[str, list[dict]] | None:
+def fetch_etf_holdings(code: str) -> tuple[str, list[dict]] | None:
     """
     获取最新季度持仓。返回 (quarter_str, rows_list) 或 None。
-    每次 HTTP 调用限制在 timeout 秒内，避免挂死。
+    依赖全局 socket timeout 控制单次网络请求，避免假超时实际卡死。
     """
     current_year = datetime.now().year
     years_to_try = [str(current_year), str(current_year - 1)]
     for year in years_to_try:
         try:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(ak.fund_portfolio_hold_em, symbol=code, date=year)
-                try:
-                    df = future.result(timeout=timeout)
-                except FuturesTimeoutError:
-                    future.cancel()
-                    continue
+            df = call_with_retry(
+                lambda: ak.fund_portfolio_hold_em(symbol=code, date=year),
+                retries=2,
+                sleep=0.5,
+            )
             if df is None or df.empty:
                 continue
             quarters = df["季度"].unique() if "季度" in df.columns else []
@@ -150,6 +151,33 @@ def fetch_etf_holdings(code: str, timeout: int = 12) -> tuple[str, list[dict]] |
         except Exception:
             continue
     return None
+
+
+def query_signal_etf_codes(conn, min_amount_yuan: float) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT code
+        FROM etf_daily
+        WHERE date = (SELECT MAX(date) FROM etf_daily)
+          AND amount >= ?
+          AND (is_new_high = 1 OR ma20_up = 1 OR above_ma60 = 1)
+        ORDER BY is_new_high DESC, ma20_up DESC, above_ma60 DESC, amount DESC, code
+        """,
+        (min_amount_yuan,),
+    ).fetchall()
+    return [row["code"] for row in rows]
+
+
+def query_all_etf_codes(conn) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT code
+        FROM etf_daily
+        WHERE date = (SELECT MAX(date) FROM etf_daily)
+        ORDER BY amount DESC, code
+        """
+    ).fetchall()
+    return [row["code"] for row in rows]
 
 
 # ── DB 写入 ──────────────────────────────────────────────────────────────────
@@ -216,6 +244,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sleep", type=float, default=0.3)
     parser.add_argument("--max-etf", type=int, default=None,
                         help="调试用：限制处理ETF数量")
+    parser.add_argument("--max-holdings", type=int, default=None,
+                        help="限制本次持仓抓取的ETF数量")
+    parser.add_argument("--holdings-workers", type=int, default=4,
+                        help="并发抓取持仓的线程数")
     parser.add_argument("--socket-timeout", type=float, default=25.0,
                         help="Default network socket timeout in seconds")
     return parser.parse_args()
@@ -246,26 +278,23 @@ def main() -> None:
         weight REAL, shares REAL, market_value REAL,
         PRIMARY KEY (code, quarter, stock_code))""")
 
-    print("Step 1: 获取 ETF 列表...")
-    if args.holdings_only and args.all_holdings:
-        # 全量持仓模式：直接从 DB 取，不需要实时行情
-        codes_in_db = [r["code"] for r in conn.execute("SELECT DISTINCT code FROM etf_daily").fetchall()]
-        # 构造最小 spot_df 供后续逻辑复用
-        import pandas as _pd
-        spot_df = _pd.DataFrame({"code": codes_in_db, "name": [""] * len(codes_in_db), "amount": [9e9] * len(codes_in_db)})
-        print(f"  DB模式：共 {len(spot_df)} 只ETF")
-    else:
-        spot_df = fetch_etf_spot()
-        min_amount_yuan = args.min_amount * 10000
-        spot_df = spot_df[spot_df["amount"] >= min_amount_yuan]
-        print(f"  成交额 >= {args.min_amount:.0f}万 的ETF: {len(spot_df)} 只")
+    min_amount_yuan = args.min_amount * 10000
 
-    if args.max_etf:
+    if args.holdings_only:
+        log("Step 1: holdings-only 模式，跳过 ETF 实时快照")
+        spot_df = pd.DataFrame(columns=["code", "name", "amount"])
+    else:
+        log("Step 1: 获取 ETF 列表...")
+        spot_df = fetch_etf_spot()
+        spot_df = spot_df[spot_df["amount"] >= min_amount_yuan]
+        log(f"  成交额 >= {args.min_amount:.0f}万 的ETF: {len(spot_df)} 只")
+
+    if args.max_etf and not args.holdings_only:
         spot_df = spot_df.head(args.max_etf)
-        print(f"  (调试模式：只处理前 {args.max_etf} 只)")
+        log(f"  (调试模式：只处理前 {args.max_etf} 只)")
 
     if not args.holdings_only:
-        print(f"\nStep 2: 拉取历史K线 & 计算技术信号 (共{len(spot_df)}只)...")
+        log(f"\nStep 2: 拉取历史K线 & 计算技术信号 (共{len(spot_df)}只)...")
         processed = 0
         new_high_count = 0
         ma_up_count = 0
@@ -273,11 +302,11 @@ def main() -> None:
         for idx, row in spot_df.iterrows():
             code = row["code"]
             name = row["name"]
-            print(f"  [{processed+1}/{len(spot_df)}] {code} {name}", end="  ")
+            log(f"  [{processed+1}/{len(spot_df)}] {code} {name}")
 
             hist = fetch_etf_hist(code, days=args.hist_days)
             if hist is None or hist.empty:
-                print("skip (no hist)")
+                log("    skip (no hist)")
                 processed += 1
                 time.sleep(args.sleep)
                 continue
@@ -289,34 +318,31 @@ def main() -> None:
             mu = int(latest.get("ma20_up", 0) or 0)
             new_high_count += nh
             ma_up_count += mu
-            print(f"rows={len(hist)} | 新高={'✓' if nh else '-'} MA20向上={'✓' if mu else '-'}")
+            log(f"    rows={len(hist)} | 新高={'✓' if nh else '-'} MA20向上={'✓' if mu else '-'}")
 
             processed += 1
             time.sleep(args.sleep)
 
-        print(f"\n  技术信号汇总: 新高={new_high_count}只, MA20向上={ma_up_count}只")
+        log(f"\n  技术信号汇总: 新高={new_high_count}只, MA20向上={ma_up_count}只")
 
     if not args.skip_holdings:
-        print(f"\nStep 3: 采集持仓（已有记录的ETF跳过）...")
+        log("\nStep 3: 采集持仓（已有记录的ETF跳过）...")
         if args.all_holdings:
-            codes_to_fetch = [r["code"] for r in conn.execute(
-                "SELECT DISTINCT code FROM etf_daily"
-            ).fetchall()]
-            print(f"  全量模式：共 {len(codes_to_fetch)} 只")
+            codes_to_fetch = query_all_etf_codes(conn)
+            log(f"  全量模式：最新交易日共 {len(codes_to_fetch)} 只")
         else:
-            codes_to_fetch = [r["code"] for r in conn.execute("""
-                SELECT DISTINCT code FROM etf_daily
-                WHERE date = (SELECT MAX(date) FROM etf_daily)
-                  AND (is_new_high=1 OR ma20_up=1 OR above_ma60=1)
-            """).fetchall()]
-            print(f"  信号模式：需要采集持仓的ETF: {len(codes_to_fetch)} 只")
+            codes_to_fetch = query_signal_etf_codes(conn, min_amount_yuan)
+            log(f"  信号模式：成交额过滤后需要采集持仓的ETF: {len(codes_to_fetch)} 只")
 
-        # 过滤已有持仓的
-        codes_to_fetch = [
-            c for c in codes_to_fetch
-            if conn.execute("SELECT COUNT(*) n FROM etf_holdings WHERE code=?", (c,)).fetchone()["n"] == 0
-        ]
-        print(f"  待采集（跳过已有）：{len(codes_to_fetch)} 只")
+        existing_codes = {
+            row["code"] for row in conn.execute("SELECT DISTINCT code FROM etf_holdings").fetchall()
+        }
+        codes_to_fetch = [code for code in codes_to_fetch if code not in existing_codes]
+        log(f"  待采集（跳过已有）：{len(codes_to_fetch)} 只")
+
+        if args.max_holdings is not None:
+            codes_to_fetch = codes_to_fetch[:args.max_holdings]
+            log(f"  本次上限：{len(codes_to_fetch)} 只")
 
         import threading
         db_lock = threading.Lock()
@@ -331,18 +357,21 @@ def main() -> None:
                 with db_lock:
                     upsert_etf_holdings(conn, code, quarter, rows)
                     counter["done"] += 1
-                print(f"  {label} {quarter} {len(rows)}只")
+                log(f"  {label} {quarter} {len(rows)}只")
             else:
-                print(f"  {label} 无持仓数据")
+                log(f"  {label} 无持仓数据")
 
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            pool.map(fetch_one, enumerate(codes_to_fetch))
+        if not codes_to_fetch:
+            log("  没有需要抓取的持仓")
+        else:
+            with ThreadPoolExecutor(max_workers=max(1, args.holdings_workers)) as pool:
+                list(pool.map(fetch_one, enumerate(codes_to_fetch)))
 
     # 汇总
     total_etf = conn.execute("SELECT COUNT(DISTINCT code) n FROM etf_daily").fetchone()["n"]
     total_holdings = conn.execute("SELECT COUNT(DISTINCT code) n FROM etf_holdings").fetchone()["n"]
     latest_date = conn.execute("SELECT MAX(date) d FROM etf_daily").fetchone()["d"]
-    print(f"\nDone. DB: etf_daily={total_etf}只, 持仓={total_holdings}只, 最新日期={latest_date}")
+    log(f"\nDone. DB: etf_daily={total_etf}只, 持仓={total_holdings}只, 最新日期={latest_date}")
 
 
 if __name__ == "__main__":

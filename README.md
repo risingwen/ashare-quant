@@ -43,8 +43,9 @@ http://140.245.53.52:8080/
 │   │   ├── summary.json
 │   │   └── *.csv
 │   └── YYYY-MM-DD/             # 历史归档
-├── logs/
-│   └── quant-daily-run.sh      # systemd 执行脚本
+├── deploy/
+│   └── scripts/
+│       └── quant-daily-run.sh  # systemd 执行脚本模板，部署到 /data/quant_research/logs/
 └── requirements.txt
 ```
 
