@@ -591,9 +591,13 @@ def render_longhu_html(lhb_rows: list[dict[str, object]], latest_date: str, seat
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }}
-.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 20px; position: sticky; top: 0; z-index: 100; }}
-.navbar a {{ color: #8b949e; text-decoration: none; font-size: 14px; }} .navbar a:hover {{ color: #e6edf3; }}
-.navbar-brand {{ color: #e6edf3; font-weight: 700; font-size: 16px; }}
+.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 32px; display: flex; align-items: center; height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }}
+.navbar-brand {{ color: #58a6ff; font-weight: 700; font-size: 16px; text-decoration: none; white-space: nowrap; }}
+.navbar-links {{ display: flex; gap: 2px; flex-wrap: wrap; }}
+.navbar-links a {{ color: #8b949e; text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 6px; transition: all .15s; }}
+.navbar-links a:hover {{ color: #e6edf3; background: #21262d; }}
+.navbar-links a.active {{ color: #e6edf3; background: #21262d; }}
+.navbar-date {{ margin-left: auto; font-size: 12px; color: #484f58; }}
 .container {{ max-width: 1500px; margin: 0 auto; padding: 24px 20px; }}
 h1 {{ font-size: 22px; margin-bottom: 6px; }}
 .sub {{ color: #8b949e; font-size: 13px; margin-bottom: 16px; }}
@@ -661,7 +665,8 @@ td {{ padding: 8px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
 </head>
 <body>
 <div class="navbar">
-  <span class="navbar-brand">A股量化研究</span>
+  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
+  <div class="navbar-links">
   <a href="index.html">首页</a>
   <a href="report.html">综合报告</a>
   <a href="screener.html">选股信号</a>
@@ -671,7 +676,8 @@ td {{ padding: 8px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
   <a href="etf.html">ETF雷达</a>
   <a href="emotion.html">市场温度</a>
   <a href="docs.html">文档</a>
-  <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{html.escape(latest_date)}</span>
+  </div>
+  <div class="navbar-date">最新数据：{html.escape(latest_date)}</div>
 </div>
 <div class="container">
   <h1>龙虎榜</h1>
@@ -1138,9 +1144,13 @@ def render_etf_html(conn, latest_date: str) -> str:
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }}
-.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 20px; position: sticky; top: 0; z-index: 100; }}
-.navbar a {{ color: #8b949e; text-decoration: none; font-size: 14px; }} .navbar a:hover {{ color: #e6edf3; }}
-.navbar-brand {{ color: #e6edf3; font-weight: 700; font-size: 16px; }}
+.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 32px; display: flex; align-items: center; height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }}
+.navbar-brand {{ color: #58a6ff; font-weight: 700; font-size: 16px; text-decoration: none; white-space: nowrap; }}
+.navbar-links {{ display: flex; gap: 2px; flex-wrap: wrap; }}
+.navbar-links a {{ color: #8b949e; text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 6px; transition: all .15s; }}
+.navbar-links a:hover {{ color: #e6edf3; background: #21262d; }}
+.navbar-links a.active {{ color: #e6edf3; background: #21262d; }}
+.navbar-date {{ margin-left: auto; font-size: 12px; color: #484f58; }}
 .container {{ max-width: 1400px; margin: 0 auto; padding: 24px 20px; }}
 h1 {{ font-size: 22px; margin-bottom: 6px; }}
 .sub {{ color: #8b949e; font-size: 13px; margin-bottom: 20px; }}
@@ -1202,7 +1212,8 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
 </head>
 <body>
 <div class="navbar">
-  <span class="navbar-brand">A股量化研究</span>
+  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
+  <div class="navbar-links">
    <a href="index.html">首页</a>
    <a href="report.html">综合报告</a>
    <a href="screener.html">选股信号</a>
@@ -1212,7 +1223,8 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
    <a href="etf.html" class="active">ETF雷达</a>
    <a href="emotion.html">市场温度</a>
    <a href="docs.html">文档</a>
-   <span style="margin-left:auto;color:#484f58;font-size:12px">数据日期：{html_mod.escape(db_latest)}</span>
+  </div>
+  <div class="navbar-date">数据日期：{html_mod.escape(db_latest)}</div>
 </div>
 <div class="container">
   <h1>📡 ETF雷达</h1>
@@ -1451,9 +1463,13 @@ def render_emotion_html(summary: dict[str, object]) -> str:
 <style>
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }}
-.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 20px; position: sticky; top: 0; z-index: 100; }}
-.navbar a {{ color: #8b949e; text-decoration: none; font-size: 14px; }} .navbar a:hover {{ color: #e6edf3; }}
-.navbar-brand {{ color: #e6edf3; font-weight: 700; font-size: 16px; }}
+.navbar {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 0 32px; display: flex; align-items: center; height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }}
+.navbar-brand {{ color: #58a6ff; font-weight: 700; font-size: 16px; text-decoration: none; white-space: nowrap; }}
+.navbar-links {{ display: flex; gap: 2px; flex-wrap: wrap; }}
+.navbar-links a {{ color: #8b949e; text-decoration: none; font-size: 13px; padding: 5px 10px; border-radius: 6px; transition: all .15s; }}
+.navbar-links a:hover {{ color: #e6edf3; background: #21262d; }}
+.navbar-links a.active {{ color: #e6edf3; background: #21262d; }}
+.navbar-date {{ margin-left: auto; font-size: 12px; color: #484f58; }}
 .container {{ max-width: 1100px; margin: 0 auto; padding: 24px 20px; }}
 h1 {{ font-size: 22px; margin-bottom: 6px; }}
 .sub {{ color: #8b949e; font-size: 13px; margin-bottom: 20px; }}
@@ -1486,7 +1502,8 @@ tr:last-child td {{ border-bottom: none; }}
 </head>
 <body>
 <div class="navbar">
-   <span class="navbar-brand">A股量化研究</span>
+  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
+  <div class="navbar-links">
     <a href="index.html">首页</a>
     <a href="report.html">综合报告</a>
     <a href="screener.html">选股信号</a>
@@ -1496,7 +1513,9 @@ tr:last-child td {{ border-bottom: none; }}
     <a href="etf.html">ETF雷达</a>
     <a href="emotion.html" class="active">市场温度</a>
     <a href="docs.html">文档</a>
-    <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{latest_date_str}</span>
+  </div>
+  <div class="navbar-date">最新数据：{latest_date_str}</div>
+</div>
 </div>
 <div class="container">
   <h1>🌡️ 市场温度</h1>
@@ -2160,7 +2179,7 @@ def fetch_zt_pool_data(conn, latest_date: str) -> dict:
     """从 zt_pool / zt_previous 取连板数据，计算晋级率"""
     # 有数据的日期列表
     dates = [r[0] for r in conn.execute(
-        "SELECT DISTINCT date FROM zt_pool ORDER BY date DESC LIMIT 30"
+        "SELECT DISTINCT date FROM zt_pool ORDER BY date DESC LIMIT 60"
     ).fetchall()]
 
     if not dates:
