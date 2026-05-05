@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-DEFAULT_DB_PATH = Path("data/quant.db")
+DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "quant.db"
 DEFAULT_LEGACY_CSV_DIR = Path("/data/akshare/Akshare/stock_data")
 
 

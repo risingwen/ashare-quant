@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-limit-pool", action="store_true")
     parser.add_argument("--skip-lhb", action="store_true")
     parser.add_argument("--max-symbols", type=int, default=None, help="Debug only: limit daily symbols")
-    parser.add_argument("--daily-source", choices=["em", "sina"], default="sina", help="Daily data source; sina is more stable for bulk refresh")
+    parser.add_argument("--daily-source", choices=["em", "sina", "mootdx"], default="mootdx", help="Daily data source: mootdx (TCP, no IP ban), sina, or em (eastmoney)")
     parser.add_argument("--backfill-history", action="store_true", help="Fetch data before each stock's first stored date")
     return parser.parse_args()
 
@@ -169,10 +169,220 @@ def df_to_sina_daily_rows(df, code: str) -> list[tuple]:
     return rows
 
 
-def fetch_daily_df(ak, code: str, start_date: str, end_date: str, source: str):
+def fetch_daily_mootdx(code: str, start_date: str, end_date: str, db_prev_close: float | None = None) -> list[tuple]:
+    """Fetch daily bars via mootdx TCP (no HTTP gateway, no IP ban risk).
+
+    Supports SH, SZ and BSE (北交所) stocks. Market is auto-detected from
+    the stock code using mootdx's get_stock_market() utility.
+
+    Returns list of row tuples compatible with daily_bars schema.
+    start_date / end_date format: YYYYMMDD or YYYY-MM-DD.
+    """
+    from mootdx.quotes import Quotes
+    from mootdx.utils import get_stock_market
+
+    start_dt = datetime.strptime(compact_date(start_date), "%Y%m%d").date()
+    end_dt = datetime.strptime(compact_date(end_date), "%Y%m%d").date()
+
+    # Auto-detect market: 0=SZ, 1=SH, 2=BJ
+    market_id = get_stock_market(code, string=False)
+
+    client = Quotes.factory(market="std", server="119.147.212.81", port=7709)
+    rows: list[tuple] = []
+    # mootdx returns newest-first with start/offset pagination; collect enough pages
+    batch = 800
+    page_start = 0
+    all_bars: list[tuple] = []
+    while True:
+        df = client.bars(symbol=code, market=market_id, frequency=9, start=page_start, offset=batch)
+        if df is None or df.empty:
+            break
+        # df index is datetime, columns: open close high low vol amount datetime ...
+        for idx, row in df.iterrows():
+            bar_date = idx.date() if hasattr(idx, "date") else None
+            if bar_date is None:
+                continue
+            all_bars.append((bar_date, row))
+        # Stop if earliest bar is already before start_date
+        earliest = df.index[0].date() if hasattr(df.index[0], "date") else start_dt
+        if earliest <= start_dt:
+            break
+        if len(df) < batch:
+            break
+        page_start += batch
+
+    # Filter to requested date range and compute pct_chg from prev close
+    filtered = sorted(
+        [(d, r) for d, r in all_bars if start_dt <= d <= end_dt],
+        key=lambda x: x[0],
+    )
+    prev_close = db_prev_close  # seed from DB so first-day pct_chg is correct
+    for bar_date, row in filtered:
+        date_str = bar_date.strftime("%Y-%m-%d")
+        open_p = to_float(row.get("open"))
+        close = to_float(row.get("close"))
+        high = to_float(row.get("high"))
+        low = to_float(row.get("low"))
+        vol = to_float(row.get("vol") or row.get("volume"))
+        amount = to_float(row.get("amount"))
+        if None in {open_p, close, high, low, vol, amount}:
+            prev_close = close
+            continue
+        if prev_close in {None, 0.0}:
+            # 新股/复牌首日：退而使用 mootdx 自带的涨跌幅字段（pct_chg 或 price_chg_rate）
+            src_pct = to_float(row.get("pct_chg") or row.get("price_chg_rate"))
+            pct_chg = src_pct if src_pct is not None else 0.0
+            change_amount = 0.0
+            amplitude = 0.0
+        else:
+            pct_chg = (close - prev_close) / prev_close * 100
+            change_amount = close - prev_close
+            amplitude = (high - low) / prev_close * 100
+        rows.append((code, date_str, open_p, close, high, low, vol, amount, amplitude, pct_chg, change_amount, 0.0))
+        prev_close = close
+    return rows
+
+
+def fetch_daily_tencent(code: str, start_date: str, end_date: str) -> list[tuple]:
+    """Fetch daily bars for BSE stocks via Tencent Finance API.
+
+    Returns list of row tuples compatible with daily_bars schema.
+    Tencent supports bj-prefix codes with full history.
+    """
+    import requests as _req
+
+    start_compact = compact_date(start_date)
+    end_compact = compact_date(end_date)
+    start_fmt = f"{start_compact[:4]}-{start_compact[4:6]}-{start_compact[6:]}"
+    end_fmt = f"{end_compact[:4]}-{end_compact[4:6]}-{end_compact[6:]}"
+
+    # Tencent uses bj prefix for BSE stocks
+    symbol = f"bj{code}"
+    url = (
+        f"https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get"
+        f"?_var=kline_dayqfq&param={symbol},day,{start_fmt},{end_fmt},1000,qfq"
+    )
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    resp = _req.get(url, headers=headers, timeout=15)
+    resp.raise_for_status()
+    raw = resp.text
+    json_str = raw.split("=", 1)[1] if "=" in raw else raw
+    import json as _json
+    data = _json.loads(json_str)
+    stock_data = data.get("data", {}).get(symbol, {})
+    # Tencent returns 'qfqday' for SH/SZ and 'day' for BSE stocks
+    day_list = stock_data.get("qfqday") or stock_data.get("day") or []
+
+    # Filter by requested date range (Tencent may return more data than requested)
+    day_list = [item for item in day_list if start_fmt <= str(item[0]) <= end_fmt]
+
+    rows: list[tuple] = []
+    prev_close = None
+    for item in day_list:
+        # [date, open, close, high, low, vol(手), {}, turnover(%), amount(万元), '']
+        if len(item) < 6:
+            continue
+        date_str = str(item[0])
+        open_p = to_float(item[1])
+        close = to_float(item[2])
+        high = to_float(item[3])
+        low = to_float(item[4])
+        vol = to_float(item[5])
+        amount_wan = to_float(item[8]) if len(item) > 8 else None
+        amount = amount_wan * 10000 if amount_wan is not None else None
+        turnover = to_float(item[7]) if len(item) > 7 else 0.0
+        if None in {open_p, close, high, low, vol, amount}:
+            prev_close = close
+            continue
+        pct_chg = 0.0 if prev_close in {None, 0.0} else (close - prev_close) / prev_close * 100
+        change_amount = 0.0 if prev_close is None else close - prev_close
+        amplitude = 0.0 if prev_close in {None, 0.0} else (high - low) / prev_close * 100
+        rows.append((code, date_str, open_p, close, high, low, vol, amount, amplitude, pct_chg, change_amount, turnover or 0.0))
+        prev_close = close
+    return rows
+
+
+def fetch_daily_akshare(code: str, start_date: str, end_date: str, db_prev_close: float | None = None) -> list[tuple]:
+    """Fetch daily bars for BSE 9-prefix stocks via akshare (EastMoney).
+
+    Only works for codes starting with '9' (北交所现行代码规则).
+    akshare maps these to secid=0.9xxxxx which EastMoney correctly serves.
+    Returns list of row tuples compatible with daily_bars schema.
+    """
+    import akshare as _ak
+
+    start_compact = compact_date(start_date)
+    end_compact = compact_date(end_date)
+    df = _ak.stock_zh_a_hist(
+        symbol=code,
+        period="daily",
+        start_date=start_compact,
+        end_date=end_compact,
+        adjust="",  # 不复权，pct_chg 自行从原始价格计算
+    )
+    if df is None or df.empty:
+        return []
+
+    # 列名：日期 股票代码 开盘 收盘 最高 最低 成交量 成交额 振幅 涨跌幅 涨跌额 换手率
+    rows: list[tuple] = []
+    prev_close = db_prev_close  # seed from DB so first-day pct_chg is correct
+    for _, row in df.iterrows():
+        date_str = str(row["日期"])
+        open_p  = to_float(row.get("开盘"))
+        close   = to_float(row.get("收盘"))
+        high    = to_float(row.get("最高"))
+        low     = to_float(row.get("最低"))
+        vol     = to_float(row.get("成交量"))
+        amount  = to_float(row.get("成交额"))
+        turnover= to_float(row.get("换手率")) or 0.0
+        if None in {open_p, close, high, low, vol, amount}:
+            prev_close = close
+            continue
+        # 如果 prev_close 仍为 None（真正新股首日），退而使用数据源自带的涨跌幅字段
+        if prev_close in {None, 0.0}:
+            src_pct = to_float(row.get("涨跌幅"))
+            pct_chg = src_pct if src_pct is not None else 0.0
+            change_amount = 0.0
+            amplitude = 0.0 if prev_close in {None, 0.0} else (high - low) / prev_close * 100
+        else:
+            pct_chg       = (close - prev_close) / prev_close * 100
+            change_amount = close - prev_close
+            amplitude     = (high - low) / prev_close * 100
+        rows.append((code, date_str, open_p, close, high, low, vol, amount, amplitude, pct_chg, change_amount, turnover))
+        prev_close = close
+    return rows
+
+
+def fetch_daily_df(ak, code: str, start_date: str, end_date: str, source: str, market: str = "", conn=None):
+    """Route to the appropriate data source based on market and source flag.
+
+    Returns (rows: list[tuple], source_label: str) where rows are ready for INSERT.
+    - mootdx: SH/SZ via TCP direct connect; BSE 9-prefix via akshare EastMoney;
+               BSE 8/4-prefix skipped (no accessible source).
+    - em/sina: legacy akshare paths, backward compatible.
+    conn: optional DB connection to look up prev_close before start_date (fixes new-stock first-day pct_chg=0 bug).
+    """
+    # Query DB for the close price of the trading day immediately before start_date,
+    # so that the first bar in the fetched range has a correct pct_chg.
+    db_prev_close: float | None = None
+    if conn is not None:
+        row = conn.execute(
+            "SELECT close FROM daily_bars WHERE code=? AND date<? ORDER BY date DESC LIMIT 1",
+            (code, normalize_date(start_date)),
+        ).fetchone()
+        if row:
+            db_prev_close = float(row[0]) if row[0] else None
+
+    if source == "mootdx":
+        if market == "BSE":
+            if code.startswith("9"):
+                return fetch_daily_akshare(code, start_date, end_date, db_prev_close=db_prev_close), "akshare"
+            else:
+                return None, "skip"
+        return fetch_daily_mootdx(code, start_date, end_date, db_prev_close=db_prev_close), "mootdx"
     if source == "em":
-        return ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start_date, end_date=end_date, adjust="qfq"), "em"
-    return ak.stock_zh_a_daily(symbol=symbol_with_exchange(code), start_date=start_date, end_date=end_date, adjust="qfq"), "sina"
+        return ak.stock_zh_a_hist(symbol=code, period="daily", start_date=compact_date(start_date), end_date=compact_date(end_date), adjust="qfq"), "em"
+    return ak.stock_zh_a_daily(symbol=symbol_with_exchange(code), start_date=compact_date(start_date), end_date=compact_date(end_date), adjust="qfq"), "sina"
 
 
 def update_daily_bars(conn, ak, stocks: list[dict[str, str]], args: argparse.Namespace, run_id: str) -> None:
@@ -180,13 +390,18 @@ def update_daily_bars(conn, ak, stocks: list[dict[str, str]], args: argparse.Nam
     INSERT OR REPLACE INTO daily_bars(
         code, date, open, close, high, low, volume, amount, amplitude,
         pct_chg, change_amount, turnover, source
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'akshare')
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     created = 0
     updated = 0
     skipped = 0
     failed = 0
     selected = stocks[: args.max_symbols] if args.max_symbols else stocks
+
+    # Pre-load market info for routing
+    market_map: dict[str, str] = {}
+    for row in conn.execute("SELECT code, market FROM stocks"):
+        market_map[row["code"]] = row["market"]
 
     tasks = []
     for item in selected:
@@ -204,24 +419,33 @@ def update_daily_bars(conn, ak, stocks: list[dict[str, str]], args: argparse.Nam
         if start_date > end_date:
             skipped += 1
             continue
-        tasks.append({"code": code, "name": name, "last": last, "start_date": start_date, "end_date": end_date})
+        tasks.append({"code": code, "name": name, "last": last, "start_date": start_date, "end_date": end_date, "market": market_map.get(code, "")})
 
     def fetch_one(task: dict[str, object]) -> tuple[dict[str, object], list[tuple] | None, str | None]:
         code = str(task["code"])
         start_date = str(task["start_date"])
         end_date = str(task["end_date"])
+        market = str(task.get("market", ""))
         time.sleep(args.sleep)
         try:
-            df, source = call_with_retry(
-                lambda: fetch_daily_df(ak, code, start_date, end_date, args.daily_source),
+            result, source_label = call_with_retry(
+                lambda: fetch_daily_df(ak, code, start_date, end_date, args.daily_source, market, conn=conn),
                 args.retries,
                 args.sleep,
             )
         except Exception as exc:  # noqa: BLE001
             return task, None, str(exc)
+        # mootdx (SH/SZ/BSE) returns rows directly; em/sina returns a DataFrame
+        if source_label == "skip":
+            return task, [], None
+        if source_label in ("mootdx", "akshare"):
+            rows = [r + (source_label,) for r in result]
+            return task, rows, None
+        df = result
         if df is None or df.empty:
             return task, [], None
-        rows = df_to_daily_rows(df, code) if source == "em" else df_to_sina_daily_rows(df, code)
+        base_rows = df_to_daily_rows(df, code) if source_label == "em" else df_to_sina_daily_rows(df, code)
+        rows = [r + (source_label,) for r in base_rows]
         return task, rows, None
 
     if not tasks:
@@ -365,7 +589,92 @@ def update_limit_pool(conn, ak, end_date: str, retries: int, sleep_seconds: floa
     print(f"Limit-up pool update done. rows={len(rows)}")
 
 
-def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_id: str) -> None:
+def update_market_daily(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_id: str) -> None:
+    """Fetch zt/dt pool counts from EastMoney and write to market_daily table."""
+    date_str = normalize_date(end_date)
+
+    # Skip if already fetched
+    existing = conn.execute("SELECT zt_count FROM market_daily WHERE date = ?", (date_str,)).fetchone()
+    if existing and existing["zt_count"] is not None:
+        print(f"market_daily already fetched for {date_str}, skipping")
+        return
+
+    zt_count = None
+    dt_count = None
+
+    # 涨停池
+    if hasattr(ak, "stock_zt_pool_em"):
+        try:
+            df = call_with_retry(lambda: ak.stock_zt_pool_em(date=end_date), retries, sleep_seconds)
+            if df is not None and not df.empty:
+                zt_count = len(df)
+        except Exception as exc:  # noqa: BLE001
+            insert_issue(conn, run_id, "market_daily:zt_pool", str(exc))
+            print(f"market_daily zt_pool fetch failed: {exc}")
+
+    # 跌停池
+    if hasattr(ak, "stock_zt_pool_dtgc_em"):
+        try:
+            df = call_with_retry(lambda: ak.stock_zt_pool_dtgc_em(date=end_date), retries, sleep_seconds)
+            if df is not None and not df.empty:
+                dt_count = len(df)
+        except Exception as exc:  # noqa: BLE001
+            insert_issue(conn, run_id, "market_daily:dt_pool", str(exc))
+            print(f"market_daily dt_pool fetch failed: {exc}")
+
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO market_daily(date, zt_count, dt_count)
+            VALUES(?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                zt_count = excluded.zt_count,
+                dt_count = excluded.dt_count
+            """,
+            (date_str, zt_count, dt_count),
+        )
+
+    # Fallback: 若接口失败，用 daily_bars pct_chg 自算
+    if zt_count is None or dt_count is None:
+        stock_info = {
+            r["code"]: (r["market"], bool(r["is_st"]))
+            for r in conn.execute("SELECT code, market, is_st FROM stocks")
+        }
+        bars = conn.execute(
+            "SELECT code, pct_chg FROM daily_bars WHERE date = ? AND pct_chg IS NOT NULL",
+            (date_str,),
+        ).fetchall()
+        zt_calc = dt_calc = 0
+        for bar in bars:
+            mkt, is_st = stock_info.get(bar["code"], ("Mainboard", False))
+            pct = float(bar["pct_chg"])
+            if is_st:
+                thr = 4.8
+            elif mkt in ("ChiNext", "STAR"):
+                thr = 19.8
+            elif mkt == "BSE":
+                thr = 29.8
+            else:
+                thr = 9.8
+            if pct >= thr:
+                zt_calc += 1
+            elif pct <= -thr:
+                dt_calc += 1
+        if zt_count is None:
+            zt_count = zt_calc
+        if dt_count is None:
+            dt_count = dt_calc
+        with conn:
+            conn.execute(
+                "UPDATE market_daily SET zt_count=?, dt_count=? WHERE date=?",
+                (zt_count, dt_count, date_str),
+            )
+        print(f"market_daily fallback calc done. date={date_str} zt={zt_count} dt={dt_count}")
+
+    print(f"market_daily update done. date={date_str} zt={zt_count} dt={dt_count}")
+
+
+
     """Fetch Dragon-Tiger list (龙虎榜) for end_date and write to lhb_records + lhb_seats."""
     if not hasattr(ak, "stock_lhb_detail_em"):
         print("stock_lhb_detail_em not available in installed AkShare")
@@ -490,6 +799,7 @@ def main() -> None:
         update_popularity(conn, ak, pd, args.end_date, args.retries, args.sleep, run_id)
     if not args.skip_limit_pool:
         update_limit_pool(conn, ak, args.end_date, args.retries, args.sleep, run_id)
+    update_market_daily(conn, ak, args.end_date, args.retries, args.sleep, run_id)
     if not args.skip_lhb:
         update_lhb(conn, ak, args.end_date, args.retries, args.sleep, run_id)
 

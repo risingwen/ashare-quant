@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS stocks (
     market TEXT NOT NULL,
     is_st INTEGER NOT NULL DEFAULT 0,
     eligible INTEGER NOT NULL DEFAULT 0,
+    total_shares REAL,
+    shares_updated_at TEXT,
     updated_at TEXT
 );
 
@@ -159,6 +161,52 @@ CREATE TABLE IF NOT EXISTS lhb_seats (
 );
 
 CREATE INDEX IF NOT EXISTS idx_lhb_seats_date_code ON lhb_seats(date, code);
+
+-- ETF 每日快照：行情 + 技术信号
+CREATE TABLE IF NOT EXISTS etf_daily (
+    date TEXT NOT NULL,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    close REAL,
+    pct_chg REAL,
+    amount REAL,          -- 成交额（元）
+    ma5 REAL,
+    ma10 REAL,
+    ma20 REAL,
+    ma60 REAL,
+    hist_high REAL,       -- 截至当日的历史最高收盘价
+    is_new_high INTEGER DEFAULT 0,   -- 1=创历史新高
+    ma20_up INTEGER DEFAULT 0,       -- 1=MA20向上（当日MA20>昨日MA20）
+    ma60_up INTEGER DEFAULT 0,       -- 1=MA60向上
+    above_ma20 INTEGER DEFAULT 0,    -- 1=收盘>MA20
+    above_ma60 INTEGER DEFAULT 0,    -- 1=收盘>MA60
+    PRIMARY KEY (date, code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_etf_daily_date ON etf_daily(date);
+CREATE INDEX IF NOT EXISTS idx_etf_daily_code ON etf_daily(code);
+
+-- ETF 持仓（最新一期）
+CREATE TABLE IF NOT EXISTS etf_holdings (
+    code TEXT NOT NULL,           -- ETF代码（不含市场前缀）
+    quarter TEXT NOT NULL,        -- 如 "2024年4季度"
+    stock_code TEXT NOT NULL,
+    stock_name TEXT NOT NULL,
+    weight REAL,                  -- 占净值比例(%)
+    shares REAL,
+    market_value REAL,
+    PRIMARY KEY (code, quarter, stock_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_etf_holdings_code ON etf_holdings(code);
+
+CREATE TABLE IF NOT EXISTS market_daily (
+    date TEXT PRIMARY KEY,         -- 交易日 YYYY-MM-DD
+    zt_count INTEGER,              -- 涨停数（东财接口，收盘封板）
+    dt_count INTEGER,              -- 跌停数（东财接口，收盘封板）
+    zt_count_calc INTEGER,         -- 涨停数（pct_chg 自算，含炸板，备用）
+    dt_count_calc INTEGER          -- 跌停数（pct_chg 自算，含炸板，备用）
+);
 """
 
 
@@ -167,8 +215,11 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # executescript() leaves connection in autocommit mode; restore normal mode
+    conn.isolation_level = ""   # deferred transactions (default behaviour)
     try:
         conn.execute("ALTER TABLE strategy_backtests ADD COLUMN avg_hold_days REAL")
+        conn.commit()
     except sqlite3.OperationalError:
         pass
     return conn
