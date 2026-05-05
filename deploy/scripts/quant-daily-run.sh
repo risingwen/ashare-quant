@@ -40,7 +40,7 @@ run_step "update_etf" \
         --db "$DB" \
         --min-amount 5000 \
         --holdings-only \
-        --max-holdings 40 \
+        --max-holdings 100 \
         --holdings-workers 4 \
         --socket-timeout 15
 
