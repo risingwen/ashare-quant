@@ -1030,6 +1030,36 @@ def render_etf_html(conn, latest_date: str) -> str:
         for h in ph:
             holdings_map.setdefault(h["code"], []).append(h)
 
+    # 加载近 65 日 K 线（open/high/low/close/amount/ma5/ma20/ma60）
+    import json as _json_etf
+    kline_map: dict[str, list] = {}
+    if rows:
+        codes = [r["code"] for r in rows]
+        placeholders = ",".join("?" * len(codes))
+        kl_rows = conn.execute(
+            f"""SELECT code, date, open, high, low, close, amount, ma5, ma20, ma60
+                FROM etf_daily
+                WHERE code IN ({placeholders})
+                  AND date >= date(?, '-95 days')
+                ORDER BY code, date ASC""",
+            codes + [db_latest]
+        ).fetchall()
+        for kr in kl_rows:
+            kline_map.setdefault(kr["code"], []).append([
+                kr["date"],
+                round(kr["open"] or kr["close"] or 0, 4),
+                round(kr["high"] or kr["close"] or 0, 4),
+                round(kr["low"]  or kr["close"] or 0, 4),
+                round(kr["close"] or 0, 4),
+                round((kr["amount"] or 0) / 1e8, 3),  # 亿元
+                round(kr["ma5"]  or 0, 4),
+                round(kr["ma20"] or 0, 4),
+                round(kr["ma60"] or 0, 4),
+            ])
+        # 只保留最近 65 根
+        kline_map = {code: bars[-65:] for code, bars in kline_map.items()}
+    kline_json = _json_etf.dumps(kline_map, ensure_ascii=False, separators=(',', ':'))
+
     # ── helpers ───────────────────────────────────────────────────────────────
     def fmt_amt(v):
         if v is None: return "-"
@@ -1122,7 +1152,15 @@ def render_etf_html(conn, latest_date: str) -> str:
   <td>{badges}</td>
 </tr>
 <tr class="hold-row" id="{row_id}" style="display:none">
-  <td colspan="7" class="hold-cell">{hold_html}</td>
+  <td colspan="7" class="hold-cell">
+    <div class="expand-inner">
+      <div class="kline-wrap">
+        <canvas id="kc_{r["code"]}" width="520" height="240" style="display:block"></canvas>
+        <div class="kline-legend" id="kl_{r["code"]}"></div>
+      </div>
+      <div class="hold-wrap">{hold_html}</div>
+    </div>
+  </td>
 </tr>""")
         return f"""<table id="tbl-{tab_id}">
   <thead><tr>
@@ -1197,7 +1235,11 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
 .type-sector {{ background: rgba(255,166,87,.12);  color: #ffa657; border: 1px solid rgba(255,166,87,.2); }}
 .hold-row td {{ padding: 0; }}
 .hold-cell {{ padding: 16px 24px !important; background: #0d1117; border-left: 3px solid #1f6feb; }}
-.hold-quarter {{ font-size: 12px; color: #8b949e; margin-bottom: 8px; }}
+.expand-inner {{ display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }}
+.kline-wrap {{ flex: 0 0 auto; }}
+.kline-legend {{ font-size: 11px; color: #8b949e; margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }}
+.kline-legend span {{ display: flex; align-items: center; gap: 4px; }}
+.hold-wrap {{ flex: 1 1 280px; }}
 .no-hold {{ color: #484f58; font-size: 12px; padding: 12px 0; }}
 .hold-table {{ font-size: 12px; max-width: 480px; }}
 .hold-table th {{ top: auto; position: static; font-size: 11px; padding: 6px 8px; }}
@@ -1343,7 +1385,13 @@ function toggleHold(id) {{
   // only toggle if parent row is visible
   const prev = row.previousElementSibling;
   if (prev && prev.classList.contains('hidden')) return;
-  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  const opening = row.style.display === 'none';
+  row.style.display = opening ? 'table-row' : 'none';
+  if (opening) {{
+    // extract code from id (format: tabid_code)
+    const code = id.split('_').slice(1).join('_');
+    drawKline(code);
+  }}
 }}
 
 // ── sort by pct_chg ───────────────────────────────────
@@ -1393,6 +1441,136 @@ document.addEventListener('click', function(e) {{
 
 // init count
 window.addEventListener('DOMContentLoaded', applyFilters);
+
+// ── K线数据 ─────────────────────────────────────────────
+const KLINE = {kline_json};
+// 每条: [date, open, high, low, close, amtYi, ma5, ma20, ma60]
+
+function drawKline(code) {{
+  const canvas = document.getElementById('kc_' + code);
+  if (!canvas) return;
+  const bars = KLINE[code];
+  if (!bars || bars.length < 2) {{
+    const ctx2 = canvas.getContext('2d');
+    ctx2.fillStyle = '#484f58';
+    ctx2.font = '13px sans-serif';
+    ctx2.fillText('暂无K线数据', 20, 120);
+    return;
+  }}
+  if (canvas.dataset.drawn === '1') return;  // 已绘制，不重复
+
+  const W = canvas.width, H = canvas.height;
+  const VOL_H = 50;  // 成交额区高度
+  const CHART_H = H - VOL_H - 4;
+  const PAD_L = 8, PAD_R = 8, PAD_T = 12;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const n = bars.length;
+  const barW = Math.max(2, Math.floor((W - PAD_L - PAD_R) / n) - 1);
+  const gap   = Math.floor((W - PAD_L - PAD_R) / n);
+
+  // 价格范围
+  let pMin = Infinity, pMax = -Infinity;
+  for (const b of bars) {{
+    if (b[2] > 0) pMax = Math.max(pMax, b[2]);
+    if (b[3] > 0) pMin = Math.min(pMin, b[3]);
+  }}
+  const pRange = pMax - pMin || pMax * 0.02 || 1;
+  const py = v => PAD_T + (pMax - v) / pRange * (CHART_H - PAD_T - 4);
+
+  // 成交额范围
+  let aMax = 0;
+  for (const b of bars) aMax = Math.max(aMax, b[5]);
+  if (!aMax) aMax = 1;
+  const ay = v => H - (v / aMax) * (VOL_H - 4);
+
+  // 背景网格（3条横线）
+  ctx.strokeStyle = '#21262d';
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) {{
+    const y = PAD_T + (CHART_H - PAD_T) * i / 4;
+    ctx.beginPath(); ctx.moveTo(PAD_L, y); ctx.lineTo(W - PAD_R, y); ctx.stroke();
+  }}
+
+  // MA 线
+  const MA_COLORS = ['#ffa657', '#79c0ff', '#ff7b72'];  // ma5, ma20, ma60
+  [6, 7, 8].forEach((idx, mi) => {{
+    ctx.beginPath();
+    ctx.strokeStyle = MA_COLORS[mi];
+    ctx.lineWidth = 1;
+    let started = false;
+    bars.forEach((b, i) => {{
+      const v = b[idx];
+      if (!v) return;
+      const x = PAD_L + i * gap + gap / 2;
+      const y = py(v);
+      if (!started) {{ ctx.moveTo(x, y); started = true; }} else ctx.lineTo(x, y);
+    }});
+    ctx.stroke();
+  }});
+
+  // 蜡烛
+  bars.forEach((b, i) => {{
+    const [date, o, h, l, c] = b;
+    if (!c) return;
+    const x = PAD_L + i * gap;
+    const cx = x + gap / 2;
+    const isUp = c >= o;
+    const color = isUp ? '#e84c3d' : '#07a071';
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+
+    // 影线
+    ctx.beginPath();
+    ctx.moveTo(cx, py(h));
+    ctx.lineTo(cx, py(l));
+    ctx.stroke();
+
+    // 实体
+    const yTop = py(Math.max(o, c));
+    const yBot = py(Math.min(o, c));
+    const bodyH = Math.max(1, yBot - yTop);
+    if (isUp) {{
+      ctx.strokeRect(x + 1, yTop, barW - 2, bodyH);
+    }} else {{
+      ctx.fillRect(x + 1, yTop, barW - 2, bodyH);
+    }}
+
+    // 成交额柱
+    const volColor = isUp ? '#5a1f1f' : '#1a3a2a';
+    ctx.fillStyle = volColor;
+    const volY = ay(b[5]);
+    ctx.fillRect(x + 1, volY, barW - 2, H - volY);
+  }});
+
+  // 分隔线
+  ctx.strokeStyle = '#30363d';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, H - VOL_H);
+  ctx.lineTo(W - PAD_R, H - VOL_H);
+  ctx.stroke();
+
+  // 最新收盘价标注
+  const last = bars[bars.length - 1];
+  ctx.fillStyle = '#e6edf3';
+  ctx.font = '10px sans-serif';
+  ctx.fillText(last[4].toFixed(3), W - PAD_R - 40, py(last[4]) - 3);
+
+  canvas.dataset.drawn = '1';
+
+  // 图例
+  const legend = document.getElementById('kl_' + code);
+  if (legend) {{
+    legend.innerHTML =
+      `<span><span style="display:inline-block;width:20px;height:2px;background:#ffa657"></span> MA5</span>` +
+      `<span><span style="display:inline-block;width:20px;height:2px;background:#79c0ff"></span> MA20</span>` +
+      `<span><span style="display:inline-block;width:20px;height:2px;background:#ff7b72"></span> MA60</span>` +
+      `<span style="color:#484f58">${{n}}根 · 最新 ${{last[0]}}</span>`;
+  }}
+}}
 </script>
 </body>
 </html>"""

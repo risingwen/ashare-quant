@@ -92,7 +92,10 @@ def fetch_etf_hist(code: str, days: int = 300) -> pd.DataFrame | None:
     if df is None or df.empty:
         return None
 
-    df = df.rename(columns={"日期": "date", "收盘": "close", "涨跌幅": "pct_chg", "成交额": "amount"})
+    df = df.rename(columns={
+        "日期": "date", "开盘": "open", "最高": "high", "最低": "low",
+        "收盘": "close", "涨跌幅": "pct_chg", "成交额": "amount", "成交量": "volume",
+    })
     df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
     df = df.dropna(subset=["close"]).reset_index(drop=True)
@@ -185,18 +188,22 @@ def query_all_etf_codes(conn) -> list[str]:
 def upsert_etf_daily(conn, code: str, name: str, hist_df: pd.DataFrame) -> None:
     sql = """
     INSERT OR REPLACE INTO etf_daily(
-        date, code, name, close, pct_chg, amount,
+        date, code, name, open, high, low, close, pct_chg, amount, volume,
         ma5, ma10, ma20, ma60, hist_high,
         is_new_high, ma20_up, ma60_up, above_ma20, above_ma60
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     rows = []
     for _, r in hist_df.iterrows():
         rows.append((
             r["date"], code, name,
+            to_float(r.get("open")),
+            to_float(r.get("high")),
+            to_float(r.get("low")),
             to_float(r.get("close")),
             to_float(r.get("pct_chg")),
             to_float(r.get("amount")),
+            to_float(r.get("volume")),
             to_float(r.get("ma5")),
             to_float(r.get("ma10")),
             to_float(r.get("ma20")),
@@ -266,7 +273,7 @@ def main() -> None:
     # Ensure ETF tables exist (idempotent DDL)
     conn.execute("""CREATE TABLE IF NOT EXISTS etf_daily (
         date TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL,
-        close REAL, pct_chg REAL, amount REAL,
+        open REAL, high REAL, low REAL, close REAL, pct_chg REAL, amount REAL, volume REAL,
         ma5 REAL, ma10 REAL, ma20 REAL, ma60 REAL, hist_high REAL,
         is_new_high INTEGER DEFAULT 0, ma20_up INTEGER DEFAULT 0,
         ma60_up INTEGER DEFAULT 0, above_ma20 INTEGER DEFAULT 0,
