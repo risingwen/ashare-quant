@@ -664,9 +664,13 @@ td {{ padding: 8px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
   <span class="navbar-brand">A股量化研究</span>
   <a href="index.html">首页</a>
   <a href="report.html">综合报告</a>
-  <a href="emotion.html">市场温度</a>
-  <a href="etf.html">ETF雷达</a>
+  <a href="screener.html">选股信号</a>
+  <a href="lianban.html">连板晋级</a>
   <a href="hot_rank_iframe.html">人气热榜</a>
+  <a href="longhu.html" class="active">龙虎榜</a>
+  <a href="etf.html">ETF雷达</a>
+  <a href="emotion.html">市场温度</a>
+  <a href="docs.html">文档</a>
   <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{html.escape(latest_date)}</span>
 </div>
 <div class="container">
@@ -1201,9 +1205,12 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
   <span class="navbar-brand">A股量化研究</span>
    <a href="index.html">首页</a>
    <a href="report.html">综合报告</a>
+   <a href="screener.html">选股信号</a>
+   <a href="lianban.html">连板晋级</a>
    <a href="hot_rank_iframe.html">人气热榜</a>
    <a href="longhu.html">龙虎榜</a>
-   <a href="etf.html">ETF雷达</a>
+   <a href="etf.html" class="active">ETF雷达</a>
+   <a href="emotion.html">市场温度</a>
    <a href="docs.html">文档</a>
    <span style="margin-left:auto;color:#484f58;font-size:12px">数据日期：{html_mod.escape(db_latest)}</span>
 </div>
@@ -1479,14 +1486,17 @@ tr:last-child td {{ border-bottom: none; }}
 </head>
 <body>
 <div class="navbar">
-  <span class="navbar-brand">A股量化研究</span>
-   <a href="index.html">首页</a>
-   <a href="report.html">综合报告</a>
-   <a href="hot_rank_iframe.html">人气热榜</a>
-   <a href="longhu.html">龙虎榜</a>
-   <a href="etf.html">ETF雷达</a>
-   <a href="docs.html">文档</a>
-   <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{latest_date_str}</span>
+   <span class="navbar-brand">A股量化研究</span>
+    <a href="index.html">首页</a>
+    <a href="report.html">综合报告</a>
+    <a href="screener.html">选股信号</a>
+    <a href="lianban.html">连板晋级</a>
+    <a href="hot_rank_iframe.html">人气热榜</a>
+    <a href="longhu.html">龙虎榜</a>
+    <a href="etf.html">ETF雷达</a>
+    <a href="emotion.html" class="active">市场温度</a>
+    <a href="docs.html">文档</a>
+    <span style="margin-left:auto;color:#484f58;font-size:12px">最新数据：{latest_date_str}</span>
 </div>
 <div class="container">
   <h1>🌡️ 市场温度</h1>
@@ -2053,6 +2063,567 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
     return "\n".join(lines)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 连板晋级页面
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _NAVBAR(active: str, latest_date: str) -> str:
+    pages = [
+        ("index.html", "首页"),
+        ("report.html", "综合报告"),
+        ("screener.html", "选股信号"),
+        ("lianban.html", "连板晋级"),
+        ("hot_rank_iframe.html", "人气热榜"),
+        ("longhu.html", "龙虎榜"),
+        ("etf.html", "ETF雷达"),
+        ("docs.html", "文档"),
+    ]
+    links = "\n".join(
+        f'    <a href="{href}"{" class=\"active\"" if href==active else ""}>{label}</a>'
+        for href, label in pages
+    )
+    return f"""<nav class="navbar">
+  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
+  <div class="navbar-links">
+{links}
+  </div>
+  <div class="navbar-date">{latest_date}</div>
+</nav>"""
+
+
+_BASE_STYLE = """* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #0d1117; color: #e6edf3; min-height: 100vh; font-size: 14px; line-height: 1.7;
+}
+.navbar {
+  background: #161b22; border-bottom: 1px solid #30363d;
+  padding: 0 32px; display: flex; align-items: center;
+  height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap;
+}
+.navbar-brand { font-size: 16px; font-weight: 700; color: #58a6ff; text-decoration: none; white-space: nowrap; }
+.navbar-links { display: flex; gap: 2px; flex-wrap: wrap; }
+.navbar-links a {
+  color: #8b949e; text-decoration: none; padding: 5px 10px;
+  border-radius: 6px; font-size: 13px; transition: all .15s;
+}
+.navbar-links a:hover { color: #e6edf3; background: #21262d; }
+.navbar-links a.active { color: #e6edf3; background: #21262d; }
+.navbar-date { margin-left: auto; font-size: 12px; color: #484f58; }
+.page { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.subtitle { color: #8b949e; font-size: 13px; margin-bottom: 28px; }
+.section { margin-bottom: 40px; }
+.section-title {
+  font-size: 15px; font-weight: 600; color: #cdd9e5;
+  padding-bottom: 8px; border-bottom: 1px solid #21262d; margin-bottom: 16px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+  text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .05em; color: #484f58; border-bottom: 1px solid #21262d; white-space: nowrap;
+}
+tbody td { padding: 7px 10px; border-bottom: 1px solid #161b22; color: #8b949e; }
+tbody tr:hover td { background: #161b22; color: #cdd9e5; }
+.up   { color: #e84c3d; }
+.down { color: #07a071; }
+.flat { color: #8b949e; }
+.badge {
+  display: inline-block; padding: 1px 7px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-streak-1 { background:#1c2333; color:#8b949e; border:1px solid #30363d; }
+.badge-streak-2 { background:#2d2208; color:#ffa657; border:1px solid #9e6a03; }
+.badge-streak-3 { background:#1a1f3a; color:#79c0ff; border:1px solid #1f6feb; }
+.badge-streak-4 { background:#2d0f0f; color:#ff7b72; border:1px solid #6e1a1a; }
+.badge-streak-5 { background:#3d1f00; color:#ffac5c; border:1px solid #9a4f00; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 12px; margin-bottom: 24px; }
+.card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; text-align:center; }
+.card .val { font-size: 26px; font-weight: 700; color: #e6edf3; }
+.card .lbl { font-size: 12px; color: #8b949e; margin-top: 4px; }
+.tab-bar { display:flex; gap:4px; margin-bottom:16px; }
+.tab-btn {
+  padding: 5px 14px; border-radius: 6px; border: 1px solid #30363d;
+  background: transparent; color: #8b949e; font-size: 13px; cursor: pointer;
+}
+.tab-btn.active { background: #21262d; color: #e6edf3; border-color: #58a6ff44; }
+.filter-row { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center; }
+.filter-row select, .filter-row input {
+  background: #161b22; border: 1px solid #30363d; color: #e6edf3;
+  padding: 5px 10px; border-radius: 6px; font-size: 13px; min-width: 120px;
+}
+.no-data { color: #484f58; padding: 32px; text-align: center; }
+"""
+
+
+def fetch_zt_pool_data(conn, latest_date: str) -> dict:
+    """从 zt_pool / zt_previous 取连板数据，计算晋级率"""
+    # 有数据的日期列表
+    dates = [r[0] for r in conn.execute(
+        "SELECT DISTINCT date FROM zt_pool ORDER BY date DESC LIMIT 30"
+    ).fetchall()]
+
+    if not dates:
+        return {"dates": [], "daily": {}, "promotion": {}}
+
+    daily = {}
+    for d in dates:
+        rows = conn.execute("""
+            SELECT code, name, pct_chg, amount, float_mv, total_mv,
+                   turnover, seal_amount, first_limit_time, open_times, streak, zt_stat, industry
+            FROM zt_pool WHERE date=? ORDER BY streak DESC, amount DESC
+        """, (d,)).fetchall()
+        daily[d] = [dict(r) for r in rows]
+
+    # 晋级率：用 zt_pool 相邻两日计算
+    # 如果 streak 在 T 日比 T-1 日同代码增加了 1，说明晋级成功
+    promotion = {}
+    for i in range(len(dates) - 1):
+        today, yesterday = dates[i], dates[i + 1]
+        today_stocks = {r["code"]: r["streak"] for r in daily[today]}
+        yest_stocks  = {r["code"]: r["streak"] for r in daily[yesterday]}
+        # 对每个昨日连板层级统计晋级情况
+        by_level: dict[int, dict] = {}
+        for code, ys in yest_stocks.items():
+            ts = today_stocks.get(code)
+            level = ys  # 昨日连板层级
+            if level not in by_level:
+                by_level[level] = {"total": 0, "promoted": 0}
+            by_level[level]["total"] += 1
+            if ts is not None and ts == ys + 1:
+                by_level[level]["promoted"] += 1
+        promotion[today] = by_level
+
+    return {"dates": dates, "daily": daily, "promotion": promotion}
+
+
+def render_lianban_html(conn, latest_date: str) -> str:
+    data = fetch_zt_pool_data(conn, latest_date)
+    dates = data["dates"]
+    daily = data["daily"]
+    promotion = data["promotion"]
+
+    if not dates:
+        no_data = '<div class="no-data">暂无连板数据，请等待 update_zt_pool.py 采集后重新生成。</div>'
+        return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>连板晋级 · A股量化平台</title>
+<style>{_BASE_STYLE}</style></head><body>
+{_NAVBAR("lianban.html", latest_date)}
+<div class="page">{no_data}</div></body></html>"""
+
+    # 统计卡片（最新日）
+    today_rows = daily[dates[0]]
+    streak_dist = {}
+    for r in today_rows:
+        s = int(r["streak"] or 1)
+        streak_dist[s] = streak_dist.get(s, 0) + 1
+
+    cards_html = ""
+    for s in sorted(streak_dist):
+        label = f"{s}板"
+        cards_html += f'<div class="card"><div class="val">{streak_dist[s]}</div><div class="lbl">{label}</div></div>\n'
+
+    # 日期 tab 选项
+    date_opts = "\n".join(f'<option value="{d}"{" selected" if d==dates[0] else ""}>{d}</option>' for d in dates)
+
+    # 晋级率表格数据（JSON 给 JS）
+    import json as _json
+    promo_json = _json.dumps(promotion, ensure_ascii=False)
+
+    # 各日涨停池详情表（JSON 给 JS）
+    daily_json = _json.dumps(daily, ensure_ascii=False)
+
+    def streak_badge(s):
+        cls = f"badge-streak-{min(s, 5)}"
+        return f'<span class="badge {cls}">{s}连板</span>'
+
+    def pct_cls(v):
+        if v is None: return "flat"
+        return "up" if v > 0 else ("down" if v < 0 else "flat")
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>连板晋级 · A股量化平台</title>
+<style>
+{_BASE_STYLE}
+.promo-table td:first-child {{ font-weight:600; color:#e6edf3; }}
+.bar {{ display:inline-block; height:8px; border-radius:4px; background:#3fb950; vertical-align:middle; margin-left:6px; }}
+</style>
+</head>
+<body>
+{_NAVBAR("lianban.html", latest_date)}
+<div class="page">
+  <h1>连板晋级统计</h1>
+  <p class="subtitle">基于东财涨停池接口，统计每日各连板层级晋级率与今日梯队</p>
+
+  <!-- 今日梯队概览 -->
+  <section class="section">
+    <div class="section-title">今日连板梯队 · {dates[0]}</div>
+    <div class="card-grid" id="cards">
+      {cards_html}
+    </div>
+  </section>
+
+  <!-- 晋级率统计 -->
+  <section class="section">
+    <div class="section-title">历史晋级率</div>
+    <div class="filter-row">
+      <label style="color:#8b949e;font-size:13px;">查看日期：</label>
+      <select id="promo-date-sel">{date_opts}</select>
+    </div>
+    <table id="promo-table">
+      <thead><tr>
+        <th>昨日连板</th><th>昨日只数</th><th>今日晋级</th><th>晋级率</th><th>未晋级</th>
+      </tr></thead>
+      <tbody id="promo-body"></tbody>
+    </table>
+  </section>
+
+  <!-- 今日涨停明细 -->
+  <section class="section">
+    <div class="section-title">涨停明细</div>
+    <div class="filter-row">
+      <label style="color:#8b949e;font-size:13px;">日期：</label>
+      <select id="detail-date-sel">{date_opts}</select>
+      <select id="streak-filter">
+        <option value="0">全部连板</option>
+        <option value="2">≥2连板</option>
+        <option value="3">≥3连板</option>
+        <option value="4">≥4连板</option>
+      </select>
+    </div>
+    <table id="detail-table">
+      <thead><tr>
+        <th>代码</th><th>名称</th><th>连板</th><th>涨跌幅</th>
+        <th>成交额(亿)</th><th>流通市值(亿)</th><th>封板资金(亿)</th>
+        <th>首封时间</th><th>炸板</th><th>板统计</th><th>行业</th>
+      </tr></thead>
+      <tbody id="detail-body"></tbody>
+    </table>
+  </section>
+
+</div>
+
+<script>
+const PROMO = {promo_json};
+const DAILY = {daily_json};
+
+function fmtAmt(v) {{
+  if (v == null) return '-';
+  return (v / 1e8).toFixed(2);
+}}
+function pctCls(v) {{
+  if (v == null) return 'flat';
+  return v > 0 ? 'up' : (v < 0 ? 'down' : 'flat');
+}}
+function streakBadge(s) {{
+  const cls = 'badge-streak-' + Math.min(s, 5);
+  return `<span class="badge ${{cls}}">${{s}}连板</span>`;
+}}
+
+function renderPromo(date) {{
+  const data = PROMO[date] || {{}};
+  const levels = Object.keys(data).map(Number).sort((a,b)=>a-b);
+  let html = '';
+  if (!levels.length) {{ html = '<tr><td colspan="5" class="no-data">无晋级数据</td></tr>'; }}
+  for (const lv of levels) {{
+    const {{ total, promoted }} = data[lv];
+    const rate = total > 0 ? (promoted / total * 100).toFixed(1) : '0.0';
+    const barW = Math.round(promoted / total * 120);
+    html += `<tr>
+      <td>${{lv}}连板</td>
+      <td>${{total}}</td>
+      <td>${{promoted}}</td>
+      <td><span class="up">${{rate}}%</span><span class="bar" style="width:${{barW}}px"></span></td>
+      <td>${{total - promoted}}</td>
+    </tr>`;
+  }}
+  document.getElementById('promo-body').innerHTML = html;
+}}
+
+function renderDetail(date, minStreak) {{
+  const rows = (DAILY[date] || []).filter(r => (r.streak || 1) >= minStreak);
+  let html = '';
+  if (!rows.length) {{ html = '<tr><td colspan="11" class="no-data">无数据</td></tr>'; }}
+  for (const r of rows) {{
+    const cls = pctCls(r.pct_chg);
+    const pct = r.pct_chg != null ? r.pct_chg.toFixed(2) + '%' : '-';
+    html += `<tr>
+      <td style="font-family:monospace;color:#79c0ff">${{r.code}}</td>
+      <td>${{r.name}}</td>
+      <td>${{streakBadge(r.streak || 1)}}</td>
+      <td class="${{cls}}">${{pct}}</td>
+      <td>${{fmtAmt(r.amount)}}</td>
+      <td>${{fmtAmt(r.float_mv)}}</td>
+      <td>${{fmtAmt(r.seal_amount)}}</td>
+      <td>${{r.first_limit_time || '-'}}</td>
+      <td>${{r.open_times ?? 0}}</td>
+      <td style="color:#8b949e">${{r.zt_stat || '-'}}</td>
+      <td style="color:#8b949e">${{r.industry || '-'}}</td>
+    </tr>`;
+  }}
+  document.getElementById('detail-body').innerHTML = html;
+}}
+
+// 初始化
+const promoSel  = document.getElementById('promo-date-sel');
+const detailSel = document.getElementById('detail-date-sel');
+const streakFil = document.getElementById('streak-filter');
+
+renderPromo(promoSel.value);
+renderDetail(detailSel.value, 0);
+
+promoSel.addEventListener('change', () => renderPromo(promoSel.value));
+detailSel.addEventListener('change', () => renderDetail(detailSel.value, +streakFil.value));
+streakFil.addEventListener('change', () => renderDetail(detailSel.value, +streakFil.value));
+</script>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 选股信号页面
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_screener_data(conn) -> dict:
+    """取 screen_results 全量数据 + 计算胜率（信号后5日收益）"""
+    import json as _json
+
+    # 所有规则
+    rules = [r[0] for r in conn.execute(
+        "SELECT DISTINCT rule_id FROM screen_results ORDER BY rule_id"
+    ).fetchall()]
+
+    # 所有日期
+    dates = [r[0] for r in conn.execute(
+        "SELECT DISTINCT date FROM screen_results ORDER BY date DESC"
+    ).fetchall()]
+
+    # 全量信号数据
+    rows = conn.execute("""
+        SELECT rule_id, date, code, name, detail FROM screen_results
+        ORDER BY date DESC, rule_id, code
+    """).fetchall()
+
+    records = []
+    for r in rows:
+        detail = {}
+        try:
+            detail = _json.loads(r["detail"] or "{}")
+        except Exception:
+            pass
+        records.append({
+            "rule_id": r["rule_id"],
+            "date": r["date"],
+            "code": r["code"],
+            "name": r["name"],
+            **detail,
+        })
+
+    # 计算信号后 N 日收益（用 daily_bars）
+    win_stats: dict[str, dict] = {}  # rule_id -> {n_day: {win_rate, avg_ret, count}}
+    for rule_id in rules:
+        rule_records = [r for r in records if r["rule_id"] == rule_id]
+        hold_days_list = [3, 5, 10]
+        stats_by_days: dict[int, dict] = {}
+        for hd in hold_days_list:
+            returns = []
+            for rec in rule_records:
+                sig_date = rec["date"]
+                code = rec["code"]
+                # 取信号日后第 hd 个交易日的收盘价
+                prices = conn.execute("""
+                    SELECT close FROM daily_bars
+                    WHERE code=? AND date > ?
+                    ORDER BY date ASC LIMIT ?
+                """, (code, sig_date, hd)).fetchall()
+                if len(prices) < hd:
+                    continue
+                entry_prices = conn.execute("""
+                    SELECT close FROM daily_bars
+                    WHERE code=? AND date=?
+                """, (code, sig_date)).fetchall()
+                if not entry_prices:
+                    continue
+                entry = entry_prices[0][0]
+                exit_ = prices[-1][0]
+                if entry and entry > 0:
+                    returns.append((exit_ - entry) / entry * 100)
+            if returns:
+                wins = sum(1 for r in returns if r > 0)
+                stats_by_days[hd] = {
+                    "count": len(returns),
+                    "win_rate": round(wins / len(returns) * 100, 1),
+                    "avg_ret": round(sum(returns) / len(returns), 2),
+                    "median_ret": round(sorted(returns)[len(returns)//2], 2),
+                }
+        win_stats[rule_id] = stats_by_days
+
+    return {
+        "rules": rules,
+        "dates": dates,
+        "records": records,
+        "win_stats": win_stats,
+    }
+
+
+def render_screener_html(conn, latest_date: str) -> str:
+    import json as _json
+    data = fetch_screener_data(conn)
+    rules = data["rules"]
+    dates = data["dates"]
+    records = data["records"]
+    win_stats = data["win_stats"]
+
+    if not records:
+        no_data = '<div class="no-data">暂无选股数据，请先运行 screener.py。</div>'
+        return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>选股信号 · A股量化平台</title>
+<style>{_BASE_STYLE}</style></head><body>
+{_NAVBAR("screener.html", latest_date)}
+<div class="page">{no_data}</div></body></html>"""
+
+    # 规则说明映射
+    rule_labels = {
+        "new_high_momentum": "新高动量（近3日新高 + 成交>10亿 + 市值100~500亿）",
+    }
+
+    rule_opts = "\n".join(
+        f'<option value="{r}">{rule_labels.get(r, r)}</option>' for r in rules
+    )
+    date_opts = "\n".join(
+        f'<option value="{d}"{" selected" if d==dates[0] else ""}>{d}</option>'
+        for d in dates
+    )
+
+    records_json = _json.dumps(records, ensure_ascii=False)
+    win_stats_json = _json.dumps(win_stats, ensure_ascii=False)
+
+    # 胜率统计表 HTML
+    win_html = ""
+    for rule_id in rules:
+        label = rule_labels.get(rule_id, rule_id)
+        stats = win_stats.get(rule_id, {})
+        win_html += f'<h3 style="font-size:14px;color:#cdd9e5;margin:16px 0 8px">{label}</h3>'
+        if not stats:
+            win_html += '<p style="color:#484f58;font-size:13px">数据不足，无法统计</p>'
+            continue
+        win_html += """<table><thead><tr>
+            <th>持仓天数</th><th>样本数</th><th>胜率</th><th>平均收益</th><th>中位数收益</th>
+        </tr></thead><tbody>"""
+        for hd in sorted(stats.keys()):
+            s = stats[hd]
+            cls = "up" if s["avg_ret"] > 0 else "down"
+            win_html += f"""<tr>
+                <td>{hd}日</td>
+                <td>{s["count"]}</td>
+                <td class="up">{s["win_rate"]}%</td>
+                <td class="{cls}">{s["avg_ret"]:+.2f}%</td>
+                <td class="{cls}">{s["median_ret"]:+.2f}%</td>
+            </tr>"""
+        win_html += "</tbody></table>"
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>选股信号 · A股量化平台</title>
+<style>
+{_BASE_STYLE}
+.rule-tag {{
+  display:inline-block; padding:2px 8px; border-radius:12px;
+  font-size:11px; background:#1a1f3a; color:#79c0ff; border:1px solid #1f6feb;
+}}
+</style>
+</head>
+<body>
+{_NAVBAR("screener.html", latest_date)}
+<div class="page">
+  <h1>选股信号</h1>
+  <p class="subtitle">基于规则引擎的每日选股，支持历史回溯与多规则筛选</p>
+
+  <!-- 胜率统计 -->
+  <section class="section">
+    <div class="section-title">历史胜率统计（信号日收盘买入 → N日后收盘卖出）</div>
+    {win_html}
+  </section>
+
+  <!-- 信号筛选 -->
+  <section class="section">
+    <div class="section-title">信号明细</div>
+    <div class="filter-row">
+      <label style="color:#8b949e;font-size:13px;">规则：</label>
+      <select id="rule-sel">
+        <option value="all">全部规则</option>
+        {rule_opts}
+      </select>
+      <label style="color:#8b949e;font-size:13px;">日期：</label>
+      <select id="date-sel">
+        <option value="all">全部日期</option>
+        {date_opts}
+      </select>
+    </div>
+    <div style="color:#484f58;font-size:12px;margin-bottom:10px" id="result-count"></div>
+    <table id="signal-table">
+      <thead><tr>
+        <th>日期</th><th>规则</th><th>代码</th><th>名称</th>
+        <th>收盘(元)</th><th>近期最高(元)</th><th>成交额(亿)</th><th>总市值(亿)</th>
+      </tr></thead>
+      <tbody id="signal-body"></tbody>
+    </table>
+  </section>
+
+</div>
+
+<script>
+const RECORDS = {records_json};
+const RULE_LABELS = {_json.dumps(rule_labels, ensure_ascii=False)};
+
+function fmt(v, digits=2) {{
+  return v != null ? Number(v).toFixed(digits) : '-';
+}}
+
+function renderSignals() {{
+  const ruleVal = document.getElementById('rule-sel').value;
+  const dateVal = document.getElementById('date-sel').value;
+  let rows = RECORDS;
+  if (ruleVal !== 'all') rows = rows.filter(r => r.rule_id === ruleVal);
+  if (dateVal !== 'all') rows = rows.filter(r => r.date === dateVal);
+
+  document.getElementById('result-count').textContent = `共 ${{rows.length}} 条信号`;
+
+  let html = '';
+  if (!rows.length) {{
+    html = '<tr><td colspan="8" class="no-data">无符合条件的信号</td></tr>';
+  }}
+  for (const r of rows) {{
+    const ruleLabel = RULE_LABELS[r.rule_id] || r.rule_id;
+    html += `<tr>
+      <td>${{r.date}}</td>
+      <td><span class="rule-tag">${{ruleLabel}}</span></td>
+      <td style="font-family:monospace;color:#79c0ff">${{r.code}}</td>
+      <td>${{r.name}}</td>
+      <td>${{fmt(r.close)}}</td>
+      <td>${{fmt(r.recent_high)}}</td>
+      <td>${{r.max_amount_yi != null ? fmt(r.max_amount_yi) : '-'}}</td>
+      <td>${{r.total_mv_yi != null ? fmt(r.total_mv_yi) : '-'}}</td>
+    </tr>`;
+  }}
+  document.getElementById('signal-body').innerHTML = html;
+}}
+
+document.getElementById('rule-sel').addEventListener('change', renderSignals);
+document.getElementById('date-sel').addEventListener('change', renderSignals);
+renderSignals();
+</script>
+</body>
+</html>"""
+
+
 def render_docs_html(generated_date: str) -> str:
     """生成平台开发文档 / 用户手册页面"""
     return f"""<!doctype html>
@@ -2173,6 +2744,8 @@ body {{
   <div class="navbar-links">
     <a href="index.html">首页</a>
     <a href="report.html">综合报告</a>
+    <a href="screener.html">选股信号</a>
+    <a href="lianban.html">连板晋级</a>
     <a href="hot_rank_iframe.html">人气热榜</a>
     <a href="longhu.html">龙虎榜</a>
     <a href="etf.html">ETF雷达</a>
@@ -2192,6 +2765,8 @@ body {{
   <a href="#page-report" class="sub">综合报告</a>
   <a href="#page-hotrank" class="sub">人气热榜</a>
   <a href="#page-longhu" class="sub">龙虎榜</a>
+  <a href="#page-lianban" class="sub">连板晋级</a>
+  <a href="#page-screener" class="sub">选股信号</a>
   <a href="#page-emotion" class="sub">市场温度</a>
   <a href="#page-etf" class="sub">ETF雷达</a>
   <div class="sep"></div>
@@ -2258,10 +2833,20 @@ body {{
         <div class="m-file">hot_rank_iframe.html</div>
         <div class="m-desc">聚合通达信、东方财富、财联社、同花顺四大平台人气排行，iframe 嵌入展示。</div>
       </div>
-      <div class="module-card" id="page-longhu">
+       <div class="module-card" id="page-longhu">
         <div class="m-title">🐉 龙虎榜 <span class="badge badge-done">已上线</span></div>
         <div class="m-file">longhu.html · generate_report.py:render_longhu_html()</div>
         <div class="m-desc">每日龙虎榜上榜股票，含涨跌幅、成交额、上榜原因。按日期切换，营业部排行 Top50，席位明细展开。新增"个股历史"和"营业部历史" Tab，通过 Flask API 按需查询。</div>
+      </div>
+      <div class="module-card" id="page-lianban">
+        <div class="m-title">🔥 连板晋级 <span class="badge badge-done">已上线</span></div>
+        <div class="m-file">lianban.html · generate_report.py:render_lianban_html()</div>
+        <div class="m-desc">基于东财涨停池接口，展示每日连板梯队（1/2/3/4+板分组），历史各层级晋级率统计，涨停明细含封板资金、首封时间、炸板次数、行业。数据来自 zt_pool 表，由 update_zt_pool.py 每日采集。</div>
+      </div>
+      <div class="module-card" id="page-screener">
+        <div class="m-title">🔍 选股信号 <span class="badge badge-done">已上线</span></div>
+        <div class="m-file">screener.html · generate_report.py:render_screener_html()</div>
+        <div class="m-desc">规则引擎每日选股，支持多规则筛选与历史回溯，含信号后3/5/10日胜率、均值收益、中位数收益统计。数据来自 screen_results 表，由 screener.py 每日运行写入。</div>
       </div>
       <div class="module-card" id="page-emotion">
         <div class="m-title">🌡 市场温度 <span class="badge badge-done">已上线</span></div>
@@ -2485,6 +3070,14 @@ body {{
         <div class="cl-title">market_daily 表 320 天历史数据填满（自算版）</div>
         <div class="cl-desc">backfill_market_daily_calc.py 从 daily_bars.pct_chg 自算填满 2025-01-02~2026-04-30 全部交易日；各板块涨跌停阈值：主板±9.8%，创业板/科创板±19.8%，北交所±29.8%，ST±4.8%。</div>
       </div>
+     </div>
+
+    <div class="changelog-item">
+      <div class="cl-date">2026-05-05</div>
+      <div class="cl-body">
+        <div class="cl-title">新增连板晋级页面（lianban.html）与选股信号页面（screener.html）</div>
+        <div class="cl-desc">lianban.html：基于东财涨停池，展示今日连板梯队、历史各层级晋级率（从 zt_pool.streak 跨日推算）、涨停明细含封板资金/首封时间/行业；screener.html：选股规则历史回溯、多规则筛选、信号后 3/5/10 日胜率统计；update_zt_pool.py 加入每日定时任务；所有页面导航栏统一加入两个新入口。</div>
+      </div>
     </div>
 
     <div class="changelog-item">
@@ -2561,6 +3154,8 @@ def main() -> None:
         (output_dir / "longhu.html").write_text(render_longhu_html(lhb_rows, latest_date, lhb_seat_stats), encoding="utf-8")
         (output_dir / "emotion.html").write_text(render_emotion_html(summary), encoding="utf-8")
         (output_dir / "etf.html").write_text(render_etf_html(_conn, latest_date), encoding="utf-8")
+        (output_dir / "lianban.html").write_text(render_lianban_html(_conn, latest_date), encoding="utf-8")
+        (output_dir / "screener.html").write_text(render_screener_html(_conn, latest_date), encoding="utf-8")
         (output_dir / "docs.html").write_text(render_docs_html(latest_date), encoding="utf-8")
         write_csv(output_dir / "latest_top_amount.csv", latest_top_amount, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
         write_csv(output_dir / "latest_hot_candidates.csv", latest_hot, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])

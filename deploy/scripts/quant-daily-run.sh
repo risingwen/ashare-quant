@@ -48,6 +48,10 @@ run_step "update_shares" \
     "$PYTHON" -u src/update_shares.py \
         --db "$DB"
 
+run_step "update_zt_pool" \
+    "$PYTHON" -u src/update_zt_pool.py \
+        --db "$DB"
+
 run_step "screener" \
     "$PYTHON" -u src/screener.py \
         --db "$DB"
