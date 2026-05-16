@@ -6,6 +6,7 @@ cd /data/quant_research
 LOG_DIR="/data/quant_research/logs"
 LOG_FILE="${LOG_DIR}/daily-run-$(date +%Y%m%d).log"
 
+mkdir -p "$LOG_DIR"
 exec > >(tee -a "$LOG_FILE") 2>&1
 export PYTHONUNBUFFERED=1
 
@@ -16,13 +17,15 @@ echo "========================================"
 run_step() {
     local step_name="$1"
     shift
+    local rc=0
     echo ""
     echo "--- [$(date '+%H:%M:%S')] START: ${step_name} ---"
     if "$@"; then
         echo "--- [$(date '+%H:%M:%S')] OK:    ${step_name} ---"
     else
-        echo "--- [$(date '+%H:%M:%S')] FAIL:  ${step_name} (exit $?) ---"
-        return 0
+        rc=$?
+        echo "--- [$(date '+%H:%M:%S')] FAIL:  ${step_name} (exit ${rc}) ---"
+        return "$rc"
     fi
 }
 
@@ -42,9 +45,7 @@ run_step "update_etf" \
     "$PYTHON" -u src/update_etf.py \
         --db "$DB" \
         --min-amount 5000 \
-        --holdings-only \
-        --max-holdings 100 \
-        --holdings-workers 4 \
+        --skip-holdings \
         --socket-timeout 15
 
 run_step "update_shares" \

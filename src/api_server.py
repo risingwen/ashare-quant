@@ -42,9 +42,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sqlite3
+import subprocess
 import sys
-from functools import wraps
+from datetime import date, datetime, time, timedelta
+from functools import lru_cache, wraps
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -64,6 +67,219 @@ def get_conn() -> sqlite3.Connection:
 
 def row_to_dict(row) -> dict:
     return dict(row)
+
+
+def _git_output(args: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=PROJECT_ROOT,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return None
+
+
+def get_git_info() -> dict[str, object]:
+    return {
+        "commit": _git_output(["rev-parse", "HEAD"]),
+        "short_commit": _git_output(["rev-parse", "--short", "HEAD"]),
+        "branch": _git_output(["rev-parse", "--abbrev-ref", "HEAD"]),
+        "commit_time": _git_output(["log", "-1", "--format=%ci"]),
+        "subject": _git_output(["log", "-1", "--format=%s"]),
+        "dirty": bool(_git_output(["status", "--short"])),
+    }
+
+
+HEALTH_CUTOFF = time(18, 30)
+
+HEALTH_MODULES = [
+    {
+        "key": "daily_bars",
+        "label": "日线行情",
+        "date_sql": "SELECT MAX(date) FROM daily_bars",
+        "count_sql": "SELECT COUNT(*) FROM daily_bars WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "market_daily",
+        "label": "市场温度",
+        "date_sql": "SELECT MAX(date) FROM market_daily",
+        "count_sql": "SELECT COUNT(*) FROM market_daily WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "limit_up_pool",
+        "label": "涨停池",
+        "date_sql": "SELECT MAX(date) FROM limit_up_pool",
+        "count_sql": "SELECT COUNT(*) FROM limit_up_pool WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "popularity_rankings",
+        "label": "人气热榜",
+        "date_sql": "SELECT MAX(date) FROM popularity_rankings",
+        "count_sql": "SELECT COUNT(*) FROM popularity_rankings WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "lhb_records",
+        "label": "龙虎榜",
+        "date_sql": "SELECT MAX(date) FROM lhb_records",
+        "count_sql": "SELECT COUNT(*) FROM lhb_records WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "lhb_seats",
+        "label": "龙虎榜席位",
+        "date_sql": "SELECT MAX(date) FROM lhb_seats",
+        "count_sql": "SELECT COUNT(*) FROM lhb_seats WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "etf_daily",
+        "label": "ETF雷达",
+        "date_sql": "SELECT MAX(date) FROM etf_daily",
+        "count_sql": "SELECT COUNT(*) FROM etf_daily WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "screen_results",
+        "label": "选股信号",
+        "date_sql": "SELECT MAX(date) FROM screen_results",
+        "count_sql": "SELECT COUNT(*) FROM screen_results WHERE date = ?",
+        "required": True,
+    },
+    {
+        "key": "strategy_backtests",
+        "label": "策略回测",
+        "date_sql": "SELECT MAX(end_date) FROM strategy_backtests",
+        "count_sql": "SELECT COUNT(*) FROM strategy_backtests WHERE end_date = ?",
+        "required": True,
+    },
+    {
+        "key": "zt_pool",
+        "label": "涨停池 legacy",
+        "date_sql": "SELECT MAX(date) FROM zt_pool",
+        "count_sql": "SELECT COUNT(*) FROM zt_pool WHERE date = ?",
+        "required": False,
+        "legacy": True,
+    },
+]
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%Y%m%d"):
+        try:
+            return datetime.strptime(text[:10] if fmt == "%Y-%m-%d" else text[:8], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _safe_scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()):
+    try:
+        row = conn.execute(sql, params).fetchone()
+        return row[0] if row else None
+    except sqlite3.Error:
+        return None
+
+
+def _weekday_trading_days(start: date, end: date) -> list[date]:
+    days: list[date] = []
+    cur = start
+    while cur <= end:
+        if cur.weekday() < 5:
+            days.append(cur)
+        cur += timedelta(days=1)
+    return days
+
+
+@lru_cache(maxsize=8)
+def _load_trading_days(start: date, end: date) -> tuple[list[date], str]:
+    old_timeout = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(5)
+        import akshare as ak
+
+        df = ak.tool_trade_date_hist_sina()
+        raw_dates = sorted(df.iloc[:, 0].dropna().astype(str).tolist())
+        days = []
+        for item in raw_dates:
+            day = _parse_date(item)
+            if day and start <= day <= end:
+                days.append(day)
+        if days:
+            return days, "akshare.tool_trade_date_hist_sina"
+    except Exception:
+        pass
+    finally:
+        socket.setdefaulttimeout(old_timeout)
+    return _weekday_trading_days(start, end), "weekday_fallback"
+
+
+def _expected_trade_date(now: datetime) -> tuple[date | None, list[date], str]:
+    start = now.date() - timedelta(days=45)
+    end = now.date()
+    trading_days, source = _load_trading_days(start, end)
+    if not trading_days:
+        return None, [], source
+
+    completed = [day for day in trading_days if day <= now.date()]
+    if now.date() in completed and now.time() < HEALTH_CUTOFF:
+        completed = [day for day in completed if day < now.date()]
+    return (completed[-1] if completed else None), trading_days, source
+
+
+def _trading_lag_days(latest: date | None, expected: date | None, trading_days: list[date]) -> int | None:
+    if latest is None or expected is None:
+        return None
+    if latest >= expected:
+        return 0
+    return len([day for day in trading_days if latest < day <= expected])
+
+
+def _module_health(conn: sqlite3.Connection, module: dict, expected: date | None, trading_days: list[date]) -> dict:
+    latest_text = _safe_scalar(conn, module["date_sql"])
+    latest = _parse_date(latest_text)
+    row_count = _safe_scalar(conn, module["count_sql"], (str(latest),)) if latest else None
+    lag_days = _trading_lag_days(latest, expected, trading_days)
+
+    if latest is None:
+        status = "missing"
+        status_label = "缺失"
+    elif expected is not None and latest > expected:
+        status = "future_date"
+        status_label = "晚于最新有效交易日"
+    elif lag_days is None:
+        status = "unknown"
+        status_label = "未知"
+    elif lag_days == 0:
+        status = "fresh"
+        status_label = "已更新"
+    else:
+        status = "stale"
+        status_label = f"落后{lag_days}个交易日"
+
+    return {
+        "key": module["key"],
+        "label": module["label"],
+        "latest_date": str(latest) if latest else None,
+        "expected_trade_date": str(expected) if expected else None,
+        "lag_trading_days": lag_days,
+        "row_count": row_count,
+        "required": bool(module.get("required", True)),
+        "legacy": bool(module.get("legacy", False)),
+        "status": status,
+        "status_label": status_label,
+    }
 
 
 # ── 认证 ───────────────────────────────────────────────────────────────────────
@@ -94,14 +310,39 @@ def add_cors(response):
 @app.get("/api/health")
 def health():
     conn = get_conn()
-    tables = {}
-    for tbl, date_col in [
-        ("daily_bars", "date"), ("zt_pool", "date"),
-        ("lhb_records", "date"), ("market_daily", "date"),
-    ]:
-        row = conn.execute(f"SELECT MAX({date_col}) FROM {tbl}").fetchone()
-        tables[tbl] = row[0] if row else None
-    return jsonify({"status": "ok", "latest": tables})
+    try:
+        now = datetime.now()
+        expected, trading_days, calendar_source = _expected_trade_date(now)
+        modules = [
+            _module_health(conn, module, expected, trading_days)
+            for module in HEALTH_MODULES
+        ]
+
+        required_bad = [
+            item for item in modules
+            if item["required"] and item["status"] not in {"fresh"}
+        ]
+        any_bad = [item for item in modules if item["status"] not in {"fresh"}]
+        if required_bad:
+            status = "error"
+        elif any_bad:
+            status = "warn"
+        else:
+            status = "ok"
+
+        return jsonify({
+            "status": status,
+            "as_of": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "expected_trade_date": str(expected) if expected else None,
+            "calendar_source": calendar_source,
+            "git": get_git_info(),
+            "latest": {item["key"]: item["latest_date"] for item in modules},
+            "modules": modules,
+            "errors": required_bad,
+            "warnings": [item for item in any_bad if item not in required_bad],
+        })
+    finally:
+        conn.close()
 
 
 # ── /api/stocks ───────────────────────────────────────────────────────────────

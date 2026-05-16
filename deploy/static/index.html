@@ -250,6 +250,7 @@
     <a href="hot_rank_iframe.html">人气热榜</a>
     <a href="longhu.html">龙虎榜</a>
     <a href="etf.html">ETF雷达</a>
+    <a href="monitor.html">运行监控</a>
     <a href="docs.html">文档</a>
   </div>
   <div class="navbar-date" id="nav-date">加载中...</div>
@@ -382,6 +383,16 @@
         <span class="tag">情绪分 · 走势图 · 连板</span>
       </div>
     </a>
+
+    <a class="card" href="monitor.html" style="--accent:#ffa657">
+      <div class="card-icon">🧭</div>
+      <div class="card-title">运行监控</div>
+      <div class="card-desc">查看各数据模块是否更新成功，以及当前页面对应的 Git commit</div>
+      <div class="card-meta">
+        <span class="tag orange">状态检查</span>
+        <span class="tag">数据 · 版本 · 日志路径</span>
+      </div>
+    </a>
   </div>
 
   <div class="section-title">说明与文档</div>
@@ -439,7 +450,9 @@ fetch(`summary.json?v=${Date.now()}`)
       ? '--'
       : (amt >= 10000 ? (amt / 10000).toFixed(2) + ' 万亿' : amt.toFixed(0) + ' 亿');
     document.getElementById('stat-date').textContent = d.latest_date || '--';
-    document.getElementById('nav-date').textContent = d.latest_date ? '最新数据：' + d.latest_date : '数据加载失败';
+    const git = d.git || {};
+    const commitText = git.short_commit ? ' · commit ' + git.short_commit : '';
+    document.getElementById('nav-date').textContent = d.latest_date ? '最新数据：' + d.latest_date + commitText : '数据加载失败';
 
     const evMap = {
       top_amount_pool: '量能龙头池',

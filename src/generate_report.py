@@ -11,6 +11,7 @@ import math
 import shutil
 import sqlite3
 import statistics
+import subprocess
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -83,6 +84,38 @@ def fmt_pct(value: object, digits: int = 2) -> str:
     if isinstance(value, (int, float)):
         return f"{value * 100:.{digits}f}%"
     return str(value)
+
+
+def _git_output(args: list[str]) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=Path(__file__).resolve().parent.parent,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return None
+
+
+def get_git_info() -> dict[str, object]:
+    commit = _git_output(["rev-parse", "HEAD"])
+    short_commit = _git_output(["rev-parse", "--short", "HEAD"])
+    branch = _git_output(["rev-parse", "--abbrev-ref", "HEAD"])
+    commit_time = _git_output(["log", "-1", "--format=%ci"])
+    subject = _git_output(["log", "-1", "--format=%s"])
+    dirty = bool(_git_output(["status", "--short"]))
+    return {
+        "commit": commit,
+        "short_commit": short_commit,
+        "branch": branch,
+        "commit_time": commit_time,
+        "subject": subject,
+        "dirty": dirty,
+    }
 
 
 def calc_day_gap(latest_date: str, data_date: str | None) -> int | None:
@@ -740,6 +773,7 @@ td {{ padding: 8px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
   <a href="longhu.html" class="active">龙虎榜</a>
   <a href="etf.html">ETF雷达</a>
   <a href="emotion.html">市场温度</a>
+  <a href="monitor.html">运行监控</a>
   <a href="docs.html">文档</a>
   </div>
   <div class="navbar-date">最新数据：{html.escape(latest_date)}</div>
@@ -1329,6 +1363,7 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
    <a href="longhu.html">龙虎榜</a>
    <a href="etf.html" class="active">ETF雷达</a>
    <a href="emotion.html">市场温度</a>
+   <a href="monitor.html">运行监控</a>
    <a href="docs.html">文档</a>
   </div>
   <div class="navbar-date">数据日期：{html_mod.escape(db_latest)}</div>
@@ -1755,6 +1790,7 @@ tr:last-child td {{ border-bottom: none; }}
     <a href="longhu.html">龙虎榜</a>
     <a href="etf.html">ETF雷达</a>
     <a href="emotion.html" class="active">市场温度</a>
+    <a href="monitor.html">运行监控</a>
     <a href="docs.html">文档</a>
   </div>
   <div class="navbar-date">最新数据：{latest_date_str}</div>
@@ -2186,6 +2222,7 @@ def build_report(args: argparse.Namespace) -> tuple[
         "popularity_count": counts["popularity_count"],
         "limit_pool_count": counts["limit_pool_count"],
         "strategy_backtest_count": counts["strategy_backtest_count"],
+        "git": get_git_info(),
         "latest_market": {
             "eligible_count": eligible_count,
             "up_ratio": up_ratio,
@@ -2334,7 +2371,7 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A股量化研究报告 {html.escape(str(summary['latest_date']))}</title><style>{style}</style></head>
 <body>
   <h1>A股量化研究报告</h1>
-  <p class="muted">生成时间: {html.escape(str(summary['generated_at']))}　数据库: {html.escape(str(summary['db']))}</p>
+  <p class="muted">生成时间: {html.escape(str(summary['generated_at']))}　数据库: {html.escape(str(summary['db']))}　commit: {html.escape(str((summary.get('git') or {}).get('short_commit') or '-'))}</p>
   <div class="note">数据源为 SQLite 数据库，通过 update_sqlite_data.py 每日更新。人气榜数据需要 AkShare 相关接口可用时才会显示。</div>
   <div class="grid">{summary_cards(summary)}</div>
   <h2>数据更新状态</h2>{data_status_table(summary.get('data_status', []))}
@@ -2357,6 +2394,7 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
         "# A股量化研究报告",
         "",
         f"生成时间: {summary['generated_at']}",
+        f"Git commit: {(summary.get('git') or {}).get('short_commit') or '-'}",
         f"数据库: `{summary['db']}`",
         f"数据范围: {summary['first_date']} 至 {summary['latest_date']}",
         f"信号起始日期: {summary['start_date']}",
@@ -2401,6 +2439,7 @@ def _NAVBAR(active: str, latest_date: str) -> str:
         ("hot_rank_iframe.html", "人气热榜"),
         ("longhu.html", "龙虎榜"),
         ("etf.html", "ETF雷达"),
+        ("monitor.html", "运行监控"),
         ("docs.html", "文档"),
     ]
     links = "\n".join(
@@ -2479,6 +2518,110 @@ tbody tr:hover td { background: #161b22; color: #cdd9e5; }
 }
 .no-data { color: #484f58; padding: 32px; text-align: center; }
 """
+
+
+def render_monitor_html(summary: dict[str, object]) -> str:
+    rows = summary.get("data_status", [])
+    git = summary.get("git", {}) or {}
+    fresh = sum(1 for row in rows if row.get("status") == "fresh")
+    bad_rows = [row for row in rows if row.get("status") != "fresh"]
+    overall = "暂无监控数据" if not rows else ("全部更新成功" if not bad_rows else f"{len(bad_rows)} 个模块需要处理")
+    overall_class = "ok" if rows and not bad_rows else "warn"
+    short_commit = git.get("short_commit") or "-"
+    commit = git.get("commit") or "-"
+    dirty_text = "有未提交变更" if git.get("dirty") else "工作区干净"
+
+    def status_badge(row: dict[str, object]) -> str:
+        status = str(row.get("status") or "unknown")
+        label = html.escape(str(row.get("status_label") or status))
+        return f'<span class="pill {status}">{label}</span>'
+
+    status_rows = []
+    for row in rows:
+        gap = row.get("gap_days")
+        gap_text = "-" if gap is None else f"{gap} 天"
+        status_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(row.get('label') or row.get('key') or '-'))}</td>"
+            f"<td>{html.escape(str(row.get('latest_date') or '-'))}</td>"
+            f"<td>{html.escape(gap_text)}</td>"
+            f"<td>{status_badge(row)}</td>"
+            "</tr>"
+        )
+    body = "".join(status_rows) or '<tr><td colspan="4">暂无监控数据</td></tr>'
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运行监控 · A股量化平台</title>
+<style>
+{_BASE_STYLE}
+.hero {{ display:flex; justify-content:space-between; gap:24px; align-items:flex-end; margin:18px 0 24px; }}
+.hero h1 {{ font-size:28px; margin-bottom:8px; }}
+.sub {{ color:#8b949e; }}
+.status-banner {{ border:1px solid #30363d; background:#161b22; border-radius:16px; padding:18px 22px; min-width:260px; }}
+.status-banner.ok {{ border-color:#23863666; box-shadow:0 0 0 1px #23863622 inset; }}
+.status-banner.warn {{ border-color:#d2992266; box-shadow:0 0 0 1px #d2992222 inset; }}
+.status-label {{ font-size:12px; color:#8b949e; margin-bottom:6px; }}
+.status-value {{ font-size:24px; font-weight:800; color:#e6edf3; }}
+.monitor-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-bottom:24px; }}
+.monitor-card {{ background:#161b22; border:1px solid #30363d; border-radius:14px; padding:18px 20px; }}
+.monitor-card h3 {{ font-size:14px; color:#8b949e; margin-bottom:8px; }}
+.monitor-card .value {{ font-size:20px; font-weight:700; word-break:break-all; }}
+.monitor-card .desc {{ color:#8b949e; font-size:12px; margin-top:8px; }}
+.status-table {{ background:#161b22; border:1px solid #30363d; border-radius:14px; overflow:hidden; }}
+.status-table table {{ width:100%; }}
+.status-table th, .status-table td {{ padding:10px 14px; }}
+.status-table th {{ background:#0d1117; color:#8b949e; }}
+.pill {{ display:inline-block; border-radius:999px; padding:3px 9px; font-size:12px; font-weight:700; }}
+.pill.fresh {{ background:#1a3a25; color:#3fb950; }}
+.pill.lagging {{ background:#3a2a1a; color:#ffa657; }}
+.pill.stale, .pill.missing, .pill.future_date {{ background:#3a1a1a; color:#ff7b72; }}
+.pill.unknown {{ background:#2b3137; color:#c9d1d9; }}
+.code {{ font-family:ui-monospace,SFMono-Regular,Consolas,monospace; color:#79c0ff; }}
+</style>
+</head>
+<body>
+{_NAVBAR("monitor.html", "最新数据：" + html.escape(str(summary.get("latest_date", "-"))))}
+<main class="page">
+  <div class="hero">
+    <div>
+      <h1>运行监控</h1>
+      <p class="sub">确认每日数据链路是否更新成功，并记录当前页面由哪个 Git commit 生成。</p>
+    </div>
+    <div class="status-banner {overall_class}">
+      <div class="status-label">数据更新结论</div>
+      <div class="status-value">{html.escape(overall)}</div>
+      <div class="sub">已更新模块：{fresh} / {len(rows)}</div>
+    </div>
+  </div>
+
+  <div class="monitor-grid">
+    <div class="monitor-card"><h3>报告生成时间</h3><div class="value">{html.escape(str(summary.get("generated_at", "-")))}</div></div>
+    <div class="monitor-card"><h3>最新交易数据</h3><div class="value">{html.escape(str(summary.get("latest_date", "-")))}</div></div>
+    <div class="monitor-card"><h3>Git commit</h3><div class="value code">{html.escape(str(short_commit))}</div><div class="desc">{html.escape(str(git.get("subject") or "-"))}</div></div>
+    <div class="monitor-card"><h3>Git 分支</h3><div class="value">{html.escape(str(git.get("branch") or "-"))}</div><div class="desc">{html.escape(dirty_text)}</div></div>
+  </div>
+
+  <div class="section-title">数据模块状态</div>
+  <div class="status-table">
+    <table>
+      <thead><tr><th>模块</th><th>最新日期</th><th>落后天数</th><th>状态</th></tr></thead>
+      <tbody>{body}</tbody>
+    </table>
+  </div>
+
+  <div class="section-title">代码版本详情</div>
+  <div class="monitor-card">
+    <div>完整 commit：<span class="code">{html.escape(str(commit))}</span></div>
+    <div class="desc">commit 时间：{html.escape(str(git.get("commit_time") or "-"))}</div>
+    <div class="desc">生产运行日志路径：<span class="code">/data/quant_research/logs/daily-run-YYYYMMDD.log</span></div>
+  </div>
+</main>
+</body>
+</html>"""
 
 
 def fetch_zt_pool_data(conn, latest_date: str) -> dict:
@@ -3086,6 +3229,7 @@ body {{
     <a href="hot_rank_iframe.html">人气热榜</a>
     <a href="longhu.html">龙虎榜</a>
     <a href="etf.html">ETF雷达</a>
+    <a href="monitor.html">运行监控</a>
     <a href="docs.html" class="active">文档</a>
   </div>
   <div class="navbar-date">更新于 {generated_date}</div>
@@ -3106,6 +3250,7 @@ body {{
   <a href="#page-screener" class="sub">选股信号</a>
   <a href="#page-emotion" class="sub">市场温度</a>
   <a href="#page-etf" class="sub">ETF雷达</a>
+  <a href="#page-monitor" class="sub">运行监控</a>
   <div class="sep"></div>
   <a href="#data">数据模块</a>
   <a href="#data-daily" class="sub">每日行情</a>
@@ -3195,6 +3340,11 @@ body {{
         <div class="m-file">etf.html · generate_report.py:render_etf_html()</div>
         <div class="m-desc">ETF 行情快照（成交额 ≥ 5 亿），技术信号（历史新高 / MA20向上 / 站上MA60），
           宽基 vs 行业主题分类，三维联动筛选。点击行展开持仓 Top10。</div>
+      </div>
+      <div class="module-card" id="page-monitor">
+        <div class="m-title">🧭 运行监控 <span class="badge badge-done">已上线</span></div>
+        <div class="m-file">monitor.html · generate_report.py:render_monitor_html()</div>
+        <div class="m-desc">展示每日数据模块更新结论、报告生成时间、Git commit、分支和生产运行日志路径，方便判断当前页面对应的代码版本。</div>
       </div>
       <div class="module-card">
         <div class="m-title">📄 平台文档 <span class="badge badge-done">已上线</span></div>
@@ -3307,7 +3457,7 @@ body {{
     <p>systemd timer：<code style="color:#79c0ff">quant-daily.timer</code>，触发时间：UTC 11:45（北京时间 19:45），仅工作日</p>
     <p>执行脚本：<code style="color:#79c0ff">/data/quant_research/logs/quant-daily-run.sh</code></p>
     <div class="code-block">1. update_sqlite_data.py         # 全市场行情 + 人气榜 + 涨停池 + 龙虎榜 + 市场涨跌停汇总(market_daily)
-2. update_etf.py --holdings-only --max-holdings 40 # ETF持仓增量更新（每日限额，避免卡住整条流水线）
+2. update_etf.py --skip-holdings # ETF行情快照 + 技术信号更新；持仓抓取单独按需运行
 3. update_shares.py              # 补全 total_shares IS NULL 的股票总股本
 4. screener.py                   # 选股引擎，结果写入 screen_results 表
 5. backtest_new_high_volume.py   # 策略回测
@@ -3494,6 +3644,7 @@ def main() -> None:
         (output_dir / "etf.html").write_text(render_etf_html(_conn, latest_date), encoding="utf-8")
         (output_dir / "lianban.html").write_text(render_lianban_html(_conn, latest_date), encoding="utf-8")
         (output_dir / "screener.html").write_text(render_screener_html(_conn, latest_date), encoding="utf-8")
+        (output_dir / "monitor.html").write_text(render_monitor_html(summary), encoding="utf-8")
         (output_dir / "docs.html").write_text(render_docs_html(latest_date), encoding="utf-8")
         write_csv(output_dir / "latest_top_amount.csv", latest_top_amount, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
         write_csv(output_dir / "latest_hot_candidates.csv", latest_hot, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
