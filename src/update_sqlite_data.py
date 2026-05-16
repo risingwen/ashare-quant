@@ -861,13 +861,17 @@ def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_
         for direction in ("买入", "卖出"):
             try:
                 sdf = call_with_retry(
-                    lambda c=code, flag=direction: ak.stock_lhb_stock_detail_em(
-                        symbol=c, date=date_compact, flag=flag
+                    lambda c=code, flag=direction: _call_with_hard_timeout(
+                        lambda: ak.stock_lhb_stock_detail_em(
+                            symbol=c, date=date_compact, flag=flag
+                        ),
+                        timeout_seconds=45,
                     ),
                     retries,
                     sleep_seconds,
                 )
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                print(f"LHB seat detail failed: code={code} direction={direction} error={exc}")
                 continue
             if sdf is None or sdf.empty:
                 continue
@@ -891,6 +895,7 @@ def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_
         with conn:
             conn.executemany(seat_sql, seat_rows_all)
     print(f"LHB seats done. count={len(seat_rows_all)}")
+    print("update_lhb return")
 
 
 def date_chunks(start_date: str, end_date: str, chunk_days: int) -> list[tuple[str, str]]:
