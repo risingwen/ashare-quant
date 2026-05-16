@@ -83,6 +83,69 @@ def fmt_pct(value: object, digits: int = 2) -> str:
     return str(value)
 
 
+def calc_day_gap(latest_date: str, data_date: str | None) -> int | None:
+    if not latest_date or not data_date:
+        return None
+    try:
+        latest_dt = datetime.strptime(str(latest_date), "%Y-%m-%d")
+        data_dt = datetime.strptime(str(data_date), "%Y-%m-%d")
+    except ValueError:
+        return None
+    return (latest_dt - data_dt).days
+
+
+def build_data_status(latest_date: str, module_latest_dates: dict[str, str | None]) -> list[dict[str, object]]:
+    labels = {
+        "daily_bars": "日线行情",
+        "market_daily": "市场温度",
+        "limit_up_pool": "涨停池",
+        "popularity_rankings": "人气热榜",
+        "lhb_records": "龙虎榜",
+        "lhb_seats": "龙虎榜席位",
+        "etf_daily": "ETF雷达",
+        "screen_results": "选股信号",
+        "strategy_backtests": "策略回测",
+    }
+    status_rows: list[dict[str, object]] = []
+    for key, label in labels.items():
+        data_date = module_latest_dates.get(key)
+        gap_days = calc_day_gap(latest_date, data_date)
+        if data_date is None:
+            status = "missing"
+            status_label = "缺失"
+        elif gap_days is None:
+            status = "unknown"
+            status_label = "未知"
+        elif gap_days <= 0:
+            status = "fresh"
+            status_label = "已更新"
+        elif gap_days <= 3:
+            status = "lagging"
+            status_label = f"落后{gap_days}天"
+        else:
+            status = "stale"
+            status_label = f"严重落后{gap_days}天"
+        status_rows.append({
+            "key": key,
+            "label": label,
+            "latest_date": data_date,
+            "gap_days": gap_days,
+            "status": status,
+            "status_label": status_label,
+        })
+    return status_rows
+
+
+def safe_scalar(conn: sqlite3.Connection, sql: str) -> str | None:
+    try:
+        row = conn.execute(sql).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if not row:
+        return None
+    return row[0]
+
+
 def simple_table(rows: list[dict[str, object]], columns: list[tuple[str, str]], limit: int | None = None) -> str:
     selected = rows[:limit] if limit else rows
     if not selected:
@@ -1894,7 +1957,17 @@ renderAll();
 </html>"""
 
 
-def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+def build_report(args: argparse.Namespace) -> tuple[
+    dict[str, object],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict[str, object]],
+    list[dict],
+    list[dict[str, object]],
+]:
     conn = connect(args.db)
     counts = conn.execute(
         """
@@ -2085,6 +2158,18 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict
     lhb_rows = fetch_lhb_rows(conn, latest_date)
     lhb_seat_stats = fetch_lhb_seat_stats(conn, latest_date)
     screen_rows = fetch_screen_results(conn, latest_date)
+    module_latest_dates = {
+        "daily_bars": safe_scalar(conn, "SELECT MAX(date) FROM daily_bars"),
+        "market_daily": safe_scalar(conn, "SELECT MAX(date) FROM market_daily"),
+        "limit_up_pool": safe_scalar(conn, "SELECT MAX(date) FROM limit_up_pool"),
+        "popularity_rankings": safe_scalar(conn, "SELECT MAX(date) FROM popularity_rankings"),
+        "lhb_records": safe_scalar(conn, "SELECT MAX(date) FROM lhb_records"),
+        "lhb_seats": safe_scalar(conn, "SELECT MAX(date) FROM lhb_seats"),
+        "etf_daily": safe_scalar(conn, "SELECT MAX(date) FROM etf_daily"),
+        "screen_results": safe_scalar(conn, "SELECT MAX(date) FROM screen_results"),
+        "strategy_backtests": safe_scalar(conn, "SELECT MAX(end_date) FROM strategy_backtests"),
+    }
+    data_status = build_data_status(latest_date, module_latest_dates)
 
     summary: dict[str, object] = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2115,6 +2200,7 @@ def build_report(args: argparse.Namespace) -> tuple[dict[str, object], list[dict
             "hot_limit_up_pool": summarize_events(hot_limit_up_events),
             "old_reversal_rule": summarize_events(old_reversal_events),
         },
+        "data_status": data_status,
         "streak_summary": streak_summary_rows,
         "recent_emotion": recent_emotion_rows,
     }
@@ -2145,6 +2231,33 @@ def summary_cards(summary: dict[str, object]) -> str:
             event_card("热门涨停池", "hot_limit_up_pool"),
             event_card("旧逆转规则", "old_reversal_rule"),
         ]
+    )
+
+
+def data_status_table(status_rows: list[dict[str, object]]) -> str:
+    if not status_rows:
+        return "<p>No data.</p>"
+    body_rows = []
+    for row in status_rows:
+        status = str(row["status"])
+        status_class = {
+            "fresh": "status-fresh",
+            "lagging": "status-lagging",
+            "stale": "status-stale",
+        }.get(status, "status-missing")
+        gap_text = "-" if row["gap_days"] is None else str(row["gap_days"])
+        latest_text = row["latest_date"] or "-"
+        body_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(row['label']))}</td>"
+            f"<td>{html.escape(str(latest_text))}</td>"
+            f"<td>{html.escape(str(gap_text))}</td>"
+            f"<td><span class='status-pill {status_class}'>{html.escape(str(row['status_label']))}</span></td>"
+            "</tr>"
+        )
+    return (
+        "<table><thead><tr><th>模块</th><th>最新日期</th><th>落后天数</th><th>状态</th></tr></thead>"
+        f"<tbody>{''.join(body_rows)}</tbody></table>"
     )
 
 
@@ -2201,6 +2314,11 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
     th { background: #e9eef8; color: #0f172a; }
     .note { background: #fff7ed; border: 1px solid #fed7aa; padding: 12px 14px; border-radius: 10px; }
     .muted { color: #64748b; }
+    .status-pill { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .status-fresh { background:#dcfce7; color:#166534; }
+    .status-lagging { background:#fef3c7; color:#92400e; }
+    .status-stale { background:#fee2e2; color:#991b1b; }
+    .status-missing { background:#e5e7eb; color:#374151; }
     """
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -2210,6 +2328,7 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
   <p class="muted">生成时间: {html.escape(str(summary['generated_at']))}　数据库: {html.escape(str(summary['db']))}</p>
   <div class="note">数据源为 SQLite 数据库，通过 update_sqlite_data.py 每日更新。人气榜数据需要 AkShare 相关接口可用时才会显示。</div>
   <div class="grid">{summary_cards(summary)}</div>
+  <h2>数据更新状态</h2>{data_status_table(summary.get('data_status', []))}
   {_render_screen_section(screen_rows)}
   <h2>新高+量能策略回测</h2>{simple_table(strategy_rows, strategy_columns)}
   <h2>最新人气榜</h2>{simple_table(popularity_rows, popularity_columns, 80)}
@@ -2588,6 +2707,18 @@ streakFil.addEventListener('change', () => renderDetail(detailSel.value, +streak
 def fetch_screener_data(conn) -> dict:
     """取 screen_results 全量数据 + 计算胜率（信号后5日收益）"""
     import json as _json
+
+    empty_result = {
+        "rules": [],
+        "dates": [],
+        "records": [],
+        "win_stats": {},
+    }
+
+    try:
+        conn.execute("SELECT 1 FROM screen_results LIMIT 1").fetchone()
+    except sqlite3.OperationalError:
+        return empty_result
 
     # 所有规则
     rules = [r[0] for r in conn.execute(
