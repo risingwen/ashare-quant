@@ -36,7 +36,8 @@ data/*.feather
 !data/.gitkeep
 
 # 日志
-logs/
+logs/*
+!logs/.gitkeep
 *.log
 
 # 报告生成内容（动态生成，不上传）
