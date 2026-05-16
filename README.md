@@ -118,6 +118,100 @@ sudo systemctl start quant-daily.service
 sudo journalctl -u quant-daily.service -f
 ```
 
+### 手动部署最新代码到 Oracle 云主机
+
+适用于以下场景：
+
+- GitHub 已有最新提交，但云主机代码尚未更新
+- 需要立即上线页面/脚本改动
+- 需要先手动验证生产部署，再观察定时任务
+
+```bash
+ssh oracle-free
+
+cd /data/quant_research
+git fetch origin
+git pull --ff-only origin master
+```
+
+如果本次改动涉及 API 服务逻辑，更新代码后重启 API：
+
+```bash
+sudo systemctl restart quant-api.service
+sudo systemctl status quant-api.service
+```
+
+如果本次改动涉及静态报告页面（如 `report.html`、`summary.json`、榜单页面），更新代码后需要重新生成报告：
+
+```bash
+/data/quant_research_venv/bin/python /data/quant_research/src/generate_report.py \
+  --db /data/quant_research/data/quant.db \
+  --report-dir /data/quant_research/reports \
+  --start-date 2025-01-01
+```
+
+### 手动部署后的验证步骤
+
+1. 确认云端仓库已到目标提交：
+
+```bash
+cd /data/quant_research
+git rev-parse HEAD
+```
+
+2. 确认 nginx 实际服务目录中的报告已更新：
+
+```bash
+python3 -c 'from pathlib import Path; p=Path("/data/quant_research/reports/latest/report.html"); text=p.read_text(encoding="utf-8"); print(text.split("<title>",1)[1].split("</title>",1)[0]); print("数据更新状态" in text)'
+```
+
+3. 验证线上接口与页面：
+
+```bash
+curl http://140.245.53.52:8080/api/health
+curl http://140.245.53.52:8080/report.html?v=manual-check
+```
+
+如果页面内容已更新但浏览器仍显示旧版本，通常是缓存导致。可追加查询参数强制刷新，例如：
+
+```text
+http://140.245.53.52:8080/report.html?v=20260517
+```
+
+### 推荐：使用一键部署脚本
+
+仓库已提供：
+
+```bash
+deploy/scripts/deploy_oracle.sh
+```
+
+典型用法：
+
+```bash
+# 仅拉取最新代码 + 重新生成报告/首页 + 重启 API
+ssh oracle-free 'bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+
+# 拉取最新代码 + 启动整条生产流水线
+ssh oracle-free 'RUN_FULL_PIPELINE=1 bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+
+# 只更新页面，不重启 API
+ssh oracle-free 'RESTART_API=0 bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+```
+
+这个脚本会自动完成：
+
+1. `git fetch` + `git pull --ff-only origin master`
+2. 重新生成 `report.html` / `summary.json` / `index.html`
+3. 可选重启 `quant-api.service`
+4. 可选触发 `quant-daily.service`
+5. 自动检查首页和报告页是否包含数据状态区块
+
+补充说明：
+
+- 当前生产环境 AkShare 仅确认存在 `stock_hot_rank_em`
+- 若 `stock_hot_rank_wc` 不可用，仓库中的更新逻辑会在非交易日继续使用 `stock_hot_rank_em`，避免人气热榜因为周末/节假日运行而一直停留在旧日期
+
 ### 单独执行各步骤
 
 ```bash

@@ -504,6 +504,100 @@ python scripts/update_daily_incremental.py --help
 
 与当前仓库真实默认分支保持一致。
 
+### 9.3 当前已验证可用的手动部署流程
+
+除了 GitHub Actions 外，当前已经实测通过一套可直接落地的手动部署流程，适合以下场景：
+
+- GitHub 已 push，但云端仓库尚未自动同步
+- 页面改动需要立即上线
+- 需要手动确认生产目录与线上页面是否一致
+
+#### 步骤 1：登录云主机并更新代码
+
+```bash
+ssh oracle-free
+
+cd /data/quant_research
+git fetch origin
+git pull --ff-only origin master
+git rev-parse HEAD
+```
+
+#### 步骤 2：按改动类型执行对应动作
+
+推荐优先使用仓库内的一键部署脚本：
+
+```bash
+ssh oracle-free 'bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+```
+
+常用变体：
+
+```bash
+# 启动整条生产流水线
+ssh oracle-free 'RUN_FULL_PIPELINE=1 bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+
+# 页面刷新但不重启 API
+ssh oracle-free 'RESTART_API=0 bash /data/quant_research/deploy/scripts/deploy_oracle.sh'
+```
+
+脚本默认会：
+
+1. 在 `/data/quant_research` 执行 `git fetch` + `git pull --ff-only origin master`
+2. 重新生成 `report.html`、`summary.json`、`index.html`
+3. 默认重启 `quant-api.service`
+4. 自动打印关键验证信息
+
+与当前线上环境相关的补充说明：
+
+- Oracle 生产环境已实测 `AkShare.stock_hot_rank_em` 可用
+- 同时 `stock_hot_rank_wc` 不存在
+- 因此仓库中的人气榜更新逻辑已补充为：如果只有 `stock_hot_rank_em` 可用，则即使在非交易日运行，也继续尝试该接口，避免首页/报告中的“人气热榜”长期停留在旧日期
+
+如果你不想用脚本，也可以继续按下面的手动步骤执行。
+
+如果改动影响 **API 逻辑**：
+
+```bash
+sudo systemctl restart quant-api.service
+sudo systemctl status quant-api.service
+```
+
+如果改动影响 **静态报告页面 / summary.json / report.html**：
+
+```bash
+/data/quant_research_venv/bin/python /data/quant_research/src/generate_report.py \
+  --db /data/quant_research/data/quant.db \
+  --report-dir /data/quant_research/reports \
+  --start-date 2025-01-01
+```
+
+如果要验证整条生产链路，而不只是单独刷新报告：
+
+```bash
+sudo systemctl start quant-daily.service
+sudo journalctl -u quant-daily.service -f
+```
+
+本次已实测确认：`quant-daily.service` 可以走到并完成 `generate_report`，线上报告能够刷新。
+
+#### 步骤 3：验证线上实际生效
+
+先看云端生成物：
+
+```bash
+python3 -c 'from pathlib import Path; p=Path("/data/quant_research/reports/latest/report.html"); text=p.read_text(encoding="utf-8"); print(text.split("<title>",1)[1].split("</title>",1)[0]); print("数据更新状态" in text)'
+```
+
+再看公网接口与页面：
+
+```bash
+curl http://140.245.53.52:8080/api/health
+curl http://140.245.53.52:8080/report.html?v=manual-check
+```
+
+> 注意：如果服务器文件已经更新，但浏览器仍看到旧页面，通常是缓存问题。可以在 URL 后加查询参数强制刷新，例如 `report.html?v=20260517`。
+
 ---
 
 ## 10. 云端运维边界
