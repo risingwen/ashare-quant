@@ -211,6 +211,8 @@ ssh oracle-free 'RESTART_API=0 bash /data/quant_research/deploy/scripts/deploy_o
 
 - 当前生产环境 AkShare 仅确认存在 `stock_hot_rank_em`
 - 若 `stock_hot_rank_wc` 不可用，仓库中的更新逻辑会在非交易日继续使用 `stock_hot_rank_em`，避免人气热榜因为周末/节假日运行而一直停留在旧日期
+- 如果 AkShare 人气接口返回异常，`update_sqlite_data.py` 会继续读取仓库内已经标准化的多源热榜 CSV（`hot_rank_multi_source_snapshot_latest.csv` / `hot_rank_wencai_last30_normalized.csv`）作为兜底来源
+- `deploy/scripts/deploy_oracle.sh` 默认会先刷新这些多源热榜 CSV，再重生成报告与首页
 
 ### 单独执行各步骤
 

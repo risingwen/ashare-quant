@@ -553,6 +553,11 @@ ssh oracle-free 'RESTART_API=0 bash /data/quant_research/deploy/scripts/deploy_o
 - Oracle 生产环境已实测 `AkShare.stock_hot_rank_em` 可用
 - 同时 `stock_hot_rank_wc` 不存在
 - 因此仓库中的人气榜更新逻辑已补充为：如果只有 `stock_hot_rank_em` 可用，则即使在非交易日运行，也继续尝试该接口，避免首页/报告中的“人气热榜”长期停留在旧日期
+- 如果 AkShare 人气接口本身返回异常，更新逻辑还会继续读取仓库 `reports/` 下的标准化多源热榜 CSV 作为兜底写入 `popularity_rankings`
+- 一键部署脚本默认会先执行：
+  - `scripts/try_hot_rank_multi_source.py`
+  - `scripts/export_hot_rank_multi_source_pages.py`
+  以刷新这些兜底 CSV
 
 如果你不想用脚本，也可以继续按下面的手动步骤执行。
 

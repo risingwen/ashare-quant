@@ -9,6 +9,7 @@ START_DATE="${START_DATE:-2025-01-01}"
 BRANCH="${BRANCH:-master}"
 RESTART_API="${RESTART_API:-1}"
 RUN_FULL_PIPELINE="${RUN_FULL_PIPELINE:-0}"
+REFRESH_HOT_RANK_FALLBACK="${REFRESH_HOT_RANK_FALLBACK:-1}"
 
 echo "========================================"
 echo "deploy_oracle start: $(date '+%F %T')"
@@ -16,6 +17,7 @@ echo "REPO_DIR=${REPO_DIR}"
 echo "BRANCH=${BRANCH}"
 echo "RUN_FULL_PIPELINE=${RUN_FULL_PIPELINE}"
 echo "RESTART_API=${RESTART_API}"
+echo "REFRESH_HOT_RANK_FALLBACK=${REFRESH_HOT_RANK_FALLBACK}"
 echo "========================================"
 
 cd "${REPO_DIR}"
@@ -30,7 +32,15 @@ if [[ "${RUN_FULL_PIPELINE}" == "1" ]]; then
   sudo systemctl start quant-daily.service
   echo "Use: sudo journalctl -u quant-daily.service -f"
 else
-  echo "[2/5] Regenerate reports and homepage assets"
+  if [[ "${REFRESH_HOT_RANK_FALLBACK}" == "1" ]]; then
+    echo "[2/5] Refresh hot-rank fallback artifacts"
+    "${VENV_PYTHON}" scripts/try_hot_rank_multi_source.py || true
+    "${VENV_PYTHON}" scripts/export_hot_rank_multi_source_pages.py || true
+  else
+    echo "[2/5] Skip hot-rank fallback refresh"
+  fi
+
+  echo "[3/5] Regenerate reports and homepage assets"
   "${VENV_PYTHON}" src/generate_report.py \
     --db "${DB_PATH}" \
     --report-dir "${REPORT_DIR}" \
@@ -38,14 +48,14 @@ else
 fi
 
 if [[ "${RESTART_API}" == "1" ]]; then
-  echo "[3/5] Restart quant-api.service"
+  echo "[4/5] Restart quant-api.service"
   sudo systemctl restart quant-api.service
   sudo systemctl is-active quant-api.service
 else
-  echo "[3/5] Skip API restart"
+  echo "[4/5] Skip API restart"
 fi
 
-echo "[4/5] Verify generated homepage/report files"
+echo "[5/5] Verify generated homepage/report files"
 "${VENV_PYTHON}" - <<'PY'
 from pathlib import Path
 import json
@@ -65,7 +75,7 @@ print(f"index_has_data_status={('数据更新情况' in index_text)}")
 print(f"report_has_data_status={('数据更新状态' in report_text)}")
 PY
 
-echo "[5/5] Suggested remote checks"
+echo "[6/6] Suggested remote checks"
 echo "curl http://140.245.53.52:8080/api/health"
 echo "curl http://140.245.53.52:8080/index.html?v=$(date +%s)"
 echo "curl http://140.245.53.52:8080/report.html?v=$(date +%s)"
