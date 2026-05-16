@@ -1,184 +1,359 @@
-# 开发环境搭建指南
+# 开发环境与开发流程指南
 
-本文档适用于在**新机器**上从零搭建开发环境，直接使用云主机 API 访问数据，无需在本地维护数据库。
+本文档重新定义本项目的推荐工作方式：
+
+- **代码放 GitHub**
+- **日常开发在本机完成**
+- **云主机保存正式数据库与生产任务**
+- **本机默认不直接维护全量生产库**
+
+适用场景：
+
+- 新机器初始化开发环境
+- 本机调试脚本 / 策略 / 页面
+- 验证本机到云端 API / SSH / 数据库访问链路
+- 统一本机开发与云端生产的边界
 
 ---
 
-## 前置条件
+## 1. 推荐架构
 
-- Python 3.11+
-- Git
-- SSH 访问云主机的权限（可选，仅在需要直接操作数据库时）
+### 1.1 角色划分
+
+| 环境 | 作用 | 保存内容 |
+|---|---|---|
+| 本机 | 写代码、调试、轻量分析、小样本回测 | 源码、虚拟环境、少量测试数据、裁剪版数据库（可选） |
+| GitHub | 代码协作与版本管理 | `src/`、`scripts/`、`config/`、`docs/`、测试代码 |
+| Oracle 云主机 | 正式数据库、正式更新任务、正式报表/API | `quant.db`、systemd、nginx、生产日志、正式 reports |
+
+### 1.2 默认原则
+
+1. **不要在云主机上直接改代码作为日常开发方式**。
+2. **不要把数据库、Parquet 全量数据、reports 生成物提交到 Git**。
+3. **本机开发优先调用云端 API 或使用裁剪版数据集**。
+4. **正式增量更新、正式报表发布仍在云主机执行**。
 
 ---
 
-## 1. Clone 项目
+## 2. 当前已知环境
+
+### 2.1 GitHub 仓库
+
+```bash
+git@github.com:risingwen/ashare-quant.git
+```
+
+### 2.2 云主机
+
+| 项目 | 值 |
+|---|---|
+| 主机 IP | `140.245.53.52` |
+| API 入口 | `http://140.245.53.52:8080/api/` |
+| 正式数据库 | `/data/quant_research/data/quant.db` |
+| Python 环境 | `/data/quant_research_venv` |
+| 部署目录 | `/data/quant_research` |
+
+### 2.3 本机推荐虚拟环境
+
+当前已验证可用的本机虚拟环境路径：
+
+```bash
+/LocalRun/xiwen.xing/01_envs/ashare-quant
+```
+
+启动方式：
+
+```bash
+source /LocalRun/xiwen.xing/01_envs/ashare-quant/bin/activate
+```
+
+或直接调用：
+
+```bash
+/LocalRun/xiwen.xing/01_envs/ashare-quant/bin/python
+```
+
+---
+
+## 3. 已验证的连通性结论
+
+以下结论基于本机实测。
+
+| 检查项 | 结果 | 说明 |
+|---|---|---|
+| `GET /api/health` | ✅ 已验证 | 公网 API 可达，返回 `200 OK` |
+| `GET /api/daily`（无 API Key） | ✅ 已验证 | 返回 `401 unauthorized`，说明鉴权生效 |
+| `GET /api/daily`（携带有效 API Key） | ✅ 已验证 | 已返回 `600519` 的实际日线数据 |
+| SSH 到 `ubuntu@140.245.53.52` | ✅ 已验证 | 可通过本机已存在的 SSH key 登录 |
+| 云端裁剪版数据库导出到本机 | ✅ 已验证 | 已成功导出 `quant_dev.db` 并在本机完成健康检查 |
+
+### 3.1 已验证成功的 API 健康检查
+
+```bash
+curl http://140.245.53.52:8080/api/health
+```
+
+返回示例：
+
+```json
+{"latest":{"daily_bars":"2026-05-15","lhb_records":"2026-05-15","market_daily":"2026-05-15","zt_pool":"2026-05-15"},"status":"ok"}
+```
+
+### 3.2 已验证的鉴权行为
+
+未携带 `X-API-Key` 请求受保护接口：
+
+```bash
+curl "http://140.245.53.52:8080/api/daily?code=600519&start=2026-05-01&limit=5"
+```
+
+返回：
+
+```json
+{"error":"unauthorized"}
+```
+
+这说明：
+
+- 公网 API 服务在线
+- 受保护接口需要 API Key
+- 当前本机**尚未配置 `QUANT_API_KEY`**
+
+### 3.3 已验证成功的受保护接口访问
+
+使用本机保存的有效 `QUANT_API_KEY` 后，已实测成功访问：
+
+```bash
+curl -H "X-API-Key: ${QUANT_API_KEY}" \
+  "http://140.245.53.52:8080/api/daily?code=600519&start=2026-05-01&limit=5"
+```
+
+实测返回 `200 OK`，并返回 `600519` 的真实日线数据。
+
+说明：
+
+- 本机到云端受保护 API 的完整调用链路已打通
+- 当前 API Key 可正常用于业务接口
+- 真实 key 仍只应保存在本机 `.env` 或 CI secrets 中，不应写入仓库
+
+### 3.4 已验证成功的 SSH 信息
+
+本机 `~/.ssh/config` 中已有可用配置：
+
+```sshconfig
+Host oracle-free
+    HostName 140.245.53.52
+    User ubuntu
+    IdentityFile ~/.ssh/oracle-free-2026-04-05
+```
+
+已实测成功的连接方式：
+
+```bash
+ssh oracle-free
+```
+
+或：
+
+```bash
+ssh -i ~/.ssh/oracle-free-2026-04-05 ubuntu@140.245.53.52
+```
+
+本机实测成功返回：
+
+- hostname: `instance-20260406-1138`
+- user: `ubuntu`
+
+额外说明：当前目录下其他常见 key（如 `id_ed25519`、`id_rsa`、`id_ed25519_ashare_quant` 等）对该主机验证失败；当前确认可用的是：
+
+```bash
+~/.ssh/oracle-free-2026-04-05
+```
+
+### 3.5 云端运行态实测结果
+
+已通过 SSH 在云主机上完成以下核验：
+
+- 代码目录存在：`/data/quant_research`
+- 数据库文件存在：`/data/quant_research/data/quant.db`
+- 当前数据库文件大小约：`537M`
+- 云端仓库分支状态：`master...origin/master`
+- 服务状态：
+  - `quant-api` = `active`
+  - `quant-daily.timer` = `active`
+  - `nginx` = `active`
+- 云端 Python 环境可用：`Python 3.12.3`
+- 云端健康检查 dry-run 结果：`[HEALTHY] 所有表数据均已更新到最新交易日，无需补全。`
+
+### 3.6 云端裁剪版数据库导出实测结果
+
+已完成以下实测：
+
+1. 在云端从正式库 `/data/quant_research/data/quant.db` 导出裁剪版 SQLite
+2. 成功生成临时文件：`/tmp/quant_dev.db`
+3. 成功拉回本机：`data/quant_dev.db`
+4. 本机完成健康检查 dry-run，结果为 `HEALTHY`
+
+本次裁剪范围：
+
+- `stocks`：全表
+- `daily_bars`：`2026-01-01` 至今
+- `market_daily`：`2026-01-01` 至今
+- `zt_pool`：`2026-01-01` 至今（实际数据起始为 `2026-04-10`）
+- `lhb_records`：`2026-01-01` 至今
+
+本机实测结果：
+
+- 文件大小约：`55M`
+- `stocks`：`5707` 行
+- `daily_bars`：`438894` 行
+- `market_daily`：`84` 行
+- `zt_pool`：`1516` 行
+- `lhb_records`：`5993` 行
+
+### 3.7 当前仍待补充验证的部分
+
+以下问题仍建议后续继续核验：
+
+- 云端定时任务与 API 服务是否与当前仓库代码完全一致
+- 是否需要进一步扩展裁剪脚本支持更多表
+- 是否需要进一步补充 `zt_previous`、`etf_daily`、`etf_holdings`、`screen_results` 等表
+
+---
+
+## 4. 本机开发模式
+
+推荐分为两种模式。
+
+### 模式 A：API 优先（默认）
+
+适用于：
+
+- 页面开发
+- API 客户端开发
+- 小范围策略验证
+- 不需要完整生产数据库的调试
+
+特点：
+
+- 本机只保留代码和小量缓存
+- 通过云端 API 获取数据
+- 不要求本机持有 `quant.db`
+
+### 模式 B：裁剪库 / 小样本数据
+
+适用于：
+
+- 本地跑脚本
+- 本地复现部分回测
+- 本地生成实验报告
+
+特点：
+
+- 从云端导出裁剪版 SQLite
+- 或仅同步需要的 Parquet 分区
+- 不建议同步整份生产数据库到本机长期维护
+
+---
+
+## 5. 本机初始化步骤
+
+### 5.1 Clone 仓库
 
 ```bash
 git clone git@github.com:risingwen/ashare-quant.git
 cd ashare-quant
 ```
 
----
+### 5.2 创建虚拟环境
 
-## 2. 创建虚拟环境
+推荐把虚拟环境放在工作区外：
 
 ```bash
-python -m venv venv
-source venv/bin/activate        # Linux / macOS
-# venv\Scripts\activate         # Windows
-
+python3 -m venv /LocalRun/xiwen.xing/01_envs/ashare-quant
+source /LocalRun/xiwen.xing/01_envs/ashare-quant/bin/activate
 pip install -r requirements.txt
 ```
 
----
+### 5.3 补齐当前开发依赖
 
-## 3. 配置环境变量
-
-项目根目录创建 `.env` 文件（已在 `.gitignore` 中，不会上传）：
+当前仓库实际运行还依赖：
 
 ```bash
-# .env
-QUANT_API_BASE=http://140.245.53.52:8080
-QUANT_API_KEY=<向项目管理员获取>
+pip install pytest pyyaml
 ```
 
-> **云主机地址**：`140.245.53.52`，API 通过 nginx 在 `8080` 端口对外暴露，路径前缀 `/api/`。
+> 说明：这两个依赖目前未完整体现在 `requirements.txt` 中，但本机实测运行需要它们。
 
-在代码中读取：
+### 5.4 创建运行目录
+
+部分脚本默认写日志到 `logs/`，首次运行前建议创建：
+
+```bash
+mkdir -p logs data
+```
+
+### 5.5 生成本地配置
+
+```bash
+cp config.example.yaml config.yaml
+```
+
+如果你走 API 优先模式，`config.yaml` 主要用于本地脚本默认配置；
+如果你走裁剪库模式，还需要根据实际数据路径调整相关配置。
+
+---
+
+## 6. API 模式的本机配置
+
+在项目根目录创建 `.env`：
+
+```bash
+QUANT_API_BASE=http://140.245.53.52:8080
+QUANT_API_KEY=<向项目管理员获取或保存在你本机的现有 key>
+```
+
+> 不要把真实 `QUANT_API_KEY` 写入仓库文档、配置样例或提交到 Git。真实 key 只应保存在本机 `.env`、密码管理器或 CI secrets 中。
+
+建议先确认环境变量是否就绪：
+
+```bash
+python3 -c "import os; print(bool(os.environ.get('QUANT_API_KEY')))"
+```
+
+如果你已经拿到真实 key，可以在本机 shell 中临时验证：
+
+```bash
+export QUANT_API_KEY='<你的真实 key>'
+curl -H "X-API-Key: ${QUANT_API_KEY}" "http://140.245.53.52:8080/api/daily?code=600519&start=2026-05-01&limit=5"
+```
+
+> 上面的命令只演示使用方式。不要把真实 key 回写进文档文件。
+
+如果你使用 `python-dotenv`：
 
 ```python
 import os
-from dotenv import load_dotenv  # pip install python-dotenv
+from dotenv import load_dotenv
 
 load_dotenv()
-API_BASE = os.environ["QUANT_API_BASE"]
-API_KEY  = os.environ["QUANT_API_KEY"]
+base = os.environ["QUANT_API_BASE"]
+api_key = os.environ["QUANT_API_KEY"]
 ```
 
 ---
 
-## 4. 验证 API 连通性
+## 7. 数据访问方式
 
-```bash
-# 健康检查（无需认证）
-curl http://140.245.53.52:8080/api/health
+### 7.1 方式一：访问云端 API（推荐默认）
 
-# 期望返回类似：
-# {"latest":{"daily_bars":"2026-05-15","lhb_records":"2026-05-15",
-#   "market_daily":"2026-05-15","zt_pool":"2026-05-15"},"status":"ok"}
-```
+优点：
 
----
+- 最轻量
+- 不依赖数据库文件同步
+- 本机磁盘压力小
 
-## 5. API 接口一览
-
-所有接口需要在 Header 中携带 `X-API-Key`（或 URL 参数 `?api_key=`）。
-
-### 5.1 健康检查
-
-```
-GET /api/health
-```
-
-无需认证，返回各表最新数据日期。
-
----
-
-### 5.2 日 K 线
-
-```
-GET /api/daily?code=600519&start=2025-01-01&end=2026-05-15&limit=500
-```
-
-| 参数 | 说明 | 默认值 |
-|---|---|---|
-| `code` | 股票代码（必填） | - |
-| `start` | 开始日期 | `2025-01-01` |
-| `end` | 结束日期 | 今日 |
-| `limit` | 最多返回条数 | `500`，上限 `2000` |
-
-返回字段：`date, code, open, high, low, close, volume, amount, pct_chg, turnover, amplitude, change_amount`
-
----
-
-### 5.3 市场情绪
-
-```
-GET /api/market?start=2025-01-01&end=2026-05-15
-```
-
-返回 `market_daily` 全部字段，包含涨跌停数量、情绪分等。
-
----
-
-### 5.4 涨停池
-
-```
-# 单日（默认最新交易日）
-GET /api/zt?date=2026-05-15
-
-# 区间
-GET /api/zt/range?start=2026-05-01&end=2026-05-15&limit=1000
-```
-
----
-
-### 5.5 ETF 行情
-
-```
-# 单只 ETF 历史
-GET /api/etf?code=510300&start=2025-01-01&limit=250
-
-# 最新一天所有 ETF
-GET /api/etf
-```
-
----
-
-### 5.6 龙虎榜
-
-```
-# 个股历史龙虎榜（含席位）
-GET /api/lhb/stock?code=600519&limit=50
-
-# 营业部历史记录
-GET /api/lhb/seat?name=华泰证券上海分公司&limit=200
-
-# 搜索股票
-GET /api/lhb/search/stock?q=平安
-
-# 搜索营业部
-GET /api/lhb/search/seat?q=华泰
-```
-
----
-
-### 5.7 选股结果
-
-```
-# 最新选股信号
-GET /api/screen
-
-# 指定日期
-GET /api/screen?date=2026-05-15&rule=new_high_momentum
-```
-
----
-
-### 5.8 股票列表
-
-```
-# 搜索
-GET /api/stocks?q=贵州茅台
-
-# 前 200 只（按代码排序）
-GET /api/stocks
-```
-
----
-
-## 6. Python 调用示例
+示例：
 
 ```python
 import os
@@ -190,143 +365,210 @@ load_dotenv()
 BASE = os.environ["QUANT_API_BASE"]
 HEADERS = {"X-API-Key": os.environ["QUANT_API_KEY"]}
 
-
-def get_daily(code: str, start: str = "2025-01-01") -> list[dict]:
-    resp = requests.get(f"{BASE}/api/daily", params={"code": code, "start": start}, headers=HEADERS)
-    resp.raise_for_status()
-    return resp.json()["bars"]
-
-
-def get_market(start: str = "2026-01-01") -> list[dict]:
-    resp = requests.get(f"{BASE}/api/market", params={"start": start}, headers=HEADERS)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def get_zt(date: str | None = None) -> dict:
-    params = {"date": date} if date else {}
-    resp = requests.get(f"{BASE}/api/zt", params=params, headers=HEADERS)
-    resp.raise_for_status()
-    return resp.json()
-
-
-# 示例
-if __name__ == "__main__":
-    bars = get_daily("600519", start="2026-01-01")
-    print(f"茅台近期日K：{len(bars)} 条，最新收盘 {bars[0]['close']}")
-
-    market = get_market("2026-05-01")
-    print(f"市场情绪：最新 {market[0]}")
+resp = requests.get(
+    f"{BASE}/api/daily",
+    params={"code": "600519", "start": "2026-01-01", "limit": 20},
+    headers=HEADERS,
+)
+resp.raise_for_status()
+print(resp.json())
 ```
 
----
+### 7.2 方式二：从云端导出裁剪版 SQLite
 
-## 7. 本地数据库（可选）
+前提：
 
-如果需要在本地跑完整的数据处理脚本（`update_sqlite_data.py` 等），可以从云主机拉取精简版数据库：
+- 当前机器具备 SSH 权限
+- 云主机存在 `sqlite3`
+
+推荐直接使用仓库脚本：
 
 ```bash
-# 在云主机上生成精简库（2025-01-01 至今，约 150MB）
-ssh ubuntu@140.245.53.52 << 'ENDSSH'
-sqlite3 /data/quant_research/data/quant.db << 'EOF'
-ATTACH '/tmp/quant_dev.db' AS dev;
-CREATE TABLE dev.stocks AS SELECT * FROM stocks;
-CREATE TABLE dev.daily_bars AS SELECT * FROM daily_bars WHERE date >= '2025-01-01';
-CREATE TABLE dev.market_daily AS SELECT * FROM market_daily;
-CREATE TABLE dev.zt_pool AS SELECT * FROM zt_pool;
-CREATE TABLE dev.zt_previous AS SELECT * FROM zt_previous;
-CREATE TABLE dev.lhb_records AS SELECT * FROM lhb_records;
-CREATE TABLE dev.lhb_seats AS SELECT * FROM lhb_seats;
-CREATE TABLE dev.etf_daily AS SELECT * FROM etf_daily WHERE date >= '2025-01-01';
-CREATE TABLE dev.etf_holdings AS SELECT * FROM etf_holdings;
-CREATE TABLE dev.screen_results AS SELECT * FROM screen_results;
-EOF
-ENDSSH
-
-# 下载到本地
-scp ubuntu@140.245.53.52:/tmp/quant_dev.db data/quant.db
+python scripts/export_trimmed_oracle_db.py
 ```
 
-> `data/*.db` 已在 `.gitignore` 中，不会被提交。
+常用参数：
+
+```bash
+python scripts/export_trimmed_oracle_db.py --start-date 2026-01-01
+python scripts/export_trimmed_oracle_db.py --host oracle-free --output data/quant_dev.db
+```
+
+脚本默认行为：
+
+- 从 `oracle-free` 主机导出
+- 读取云端正式库 `/data/quant_research/data/quant.db`
+- 导出 `stocks` 全表
+- 导出 `daily_bars`、`market_daily`、`zt_pool`、`lhb_records` 的指定日期范围子集
+- 自动复制到本机 `data/quant_dev.db`
+
+如果你需要理解脚本内部流程，可以把它理解为：
+
+1. SSH 到云主机生成 `/tmp/quant_dev.db`
+2. 通过 `scp` 拉回本机
+
+当前这条脚本链路已经实测通过。
+
+### 7.3 方式三：同步局部 Parquet
+
+适用于：
+
+- DuckDB 分析
+- 特征工程
+- 本地数据探索
+
+建议只同步需要的日期范围或分区，不要默认同步全量历史数据。
 
 ---
 
-## 8. 开发工作流
+## 8. 日常开发流程
 
+### 8.1 推荐工作流
+
+```text
+本机开发代码
+    ↓
+本机运行基础校验 / 小样本验证
+    ↓
+提交到 GitHub
+    ↓
+GitHub Actions 部署到云主机
+    ↓
+云主机重启 API 或继续执行定时任务
 ```
-本地写代码
-    ↓
-git push origin main
-    ↓
-GitHub Actions 自动 SSH 到云主机执行 git pull + 重启 API 服务
-    ↓
-约 30 秒后新代码生效
+
+### 8.2 本机开发建议顺序
+
+1. 激活虚拟环境
+2. `git pull`
+3. 修改代码 / 配置 / 文档
+4. 跑本地校验命令
+5. 提交 Git
+6. 推送 GitHub
+
+### 8.3 推荐本地校验命令
+
+```bash
+# 语法检查
+python -m compileall src scripts
+
+# 测试收集
+python -m pytest --collect-only -q
+
+# 基础环境检查
+python test_system.py
+
+# 查看脚本 CLI 是否能正常启动
+python scripts/prepare_features.py --help
+python scripts/update_daily_incremental.py --help
 ```
 
-### 首次配置 GitHub Actions Secrets
+注意：
 
-在 GitHub 仓库 → Settings → Secrets and variables → Actions 中添加：
+- `test_system.py` 中的 AkShare 连通性可能受外部源波动影响
+- 如果单股抓取、Parquet、DuckDB 都通过，而 AkShare 总体探测失败，通常更像是外部源不稳定，不是本机环境损坏
 
-| Secret 名 | 值 |
+---
+
+## 9. GitHub 与云端部署流程
+
+当前仓库已有自动部署工作流：
+
+文件：
+
+```text
+.github/workflows/deploy.yml
+```
+
+核心行为：
+
+1. 监听 `master` 分支 push
+2. 通过 `appleboy/ssh-action` 登录云主机
+3. 在 `/data/quant_research` 执行 `git pull origin master`
+4. 重启 `quant-api`
+
+### 9.1 需要的 GitHub Secrets
+
+| Secret | 说明 |
 |---|---|
-| `ORACLE_HOST` | `140.245.53.52` |
-| `ORACLE_USER` | `ubuntu` |
-| `ORACLE_SSH_KEY` | 本机 SSH 私钥内容（`~/.ssh/id_rsa` 的完整文本） |
+| `ORACLE_HOST` | 云主机地址，当前为 `140.245.53.52` |
+| `ORACLE_USER` | 登录用户，当前文档示例为 `ubuntu` |
+| `ORACLE_SSH_KEY` | 拥有云主机权限的私钥内容 |
 
-> 对应的公钥需要在云主机 `~/.ssh/authorized_keys` 中已存在。
+### 9.2 当前注意事项
+
+当前已统一为：
+
+- workflow 监听 `master`
+- 远端执行 `git pull origin master`
+
+与当前仓库真实默认分支保持一致。
 
 ---
 
-## 9. 云主机运维参考
+## 10. 云端运维边界
+
+以下动作应视为**生产动作**，优先在云主机完成：
+
+- 正式日线增量更新
+- 正式回测结果产出
+- 正式静态报表生成
+- nginx/API 服务重启
+- 生产数据库维护
+
+示例命令：
 
 ```bash
-# 查看定时任务状态
 systemctl status quant-daily.timer
-
-# 手动触发一次数据更新
-sudo systemctl start quant-daily
-
-# 查看今日运行日志
-tail -f /data/quant_research/logs/daily-run-$(date +%Y%m%d).log
-
-# 查看 API 服务日志
-tail -f /data/quant_research/logs/api_server.log
-
-# 重启 API 服务
 sudo systemctl restart quant-api
-
-# 手动数据健康检查
-cd /data/quant_research
-/data/quant_research_venv/bin/python src/health_check.py --db data/quant.db --dry-run
+sudo systemctl start quant-daily
+tail -f /data/quant_research/logs/api_server.log
 ```
 
 ---
 
-## 10. 项目目录结构
+## 11. 当前已知待补事项
 
-```
-ashare-quant/
-├── src/
-│   ├── api_server.py          # Flask API 服务（端口 8081，nginx 转发至 8080）
-│   ├── health_check.py        # 每日数据健康检查 + 自动补全
-│   ├── update_sqlite_data.py  # 主数据采集（日K、龙虎榜、市场情绪）
-│   ├── update_zt_pool.py      # 涨停池采集
-│   ├── update_etf.py          # ETF 行情采集
-│   ├── update_shares.py       # 股本信息更新
-│   ├── screener.py            # 选股引擎
-│   ├── generate_report.py     # 静态报告生成
-│   ├── quant_core.py          # 公共常量/工具
-│   └── quant_db.py            # 数据库连接封装
-├── deploy/
-│   └── scripts/
-│       └── quant-daily-run.sh # 每日定时脚本（同步到 logs/）
-├── docs/
-│   └── dev-setup.md           # 本文档
-├── .github/
-│   └── workflows/
-│       └── deploy.yml         # 自动部署 CI/CD
-├── data/                      # 数据库文件（不上传 Git）
-│   ├── quant.db
-│   └── README.md
-└── reports/                   # 生成的静态 HTML 报告（不上传 Git）
-```
+这是本次整理后仍需要补齐的内容：
+
+1. **在本机 `.env` 中配置可用的 `QUANT_API_KEY` 并完成受保护接口实测**
+2. **视需要扩展裁剪脚本支持更多表和自定义表选择**
+3. **如未来切换默认分支，需同步更新 workflow 与文档中的 `master` 引用**
+4. **把 `pytest`、`pyyaml` 补进正式依赖清单**
+5. **明确脚本首次运行所需目录（如 `logs/`）的初始化方式**
+
+---
+
+## 11. 开发流程实测结论
+
+截至当前，本项目的开发流程已验证到以下程度：
+
+1. **本机开发环境可用**
+   - 外部虚拟环境已创建并可运行
+   - `compileall` 通过
+   - `pytest --collect-only` 通过
+   - 主要脚本 CLI 可启动
+
+2. **本机到云端 API 通路可用**
+   - 健康检查接口可访问
+   - 鉴权接口在无 key 时正确拒绝
+   - 鉴权接口在有 key 时成功返回业务数据
+
+3. **本机到云端 SSH 通路可用**
+   - 可通过 `ssh oracle-free` 登录
+   - 可检查云端仓库、数据库、服务和 Python 环境
+
+4. **云端生产运行态正常**
+   - 数据库存在
+   - API / timer / nginx 服务均为 active
+   - 健康检查为 healthy
+
+5. **云端裁剪版 SQLite → 本机消费链路已验证完成**
+
+---
+
+## 12. 一句话结论
+
+本项目今后的推荐工作方式是：
+
+> **本机开发，GitHub 管代码，云端保留正式数据库与生产任务；本机默认通过 API 或裁剪数据集工作，而不是长期直接在云主机上改代码。**
