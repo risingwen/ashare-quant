@@ -601,6 +601,50 @@ def code_value(value: object | None) -> str | None:
     return text.zfill(6) if text.isdigit() and len(text) <= 6 else text
 
 
+def load_popularity_csv_fallback(pd, base_dir: Path, end_date: str) -> list[tuple[str, str, int, str, str, float | None, str]]:
+    fallback_paths = [
+        base_dir / "reports" / "hot_rank_multi_source_snapshot_latest.csv",
+        base_dir / "reports" / "hot_rank_wencai_last30_normalized.csv",
+    ]
+    normalized_end_date = normalize_date(end_date)
+    rows: list[tuple[str, str, int, str, str, float | None, str]] = []
+
+    for path in fallback_paths:
+        if not path.exists() or path.stat().st_size == 0:
+            continue
+        df = pd.read_csv(path)
+        if df is None or df.empty:
+            continue
+
+        if "date" in df.columns:
+            df = df[df["date"].astype(str) == normalized_end_date]
+        if df is None or df.empty:
+            continue
+
+        for row in df.to_dict(orient="records"):
+            code = code_value(row.get("code"))
+            name = str(row.get("name") or "").strip()
+            rank = to_float(row.get("rank"))
+            source = str(row.get("source") or path.stem).strip()
+            if not code or not name or rank is None:
+                continue
+            rows.append(
+                (
+                    source,
+                    normalize_date(row.get("date") or normalized_end_date),
+                    int(rank),
+                    code,
+                    name,
+                    to_float(row.get("heat") or row.get("score")),
+                    json.dumps(row, ensure_ascii=False, default=str),
+                )
+            )
+        if rows:
+            break
+
+    return rows
+
+
 def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: float, run_id: str, allow_snapshot: bool = True) -> None:
     fetchers: list[tuple[str, Callable]] = []
     has_em = hasattr(ak, "stock_hot_rank_em")
@@ -650,6 +694,21 @@ def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: 
             conn.executemany(insert_sql, rows)
         total += len(rows)
         print(f"Popularity {source}: {len(rows)} rows")
+
+    if total == 0:
+        try:
+            fallback_rows = load_popularity_csv_fallback(pd, Path(__file__).resolve().parent.parent, end_date)
+        except Exception as exc:  # noqa: BLE001
+            with conn:
+                insert_issue(conn, run_id, "popularity:csv_fallback", str(exc))
+            print(f"Popularity CSV fallback failed: {exc}")
+            fallback_rows = []
+
+        if fallback_rows:
+            with conn:
+                conn.executemany(insert_sql, fallback_rows)
+            total += len(fallback_rows)
+            print(f"Popularity csv_fallback: {len(fallback_rows)} rows")
     print(f"Popularity update done. rows={total}")
 
 
