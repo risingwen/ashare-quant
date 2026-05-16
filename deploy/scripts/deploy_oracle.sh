@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="${REPO_DIR:-/data/quant_research}"
+VENV_PYTHON="${VENV_PYTHON:-/data/quant_research_venv/bin/python}"
+DB_PATH="${DB_PATH:-/data/quant_research/data/quant.db}"
+REPORT_DIR="${REPORT_DIR:-/data/quant_research/reports}"
+START_DATE="${START_DATE:-2025-01-01}"
+BRANCH="${BRANCH:-master}"
+RESTART_API="${RESTART_API:-1}"
+RUN_FULL_PIPELINE="${RUN_FULL_PIPELINE:-0}"
+
+echo "========================================"
+echo "deploy_oracle start: $(date '+%F %T')"
+echo "REPO_DIR=${REPO_DIR}"
+echo "BRANCH=${BRANCH}"
+echo "RUN_FULL_PIPELINE=${RUN_FULL_PIPELINE}"
+echo "RESTART_API=${RESTART_API}"
+echo "========================================"
+
+cd "${REPO_DIR}"
+
+echo "[1/5] Fetch latest code"
+git fetch origin
+git pull --ff-only origin "${BRANCH}"
+echo "HEAD=$(git rev-parse HEAD)"
+
+if [[ "${RUN_FULL_PIPELINE}" == "1" ]]; then
+  echo "[2/5] Start full quant-daily pipeline"
+  sudo systemctl start quant-daily.service
+  echo "Use: sudo journalctl -u quant-daily.service -f"
+else
+  echo "[2/5] Regenerate reports and homepage assets"
+  "${VENV_PYTHON}" src/generate_report.py \
+    --db "${DB_PATH}" \
+    --report-dir "${REPORT_DIR}" \
+    --start-date "${START_DATE}"
+fi
+
+if [[ "${RESTART_API}" == "1" ]]; then
+  echo "[3/5] Restart quant-api.service"
+  sudo systemctl restart quant-api.service
+  sudo systemctl is-active quant-api.service
+else
+  echo "[3/5] Skip API restart"
+fi
+
+echo "[4/5] Verify generated homepage/report files"
+"${VENV_PYTHON}" - <<'PY'
+from pathlib import Path
+import json
+
+report_dir = Path("/data/quant_research/reports/latest")
+summary_path = report_dir / "summary.json"
+index_path = report_dir / "index.html"
+report_path = report_dir / "report.html"
+
+summary = json.loads(summary_path.read_text(encoding="utf-8"))
+index_text = index_path.read_text(encoding="utf-8")
+report_text = report_path.read_text(encoding="utf-8")
+
+print(f"latest_date={summary.get('latest_date')}")
+print(f"data_status_entries={len(summary.get('data_status', []))}")
+print(f"index_has_data_status={('数据更新情况' in index_text)}")
+print(f"report_has_data_status={('数据更新状态' in report_text)}")
+PY
+
+echo "[5/5] Suggested remote checks"
+echo "curl http://140.245.53.52:8080/api/health"
+echo "curl http://140.245.53.52:8080/index.html?v=$(date +%s)"
+echo "curl http://140.245.53.52:8080/report.html?v=$(date +%s)"
+
+echo "deploy_oracle done: $(date '+%F %T')"
