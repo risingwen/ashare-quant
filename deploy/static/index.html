@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股量化研究平台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+  }
+
+  .navbar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    height: 60px;
+    gap: 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .navbar-brand {
+    font-size: 17px;
+    font-weight: 700;
+    color: #58a6ff;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .navbar-links { display: flex; gap: 4px; }
+  .navbar-links a {
+    color: #8b949e;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all .15s;
+  }
+  .navbar-links a:hover,
+  .navbar-links a.active {
+    color: #e6edf3;
+    background: #21262d;
+  }
+  .navbar-date {
+    margin-left: auto;
+    font-size: 13px;
+    color: #484f58;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
+  .hero { text-align: center; padding: 48px 0 40px; }
+  .hero h1 { font-size: 32px; font-weight: 700; color: #e6edf3; margin-bottom: 10px; }
+  .hero p { font-size: 15px; color: #8b949e; }
+
+  .emotion-bar-wrap {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    padding: 24px 32px;
+    margin-bottom: 36px;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .emotion-score-block { text-align: center; min-width: 100px; }
+  .emotion-score-block .label { font-size: 12px; color: #8b949e; margin-bottom: 4px; }
+  .emotion-score-block .value { font-size: 36px; font-weight: 800; }
+  .emotion-score-block .value.hot { color: #e84c3d; }
+  .emotion-score-block .value.warm { color: #ffa657; }
+  .emotion-score-block .value.cool { color: #58a6ff; }
+  .emotion-score-block .value.cold { color: #8b949e; }
+
+  .emotion-gauge { flex: 1; min-width: 200px; }
+  .emotion-gauge .gauge-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #484f58;
+    margin-bottom: 6px;
+  }
+  .gauge-track {
+    height: 10px;
+    border-radius: 99px;
+    background: linear-gradient(to right, #1c6ef3, #07a071, #ffa657, #e84c3d);
+    position: relative;
+  }
+  .gauge-pointer {
+    position: absolute;
+    top: -4px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    border: 3px solid #0d1117;
+    transform: translateX(-50%);
+    box-shadow: 0 0 0 2px #58a6ff;
+    transition: left .5s ease;
+  }
+
+  .emotion-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+  .emotion-stat { text-align: center; }
+  .emotion-stat .s-label { font-size: 12px; color: #8b949e; }
+  .emotion-stat .s-value { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .s-value.up { color: #e84c3d; }
+  .s-value.down { color: #07a071; }
+  .s-value.amount { color: #ffa657; }
+  .s-value.ratio { color: #58a6ff; }
+  .s-link {
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed rgba(255,255,255,.2);
+    transition: border-color .15s;
+  }
+  .s-link:hover { border-bottom-color: currentColor; }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin-bottom: 16px;
+    margin-top: 36px;
+    border-left: 3px solid #58a6ff;
+    padding-left: 12px;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .card,
+  .status-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    padding: 22px 24px;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all .18s;
+    position: relative;
+    overflow: hidden;
+  }
+  a.card { text-decoration: none; }
+  .card::before,
+  .status-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 14px 14px 0 0;
+    background: var(--accent, #58a6ff);
+    opacity: 0;
+    transition: opacity .18s;
+  }
+  .card:hover {
+    border-color: #58a6ff44;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px #0005;
+  }
+  .card:hover::before,
+  .status-card::before {
+    opacity: 1;
+  }
+  .status-card { cursor: default; }
+
+  .card-icon { font-size: 28px; }
+  .card-title { font-size: 16px; font-weight: 700; color: #e6edf3; }
+  .card-desc { font-size: 13px; color: #8b949e; line-height: 1.5; }
+  .card-meta {
+    font-size: 12px;
+    color: #484f58;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #21262d;
+    color: #8b949e;
+  }
+  .tag.green { background: #1a3a25; color: #07a071; }
+  .tag.blue { background: #1a2a3a; color: #58a6ff; }
+  .tag.orange { background: #3a2a1a; color: #ffa657; }
+  .tag.red { background: #3a1a1a; color: #e84c3d; }
+  .tag.gray { background: #2b3137; color: #c9d1d9; }
+
+  .event-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .event-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .event-card .e-title { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+  .event-card .e-n { font-size: 22px; font-weight: 800; color: #e6edf3; }
+  .event-card .e-stats { font-size: 12px; color: #484f58; margin-top: 6px; line-height: 1.7; }
+  .e-stats span { color: #8b949e; }
+
+  .notice {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-left: 3px solid #58a6ff;
+    border-radius: 10px;
+    padding: 16px 18px;
+    color: #8b949e;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .footer {
+    text-align: center;
+    color: #484f58;
+    font-size: 12px;
+    padding-top: 60px;
+  }
+</style>
+<link rel="stylesheet" href="index-responsive.css">
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
+  <div class="navbar-links">
+    <a href="index.html" class="active">首页</a>
+    <a href="report.html">综合报告</a>
+    <a href="hot_rank_iframe.html">人气热榜</a>
+    <a href="longhu.html">龙虎榜</a>
+    <a href="etf.html">ETF雷达</a>
+    <a href="docs.html">文档</a>
+  </div>
+  <div class="navbar-date" id="nav-date">加载中...</div>
+</nav>
+
+<div class="container">
+
+  <div class="hero">
+    <h1>A股量化研究平台</h1>
+    <p>每个交易日自动更新 · 数据覆盖 1991 年至今</p>
+  </div>
+
+  <div class="emotion-bar-wrap" id="emotion-wrap">
+    <div class="emotion-score-block">
+      <div class="label">市场情绪分</div>
+      <div class="value" id="emotion-val">--</div>
+      <div style="font-size:12px;color:#484f58;margin-top:4px;" id="emotion-label">--</div>
+    </div>
+    <div class="emotion-gauge">
+      <div class="gauge-label"><span>冷</span><span>暖</span><span>热</span><span>极热</span></div>
+      <div class="gauge-track">
+        <div class="gauge-pointer" id="gauge-ptr" style="left:50%"></div>
+      </div>
+    </div>
+    <div class="emotion-stats">
+      <div class="emotion-stat">
+        <div class="s-label">涨停</div>
+        <a href="report.html#limitup" class="s-value up s-link" id="stat-lu">--</a>
+      </div>
+      <div class="emotion-stat">
+        <div class="s-label">跌停</div>
+        <a href="report.html#limitdown" class="s-value down s-link" id="stat-ld">--</a>
+      </div>
+      <div class="emotion-stat">
+        <div class="s-label">上涨比例</div>
+        <div class="s-value ratio" id="stat-up">--</div>
+      </div>
+      <div class="emotion-stat">
+        <div class="s-label">成交额</div>
+        <div class="s-value amount" id="stat-amt">--</div>
+      </div>
+      <div class="emotion-stat">
+        <div class="s-label">最新日期</div>
+        <div class="s-value" style="color:#e6edf3;font-size:15px" id="stat-date">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">数据更新情况</div>
+  <div class="card-grid" id="data-status-grid">
+    <div class="status-card" style="--accent:#58a6ff">
+      <div class="card-title">正在加载</div>
+      <div class="card-desc">读取 summary.json 中的数据模块状态...</div>
+    </div>
+  </div>
+
+  <div class="section-title">事件统计摘要</div>
+  <div class="event-grid" id="event-grid">
+    <div class="event-card"><div class="e-title">加载中...</div></div>
+  </div>
+
+  <div class="section-title">数据模块</div>
+  <div class="card-grid">
+    <a class="card" href="report.html" style="--accent:#58a6ff">
+      <div class="card-icon">📋</div>
+      <div class="card-title">综合研究报告</div>
+      <div class="card-desc">涵盖涨停池、人气榜、连板晋级、策略回测的完整日报</div>
+      <div class="card-meta">
+        <span class="tag blue">每日更新</span>
+        <span class="tag">回测 · 榜单 · 连板</span>
+      </div>
+    </a>
+
+    <a class="card" href="hot_rank_iframe.html" style="--accent:#ffa657">
+      <div class="card-icon">🔥</div>
+      <div class="card-title">实时人气热榜</div>
+      <div class="card-desc">聚合通达信、东方财富、同花顺、财联社四大平台实时热榜</div>
+      <div class="card-meta">
+        <span class="tag orange">实时</span>
+        <span class="tag">通达信 · 东财 · 同花顺 · 财联社</span>
+      </div>
+    </a>
+
+    <a class="card" href="report.html#popularity" style="--accent:#07a071">
+      <div class="card-icon">📈</div>
+      <div class="card-title">人气榜数据</div>
+      <div class="card-desc">东方财富每日 Top100 人气榜，带涨跌幅、成交额对照</div>
+      <div class="card-meta">
+        <span class="tag green">每日更新</span>
+        <span class="tag">东财热榜</span>
+      </div>
+    </a>
+
+    <a class="card" href="report.html#limitup" style="--accent:#e84c3d">
+      <div class="card-icon">🚀</div>
+      <div class="card-title">涨停池</div>
+      <div class="card-desc">今日涨停股票，含封板时间、封单额、连板数、涨停原因</div>
+      <div class="card-meta">
+        <span class="tag red">每日更新</span>
+        <span class="tag">连板 · 封单 · 原因</span>
+      </div>
+    </a>
+
+    <a class="card" href="longhu.html" style="--accent:#e3b341">
+      <div class="card-icon">🐉</div>
+      <div class="card-title">龙虎榜</div>
+      <div class="card-desc">每日龙虎榜游资席位数据，净买额、上榜原因、上榜后表现</div>
+      <div class="card-meta">
+        <span class="tag green">每日更新</span>
+        <span class="tag">席位 · 净买 · 后续表现</span>
+      </div>
+    </a>
+
+    <a class="card" href="etf.html" style="--accent:#07a071">
+      <div class="card-icon">📡</div>
+      <div class="card-title">ETF雷达</div>
+      <div class="card-desc">筛选历史新高或均线向上的ETF，点击查看前十大持仓，成交额排行</div>
+      <div class="card-meta">
+        <span class="tag green">每日更新</span>
+        <span class="tag">新高 · MA向上 · 持仓</span>
+      </div>
+    </a>
+
+    <a class="card" href="emotion.html" style="--accent:#58a6ff">
+      <div class="card-icon">🌡️</div>
+      <div class="card-title">市场温度专题</div>
+      <div class="card-desc">近20日情绪分走势图、涨跌停比、成交额、连板晋级统计</div>
+      <div class="card-meta">
+        <span class="tag green">每日更新</span>
+        <span class="tag">情绪分 · 走势图 · 连板</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="section-title">说明与文档</div>
+  <div class="notice">
+    首页会直接读取同目录下的 <code>summary.json</code> 来展示情绪分、事件统计和各数据模块的更新状态。
+    如果这里看到某个模块显示“落后”或“缺失”，可以直接进入综合报告页查看更详细的数据更新时间，或到文档页查看部署与更新流程。
+  </div>
+
+  <div class="footer">
+    数据来源：AkShare · 数据库覆盖 1991-01-14 至今 · 每工作日 19:45 (北京时间) 自动更新
+  </div>
+
+</div>
+
+<script>
+const STATUS_TAG_CLASS = {
+  fresh: 'green',
+  lagging: 'orange',
+  stale: 'red',
+  missing: 'gray',
+  unknown: 'blue',
+};
+
+const STATUS_ACCENT = {
+  fresh: '#07a071',
+  lagging: '#ffa657',
+  stale: '#e84c3d',
+  missing: '#8b949e',
+  unknown: '#58a6ff',
+};
+
+fetch(`summary.json?v=${Date.now()}`)
+  .then(r => r.json())
+  .then(d => {
+    const lm = d.latest_market || {};
+    const score = lm.emotion_score || 0;
+
+    const ev = document.getElementById('emotion-val');
+    ev.textContent = score.toFixed(1);
+    let cls = 'cool', label = '偏冷';
+    if (score >= 80) { cls = 'hot'; label = '极热 🔥'; }
+    else if (score >= 60) { cls = 'warm'; label = '偏暖 ☀️'; }
+    else if (score >= 40) { cls = 'cool'; label = '中性 🌤'; }
+    else { cls = 'cold'; label = '偏冷 🌧'; }
+    ev.className = 'value ' + cls;
+    document.getElementById('emotion-label').textContent = label;
+
+    document.getElementById('gauge-ptr').style.left = Math.min(Math.max(score, 2), 98) + '%';
+
+    document.getElementById('stat-lu').textContent = lm.limit_up_count ?? '--';
+    document.getElementById('stat-ld').textContent = lm.limit_down_count ?? '--';
+    document.getElementById('stat-up').textContent = lm.up_ratio != null ? (lm.up_ratio * 100).toFixed(1) + '%' : '--';
+    const amt = lm.amount_e8;
+    document.getElementById('stat-amt').textContent = amt == null
+      ? '--'
+      : (amt >= 10000 ? (amt / 10000).toFixed(2) + ' 万亿' : amt.toFixed(0) + ' 亿');
+    document.getElementById('stat-date').textContent = d.latest_date || '--';
+    document.getElementById('nav-date').textContent = d.latest_date ? '最新数据：' + d.latest_date : '数据加载失败';
+
+    const evMap = {
+      top_amount_pool: '量能龙头池',
+      limit_up_pool: '涨停池',
+      hot_limit_up_pool: '热门涨停池',
+      old_reversal_rule: '旧逆转规则',
+    };
+    const eventGrid = document.getElementById('event-grid');
+    eventGrid.innerHTML = '';
+    for (const [key, title] of Object.entries(evMap)) {
+      const item = (d.event_summaries || {})[key];
+      if (!item) {
+        continue;
+      }
+      const otc = item.open_to_close || {};
+      const lu = item.next_limit_up_rate;
+      const win = otc.win_rate;
+      eventGrid.innerHTML += `
+        <div class="event-card">
+          <div class="e-title">${title}</div>
+          <div class="e-n">${Number(item.count || 0).toLocaleString()}</div>
+          <div class="e-stats">
+            次日涨停率 <span>${lu != null ? (lu * 100).toFixed(1) + '%' : '-'}</span><br>
+            次日开收均值 <span>${otc.avg != null ? otc.avg.toFixed(2) + '%' : '-'}</span><br>
+            胜率 <span>${win != null ? (win * 100).toFixed(1) + '%' : '-'}</span>
+          </div>
+        </div>`;
+    }
+
+    const statusGrid = document.getElementById('data-status-grid');
+    const rows = Array.isArray(d.data_status) ? d.data_status : [];
+    if (!rows.length) {
+      statusGrid.innerHTML = `
+        <div class="status-card" style="--accent:#8b949e">
+          <div class="card-title">暂无状态数据</div>
+          <div class="card-desc">summary.json 中未提供 data_status。</div>
+        </div>`;
+      return;
+    }
+    statusGrid.innerHTML = rows.map(row => {
+      const tagClass = STATUS_TAG_CLASS[row.status] || 'gray';
+      const accent = STATUS_ACCENT[row.status] || '#58a6ff';
+      const latestDate = row.latest_date || '-';
+      const detail = row.gap_days == null
+        ? '暂时无法计算落后天数'
+        : (row.gap_days <= 0 ? '已追平最新交易日' : `落后 ${row.gap_days} 天`);
+      return `
+        <div class="status-card" style="--accent:${accent}">
+          <div class="card-title">${row.label}</div>
+          <div class="card-desc">最新日期：${latestDate}</div>
+          <div class="card-meta">
+            <span class="tag ${tagClass}">${row.status_label || '未知'}</span>
+            <span class="tag">${detail}</span>
+          </div>
+        </div>`;
+    }).join('');
+  })
+  .catch(() => {
+    document.getElementById('nav-date').textContent = '数据加载失败';
+    document.getElementById('data-status-grid').innerHTML = `
+      <div class="status-card" style="--accent:#e84c3d">
+        <div class="card-title">数据加载失败</div>
+        <div class="card-desc">无法读取首页所需的 summary.json。</div>
+      </div>`;
+  });
+</script>
+</body>
+</html>

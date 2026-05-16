@@ -8,6 +8,7 @@ import csv
 import html
 import json
 import math
+import shutil
 import sqlite3
 import statistics
 from collections import defaultdict
@@ -21,6 +22,7 @@ from quant_db import connect
 
 DEFAULT_START_DATE = "2025-01-01"
 DEFAULT_TOP_N = 20
+STATIC_ASSETS_DIR = Path(__file__).resolve().parent.parent / "deploy" / "static"
 
 
 def parse_args() -> argparse.Namespace:
@@ -2261,6 +2263,13 @@ def data_status_table(status_rows: list[dict[str, object]]) -> str:
     )
 
 
+def publish_static_assets(output_dir: Path) -> None:
+    for name in ("index.html", "index-responsive.css"):
+        source = STATIC_ASSETS_DIR / name
+        if source.exists():
+            shutil.copy2(source, output_dir / name)
+
+
 def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, object]], latest_hot: list[dict[str, object]], popularity_rows: list[dict[str, object]], limit_pool_rows: list[dict[str, object]], strategy_rows: list[dict[str, object]], screen_rows: list[dict[str, object]] | None = None) -> str:
     candidate_columns = [("code", "代码"), ("name", "名称"), ("market", "市场"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%"), ("is_limit_up", "涨停"), ("streak", "连板"), ("hot_score", "热度分")]
     popularity_columns = [("source", "来源"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%")]
@@ -3479,6 +3488,7 @@ def main() -> None:
         (output_dir / "report.html").write_text(render_html(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows, screen_rows), encoding="utf-8")
         (output_dir / "report.md").write_text(render_markdown(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows), encoding="utf-8")
         (output_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        publish_static_assets(output_dir)
         (output_dir / "longhu.html").write_text(render_longhu_html(lhb_rows, latest_date, lhb_seat_stats), encoding="utf-8")
         (output_dir / "emotion.html").write_text(render_emotion_html(summary), encoding="utf-8")
         (output_dir / "etf.html").write_text(render_etf_html(_conn, latest_date), encoding="utf-8")
