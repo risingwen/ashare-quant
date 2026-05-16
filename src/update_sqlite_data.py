@@ -603,11 +603,17 @@ def code_value(value: object | None) -> str | None:
 
 def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: float, run_id: str, allow_snapshot: bool = True) -> None:
     fetchers: list[tuple[str, Callable]] = []
-    if hasattr(ak, "stock_hot_rank_em") and allow_snapshot:
+    has_em = hasattr(ak, "stock_hot_rank_em")
+    has_wc = hasattr(ak, "stock_hot_rank_wc")
+    allow_em_snapshot = allow_snapshot or (has_em and not has_wc)
+
+    if has_em and allow_em_snapshot:
         fetchers.append(("eastmoney_hot_rank", lambda: ak.stock_hot_rank_em()))
-    elif hasattr(ak, "stock_hot_rank_em"):
+        if not allow_snapshot:
+            print("Using eastmoney_hot_rank snapshot on non-trading-day run because no dated fallback endpoint is available")
+    elif has_em:
         print("Skipping eastmoney_hot_rank snapshot on non-trading-day run")
-    if hasattr(ak, "stock_hot_rank_wc"):
+    if has_wc:
         fetchers.append(("wencai_hot_rank", lambda: ak.stock_hot_rank_wc(date=end_date)))
 
     if not fetchers:
