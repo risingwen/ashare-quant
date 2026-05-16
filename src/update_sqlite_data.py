@@ -32,6 +32,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--daily-source", choices=["em", "sina", "mootdx"], default="mootdx", help="Daily data source: mootdx (TCP, no IP ban), sina, or em (eastmoney)")
     parser.add_argument("--backfill-history", action="store_true", help="Fetch data before each stock's first stored date")
     parser.add_argument("--socket-timeout", type=float, default=25.0, help="Default network socket timeout in seconds")
+    parser.add_argument("--stock-batch-size", type=int, default=500, help="Commit to DB every N stocks; 0 = commit all at end")
+    parser.add_argument("--date-chunk-days", type=int, default=0, help="Split date range into chunks of N calendar days; 0 = no split")
     return parser.parse_args()
 
 
@@ -81,6 +83,31 @@ def fetch_cached_stock_list(conn) -> list[dict[str, str]]:
     return [{"code": row["code"], "name": row["name"]} for row in rows]
 
 
+def _call_with_hard_timeout(func: Callable, timeout_seconds: float):
+    """Run func() in a thread; raise TimeoutError if it doesn't return in time.
+
+    socket.setdefaulttimeout() does not cover requests/urllib3 connection pools
+    used by some AkShare endpoints. This wrapper provides a hard wall-clock cap.
+
+    The executor is shut down without waiting so a hung thread (e.g. a stalled
+    TCP connection) does not block the caller after the timeout fires.
+
+    WARNING: hung threads share the process's urllib3/requests connection pool,
+    which may cause subsequent HTTP calls to also hang. For endpoints known to
+    hang (e.g. stock_info_a_code_name), call this once and then prefer caches.
+    """
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+    exe = ThreadPoolExecutor(max_workers=1)
+    future = exe.submit(func)
+    try:
+        result = future.result(timeout=timeout_seconds)
+        exe.shutdown(wait=False)
+        return result
+    except FuturesTimeoutError:
+        exe.shutdown(wait=False)
+        raise TimeoutError(f"Call timed out after {timeout_seconds}s")
+
+
 def fetch_stock_list(conn, ak, retries: int, sleep_seconds: float, prefer_cache: bool = False) -> list[dict[str, str]]:
     if prefer_cache:
         cached = fetch_cached_stock_list(conn)
@@ -90,10 +117,10 @@ def fetch_stock_list(conn, ak, retries: int, sleep_seconds: float, prefer_cache:
 
     try:
         if hasattr(ak, "stock_info_a_code_name"):
-            df = call_with_retry(lambda: ak.stock_info_a_code_name(), retries, sleep_seconds)
+            df = _call_with_hard_timeout(lambda: ak.stock_info_a_code_name(), timeout_seconds=30)
             stocks = [{"code": str(row["code"]).zfill(6), "name": str(row["name"])} for _, row in df.iterrows()]
         else:
-            df = call_with_retry(lambda: ak.stock_zh_a_spot_em(), retries, sleep_seconds)
+            df = _call_with_hard_timeout(lambda: ak.stock_zh_a_spot_em(), timeout_seconds=30)
             stocks = [{"code": str(row["代码"]).zfill(6), "name": str(row["名称"])} for _, row in df.iterrows()]
         with conn:
             for item in stocks:
@@ -133,7 +160,7 @@ def resolve_effective_end_date(conn, ak, requested_end_date: str, retries: int, 
 
     if hasattr(ak, "tool_trade_date_hist_sina"):
         try:
-            df = call_with_retry(lambda: ak.tool_trade_date_hist_sina(), min(retries, 2), sleep_seconds)
+            df = _call_with_hard_timeout(lambda: ak.tool_trade_date_hist_sina(), timeout_seconds=20)
             for column in df.columns:
                 column_dates = []
                 for value in df[column].dropna().tolist():
@@ -409,7 +436,7 @@ def fetch_daily_akshare(code: str, start_date: str, end_date: str, db_prev_close
     return rows
 
 
-def fetch_daily_df(ak, code: str, start_date: str, end_date: str, source: str, market: str = "", conn=None):
+def fetch_daily_df(ak, code: str, start_date: str, end_date: str, source: str, market: str = "", conn=None, db_prev_close: float | None = None):
     """Route to the appropriate data source based on market and source flag.
 
     Returns (rows: list[tuple], source_label: str) where rows are ready for INSERT.
@@ -417,11 +444,11 @@ def fetch_daily_df(ak, code: str, start_date: str, end_date: str, source: str, m
                BSE 8/4-prefix skipped (no accessible source).
     - em/sina: legacy akshare paths, backward compatible.
     conn: optional DB connection to look up prev_close before start_date (fixes new-stock first-day pct_chg=0 bug).
+          NOTE: when called from a worker thread, pass db_prev_close directly instead to avoid SQLite thread-safety issues.
     """
     # Query DB for the close price of the trading day immediately before start_date,
     # so that the first bar in the fetched range has a correct pct_chg.
-    db_prev_close: float | None = None
-    if conn is not None:
+    if db_prev_close is None and conn is not None:
         row = conn.execute(
             "SELECT close FROM daily_bars WHERE code=? AND date<? ORDER BY date DESC LIMIT 1",
             (code, normalize_date(start_date)),
@@ -475,17 +502,27 @@ def update_daily_bars(conn, ak, stocks: list[dict[str, str]], args: argparse.Nam
         if start_date > end_date:
             skipped += 1
             continue
-        tasks.append({"code": code, "name": name, "last": last, "start_date": start_date, "end_date": end_date, "market": market_map.get(code, "")})
+        # Pre-fetch prev_close in the main thread to avoid SQLite cross-thread access in workers.
+        prev_close_row = conn.execute(
+            "SELECT close FROM daily_bars WHERE code=? AND date<? ORDER BY date DESC LIMIT 1",
+            (code, normalize_date(start_date)),
+        ).fetchone()
+        db_prev_close: float | None = float(prev_close_row[0]) if (prev_close_row and prev_close_row[0]) else None
+        tasks.append({"code": code, "name": name, "last": last, "start_date": start_date, "end_date": end_date, "market": market_map.get(code, ""), "db_prev_close": db_prev_close})
 
     def fetch_one(task: dict[str, object]) -> tuple[dict[str, object], list[tuple] | None, str | None]:
         code = str(task["code"])
         start_date = str(task["start_date"])
         end_date = str(task["end_date"])
         market = str(task.get("market", ""))
+        db_prev_close: float | None = task.get("db_prev_close")  # type: ignore[assignment]
         time.sleep(args.sleep)
         try:
             result, source_label = call_with_retry(
-                lambda: fetch_daily_df(ak, code, start_date, end_date, args.daily_source, market, conn=conn),
+                lambda: _call_with_hard_timeout(
+                    lambda: fetch_daily_df(ak, code, start_date, end_date, args.daily_source, market, db_prev_close=db_prev_close),
+                    timeout_seconds=60,
+                ),
                 args.retries,
                 args.sleep,
             )
@@ -509,29 +546,40 @@ def update_daily_bars(conn, ak, stocks: list[dict[str, str]], args: argparse.Nam
         return
 
     workers = max(1, args.workers)
-    print(f"Daily tasks to fetch: {len(tasks)}, workers={workers}")
+    batch_size = args.stock_batch_size if args.stock_batch_size > 0 else len(tasks)
+    total = len(tasks)
+    print(f"Daily tasks to fetch: {total}, workers={workers}, batch_size={batch_size}")
+
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = [executor.submit(fetch_one, task) for task in tasks]
+        pending_rows: list[tuple] = []
         for completed, future in enumerate(as_completed(futures), start=1):
             task, rows, error = future.result()
             code = str(task["code"])
             name = str(task["name"])
             if completed <= 10 or completed % 100 == 0:
-                print(f"[{completed}/{len(tasks)}] daily {code} {name}: {task['start_date']} -> {task['end_date']}")
+                print(f"[{completed}/{total}] daily {code} {name}: {task['start_date']} -> {task['end_date']}")
             if error:
                 failed += 1
                 with conn:
                     insert_issue(conn, run_id, f"daily:{code}", error)
-                continue
-            if not rows:
+            elif not rows:
                 skipped += 1
-                continue
-            with conn:
-                conn.executemany(insert_sql, rows)
-            if task["last"]:
-                updated += 1
             else:
-                created += 1
+                pending_rows.extend(rows)
+                if task["last"]:
+                    updated += 1
+                else:
+                    created += 1
+
+            # Flush to DB every batch_size completions (or at the very end)
+            if pending_rows and (completed % batch_size == 0 or completed == total):
+                with conn:
+                    conn.executemany(insert_sql, pending_rows)
+                print(f"  -> batch committed: {len(pending_rows)} rows up to stock {completed}/{total} "
+                      f"(created={created}, updated={updated}, failed={failed})")
+                pending_rows = []
+
     print(f"Daily update done. created={created}, updated={updated}, skipped={skipped}, failed={failed}")
 
 
@@ -845,6 +893,25 @@ def update_lhb(conn, ak, end_date: str, retries: int, sleep_seconds: float, run_
     print(f"LHB seats done. count={len(seat_rows_all)}")
 
 
+def date_chunks(start_date: str, end_date: str, chunk_days: int) -> list[tuple[str, str]]:
+    """Split [start_date, end_date] into chunks of at most chunk_days calendar days.
+
+    Returns list of (chunk_start, chunk_end) pairs in chronological order.
+    Dates are YYYYMMDD strings.
+    """
+    if chunk_days <= 0:
+        return [(start_date, end_date)]
+    start = datetime.strptime(compact_date(start_date), "%Y%m%d")
+    end = datetime.strptime(compact_date(end_date), "%Y%m%d")
+    chunks = []
+    cur = start
+    while cur <= end:
+        chunk_end = min(cur + timedelta(days=chunk_days - 1), end)
+        chunks.append((cur.strftime("%Y%m%d"), chunk_end.strftime("%Y%m%d")))
+        cur = chunk_end + timedelta(days=1)
+    return chunks
+
+
 def main() -> None:
     args = parse_args()
     configure_socket_timeout(args.socket_timeout)
@@ -863,7 +930,16 @@ def main() -> None:
         else:
             prefer_cache = non_trading_run and not args.backfill_history
             stocks = fetch_stock_list(conn, ak, args.retries, args.sleep, prefer_cache=prefer_cache)
-            update_daily_bars(conn, ak, stocks, args, run_id)
+            chunks = date_chunks(args.start_date, args.end_date, args.date_chunk_days)
+            if len(chunks) > 1:
+                print(f"Date range split into {len(chunks)} chunks of up to {args.date_chunk_days} days each")
+            for chunk_idx, (chunk_start, chunk_end) in enumerate(chunks, start=1):
+                if len(chunks) > 1:
+                    print(f"--- Chunk {chunk_idx}/{len(chunks)}: {chunk_start} -> {chunk_end} ---")
+                chunk_args = argparse.Namespace(**vars(args))
+                chunk_args.start_date = chunk_start
+                chunk_args.end_date = chunk_end
+                update_daily_bars(conn, ak, stocks, chunk_args, run_id)
     if not args.skip_popularity:
         update_popularity(conn, ak, pd, args.end_date, args.retries, args.sleep, run_id, allow_snapshot=not non_trading_run)
     if not args.skip_limit_pool:

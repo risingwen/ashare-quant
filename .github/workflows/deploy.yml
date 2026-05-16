@@ -1,0 +1,25 @@
+name: Deploy to Oracle Cloud
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            set -e
+            cd /data/quant_research
+            git pull origin main
+            # 同步运行脚本到 systemd 实际读取路径
+            cp deploy/scripts/quant-daily-run.sh logs/quant-daily-run.sh
+            # 重启 API 服务使代码生效
+            sudo systemctl restart quant-api
+            echo "Deploy done: $(date)"

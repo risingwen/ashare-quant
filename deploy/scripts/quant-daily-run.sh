@@ -33,7 +33,10 @@ run_step "update_sqlite_data" \
     "$PYTHON" -u src/update_sqlite_data.py \
         --db "$DB" \
         --daily-source mootdx \
-        --workers 8
+        --socket-timeout 20 \
+        --workers 8 \
+        --stock-batch-size 500 \
+        --date-chunk-days 30
 
 run_step "update_etf" \
     "$PYTHON" -u src/update_etf.py \
@@ -67,6 +70,12 @@ run_step "generate_report" \
         --db "$DB" \
         --report-dir /data/quant_research/reports \
         --start-date 2025-01-01
+
+run_step "health_check" \
+    "$PYTHON" -u src/health_check.py \
+        --db "$DB" \
+        --lookback-days 10 \
+        --socket-timeout 20
 
 echo ""
 echo "========================================"
