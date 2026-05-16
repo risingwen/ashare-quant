@@ -17,9 +17,7 @@ jobs:
           script: |
             set -e
             cd /data/quant_research
-            git pull origin master
-            # 同步运行脚本到 systemd 实际读取路径
-            cp deploy/scripts/quant-daily-run.sh logs/quant-daily-run.sh
-            # 重启 API 服务使代码生效
-            sudo systemctl restart quant-api
+            git fetch origin
+            git pull --ff-only origin master
+            RESTART_API=1 RUN_FULL_PIPELINE=0 bash deploy/scripts/deploy_oracle.sh
             echo "Deploy done: $(date)"
