@@ -11,8 +11,8 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_USER }}
+          host: ${{ secrets.ORACLE_HOST || '140.245.53.52' }}
+          username: ${{ secrets.ORACLE_USER || 'ubuntu' }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           script: |
             set -e
