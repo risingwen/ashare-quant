@@ -45,6 +45,7 @@ run_step "update_etf" \
     "$PYTHON" -u src/update_etf.py \
         --db "$DB" \
         --min-amount 5000 \
+        --spot-only \
         --skip-holdings \
         --socket-timeout 15
 

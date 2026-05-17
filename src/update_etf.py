@@ -333,6 +333,8 @@ def parse_args() -> argparse.Namespace:
                         help="最小成交额过滤（万元），默认5000（即5000万，采集时宽松留余量）")
     parser.add_argument("--hist-days", type=int, default=730,
                         help="历史K线天数，默认730（约2年）")
+    parser.add_argument("--spot-only", action="store_true",
+                        help="只用实时快照更新最新交易日，跳过历史K线接口")
     parser.add_argument("--skip-holdings", action="store_true",
                         help="跳过持仓采集（节省时间）")
     parser.add_argument("--all-holdings", action="store_true",
@@ -404,7 +406,7 @@ def main() -> None:
             name = row["name"]
             log(f"  [{processed+1}/{len(spot_df)}] {code} {name}")
 
-            hist = fetch_etf_hist(code, days=args.hist_days)
+            hist = None if args.spot_only else fetch_etf_hist(code, days=args.hist_days)
             if hist is None or hist.empty:
                 if upsert_etf_spot_snapshot(conn, snapshot_date, code, name, row):
                     spot_fallback_count += 1
