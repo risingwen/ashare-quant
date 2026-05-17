@@ -5,46 +5,22 @@ import subprocess
 import re
 import json
 from datetime import datetime
+from pathlib import Path
 
-def modify_backtest_script(num_positions):
-    """修改回测脚本中的持仓数和资金比例"""
-    script_path = r"scripts\backtest_hot_rank_rise2_strategy.py"
-    
-    with open(script_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # 修改 max_positions
-    content = re.sub(
-        r'max_positions = \d+',
-        f'max_positions = {num_positions}',
-        content
-    )
-    
-    # 修改 nominal_cash 比例
-    cash_fraction = 1.0 / num_positions
-    content = re.sub(
-        r'nominal_cash = self\.init_cash \* [\d.]+',
-        f'nominal_cash = self.init_cash * {cash_fraction:.4f}',
-        content
-    )
-    
-    with open(script_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    
-    print(f"已修改脚本: {num_positions}只持仓, 每只{cash_fraction*100:.2f}%资金")
+from src.test_helpers import build_rise2_cmd, run_cmd_capture_tail
 
-def run_backtest():
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+def run_backtest(num_positions):
     """运行回测，返回最后100行输出"""
-    cmd = [
-        'python',
-        'scripts/backtest_hot_rank_rise2_strategy.py',
-        '--config', 'config/strategies/hot_rank_rise2.yaml'
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
-    # 只保留最后100行，包含统计信息
-    lines = result.stdout.split('\n')
-    return '\n'.join(lines[-100:])
+    cash_fraction = 1.0 / num_positions
+    cmd = build_rise2_cmd(
+        PROJECT_ROOT,
+        max_positions=num_positions,
+        per_trade_cash_frac=cash_fraction,
+    )
+    return run_cmd_capture_tail(cmd, cwd=PROJECT_ROOT)
 
 def extract_results(output):
     """从回测输出中提取关键指标"""
@@ -89,12 +65,11 @@ def main():
         print(f"开始测试: {num_positions}只持仓 (每只{100/num_positions:.2f}%资金)")
         print(f"{'='*60}\n")
         
-        # 修改脚本
-        modify_backtest_script(num_positions)
+        print(f"已配置: {num_positions}只持仓, 每只{100/num_positions:.2f}%资金")
         
         # 运行回测
         print("运行回测中，请稍候...")
-        output = run_backtest()
+        output = run_backtest(num_positions)
         
         # 提取结果
         results = extract_results(output)
