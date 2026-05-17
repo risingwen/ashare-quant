@@ -85,13 +85,17 @@ def _git_output(args: list[str]) -> str | None:
 
 
 def get_git_info() -> dict[str, object]:
+    dirty = bool(_git_output([
+        "status", "--short", "--", ".",
+        ":(exclude)data", ":(exclude)reports", ":(exclude)logs",
+    ]))
     return {
         "commit": _git_output(["rev-parse", "HEAD"]),
         "short_commit": _git_output(["rev-parse", "--short", "HEAD"]),
         "branch": _git_output(["rev-parse", "--abbrev-ref", "HEAD"]),
         "commit_time": _git_output(["log", "-1", "--format=%ci"]),
         "subject": _git_output(["log", "-1", "--format=%s"]),
-        "dirty": bool(_git_output(["status", "--short"])),
+        "dirty": dirty,
     }
 
 
