@@ -11,6 +11,7 @@ BRANCH="${BRANCH:-master}"
 RESTART_API="${RESTART_API:-1}"
 RUN_FULL_PIPELINE="${RUN_FULL_PIPELINE:-0}"
 REFRESH_HOT_RANK_FALLBACK="${REFRESH_HOT_RANK_FALLBACK:-1}"
+HOT_RANK_REFRESH_TIMEOUT="${HOT_RANK_REFRESH_TIMEOUT:-180s}"
 
 echo "========================================"
 echo "deploy_oracle start: $(date '+%F %T')"
@@ -20,6 +21,7 @@ echo "SERVICE_SCRIPT=${SERVICE_SCRIPT}"
 echo "RUN_FULL_PIPELINE=${RUN_FULL_PIPELINE}"
 echo "RESTART_API=${RESTART_API}"
 echo "REFRESH_HOT_RANK_FALLBACK=${REFRESH_HOT_RANK_FALLBACK}"
+echo "HOT_RANK_REFRESH_TIMEOUT=${HOT_RANK_REFRESH_TIMEOUT}"
 echo "========================================"
 
 cd "${REPO_DIR}"
@@ -41,8 +43,8 @@ if [[ "${RUN_FULL_PIPELINE}" == "1" ]]; then
 else
   if [[ "${REFRESH_HOT_RANK_FALLBACK}" == "1" ]]; then
     echo "[3/6] Refresh hot-rank fallback artifacts"
-    "${VENV_PYTHON}" scripts/try_hot_rank_multi_source.py || true
-    "${VENV_PYTHON}" scripts/export_hot_rank_multi_source_pages.py || true
+    timeout "${HOT_RANK_REFRESH_TIMEOUT}" "${VENV_PYTHON}" scripts/try_hot_rank_multi_source.py || true
+    timeout "${HOT_RANK_REFRESH_TIMEOUT}" "${VENV_PYTHON}" scripts/export_hot_rank_multi_source_pages.py || true
   else
     echo "[3/6] Skip hot-rank fallback refresh"
   fi
