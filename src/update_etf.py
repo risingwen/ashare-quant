@@ -219,6 +219,97 @@ def upsert_etf_daily(conn, code: str, name: str, hist_df: pd.DataFrame) -> None:
     # autocommit mode — no explicit commit needed
 
 
+def clean_float(value: object) -> float | None:
+    result = to_float(value)
+    if result is None:
+        return None
+    try:
+        if pd.isna(result):
+            return None
+    except TypeError:
+        pass
+    return result
+
+
+def resolve_latest_trade_date() -> str:
+    today = datetime.now().date()
+    try:
+        cal = ak.tool_trade_date_hist_sina()
+        if cal is not None and not cal.empty:
+            col = "trade_date" if "trade_date" in cal.columns else cal.columns[0]
+            dates = pd.to_datetime(cal[col], errors="coerce").dropna().dt.date
+            dates = dates[dates <= today]
+            if not dates.empty:
+                return max(dates).strftime("%Y-%m-%d")
+    except Exception as exc:  # noqa: BLE001
+        log(f"  trade calendar fallback: {exc}")
+
+    day = today
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day.strftime("%Y-%m-%d")
+
+
+def upsert_etf_spot_snapshot(conn, snapshot_date: str, code: str, name: str, spot_row: pd.Series) -> bool:
+    close = clean_float(spot_row.get("close"))
+    if close is None:
+        return False
+
+    prev = conn.execute(
+        """
+        SELECT ma5, ma10, ma20, ma60, hist_high
+        FROM etf_daily
+        WHERE code = ? AND date < ?
+        ORDER BY date DESC
+        LIMIT 1
+        """,
+        (code, snapshot_date),
+    ).fetchone()
+
+    def prev_metric(key: str) -> float | None:
+        return clean_float(prev[key]) if prev is not None else None
+
+    ma5 = prev_metric("ma5")
+    ma10 = prev_metric("ma10")
+    ma20 = prev_metric("ma20")
+    ma60 = prev_metric("ma60")
+    prev_high = prev_metric("hist_high")
+    hist_high = max(prev_high, close) if prev_high is not None else close
+
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO etf_daily(
+            date, code, name, open, high, low, close, pct_chg, amount, volume,
+            ma5, ma10, ma20, ma60, hist_high,
+            is_new_high, ma20_up, ma60_up, above_ma20, above_ma60
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            snapshot_date,
+            code,
+            name,
+            close,
+            close,
+            close,
+            close,
+            clean_float(spot_row.get("pct_chg")),
+            clean_float(spot_row.get("amount")),
+            None,
+            ma5,
+            ma10,
+            ma20,
+            ma60,
+            hist_high,
+            int(close >= hist_high),
+            0,
+            0,
+            int(ma20 is not None and close > ma20),
+            int(ma60 is not None and close > ma60),
+        ),
+    )
+    return True
+
+
 def upsert_etf_holdings(conn, code: str, quarter: str, rows: list[dict]) -> None:
     sql = """
     INSERT OR REPLACE INTO etf_holdings(
@@ -303,8 +394,10 @@ def main() -> None:
     if not args.holdings_only:
         log(f"\nStep 2: 拉取历史K线 & 计算技术信号 (共{len(spot_df)}只)...")
         processed = 0
+        spot_fallback_count = 0
         new_high_count = 0
         ma_up_count = 0
+        snapshot_date = resolve_latest_trade_date()
 
         for idx, row in spot_df.iterrows():
             code = row["code"]
@@ -313,7 +406,11 @@ def main() -> None:
 
             hist = fetch_etf_hist(code, days=args.hist_days)
             if hist is None or hist.empty:
-                log("    skip (no hist)")
+                if upsert_etf_spot_snapshot(conn, snapshot_date, code, name, row):
+                    spot_fallback_count += 1
+                    log(f"    spot fallback date={snapshot_date}")
+                else:
+                    log("    skip (no hist)")
                 processed += 1
                 time.sleep(args.sleep)
                 continue
@@ -331,6 +428,9 @@ def main() -> None:
             time.sleep(args.sleep)
 
         log(f"\n  技术信号汇总: 新高={new_high_count}只, MA20向上={ma_up_count}只")
+
+    if not args.holdings_only:
+        log(f"  spot_fallback={spot_fallback_count}")
 
     if not args.skip_holdings:
         log("\nStep 3: 采集持仓（已有记录的ETF跳过）...")
