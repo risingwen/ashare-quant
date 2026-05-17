@@ -86,7 +86,8 @@ for ax in axes:
 plt.tight_layout()
 
 # 保存图片
-output_file = 'reports/backtest_curves_comparison.png'
+output_file = Path('archive/reports/backtest_curves_comparison.png')
+output_file.parent.mkdir(parents=True, exist_ok=True)
 plt.savefig(output_file, dpi=300, bbox_inches='tight')
 print(f"\n✅ 曲线图已保存: {output_file}")
 
