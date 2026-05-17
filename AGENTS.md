@@ -8,9 +8,10 @@ This guide is for agentic coding tools operating in this repository.
 - Core dependencies: `akshare`, `pandas`, `pyarrow`, `duckdb`, `pyyaml`, `tqdm`, `pytest`.
 - Key directories:
   - `src/`: shared utilities (`utils.py`, `validation.py`, `manifest.py`).
-  - `scripts/`: CLI workflows for download, feature engineering, backtest, report generation.
+  - `scripts/`: reusable CLI workflows for backtest, export, and production support.
   - `config/`: YAML configs (`data_config.yaml`, `backtest_base.yaml`, `strategies/*.yaml`).
-  - Root: many `test_*.py` files used for pytest and diagnostics.
+  - `tests/`: pytest tests; live data-source checks are under `tests/integration/`.
+  - `archive/`: legacy scripts, old documents, and one-off diagnostics. Do not use it as the default development entrypoint.
 
 ## 2) Environment Setup
 
@@ -33,13 +34,10 @@ There is no package build system configured (`pyproject.toml` absent).
 
 ```bash
 # Environment + dependency sanity check
-python test_system.py
+python -m pytest tests/integration/test_system.py -m "integration and network"
 
-# Incremental update
-python scripts/update_daily_incremental.py --config config.yaml
-
-# Feature engineering
-python scripts/prepare_features.py --config config/data_config.yaml
+# SQLite data update
+python src/update_sqlite_data.py --db data/quant.db --daily-source sina --workers 4
 
 # Main backtest
 python scripts/backtest_hot_rank_strategy.py --config config/strategies/hot_rank_drop7.yaml
@@ -59,23 +57,23 @@ pytest --collect-only -q
 
 ### 3.3 Test commands (including single test)
 
-README mentions `pytest tests/`, but tests are currently mostly root-level `test_*.py`.
+Pytest collection is configured in `pytest.ini` and should go through `tests/`.
 
 ```bash
 # All pytest tests
 pytest -q
 
 # One test file
-pytest -q test_system.py
+pytest -q tests/integration/test_system.py
 
 # One specific test function
-pytest -q test_system.py::test_akshare_connection
+pytest -q tests/integration/test_system.py::test_akshare_connection
 
 # Subset by keyword
 pytest -q -k hot_rank
 
-# Script-style diagnostics
-python test_hot_rank.py
+# Live data-source integration tests
+pytest -q -m "integration and network"
 ```
 
 Notes:
@@ -127,31 +125,15 @@ Follow patterns used in `src/` and `scripts/`.
 ## 5) Data and File Hygiene
 
 - Do not commit large generated artifacts under `data/`.
-- Respect `.gitignore` exclusions (`data/parquet/`, `logs/`, local DB/CSV/JSON outputs).
+- Respect `.gitignore` exclusions (`data/`, `reports/`, `logs/`, local DB/CSV/JSON outputs).
 - Keep code changes separate from generated data outputs unless explicitly requested.
 
 ## 6) Cursor and Copilot Rules
 
-### 6.1 Copilot instructions present
-
-Source: `.github/copilot-instructions.md`
-
-Agents must incorporate these requirements:
-- Project objective: fetch A-share daily data via AkShare and analyze with DuckDB on Parquet.
-- Default data scope: trading-day daily data, A-share universe, normalized `snake_case` fields.
-- Engineering requirements:
-  - scripts should have clear script identity, `main()`, and argparse parameters;
-  - use logging; key step messages should be clear English and avoid emoji;
-  - implement resumable runs, retry, rate limiting, and validation (rows/duplicates/nulls/date continuity);
-  - keep structure clear (`src/`, `tests/`, `data/`).
-- Commit message preference: concise Chinese commit messages explaining change and reason.
-- Strategy docs in `.github/prompts/` should include logic, parameters, implementation points.
-- Strategy logic/parameter changes should append Changelog entries:
-  - `date + category (Changed/Fixed/Added/Removed) + reason + impact`.
-
-### 6.2 Cursor rules status
+### 6.1 Cursor rules status
 
 - `.cursorrules`: not found.
 - `.cursor/rules/`: not found.
+- `.github/copilot-instructions.md`: removed as obsolete. Use this `AGENTS.md` plus `docs/` as the source of truth.
 
 Keep this file updated when commands, tooling, or repository rules change.

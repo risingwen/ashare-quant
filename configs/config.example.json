@@ -1,7 +1,0 @@
-{
-  "data_dir": "/data/akshare/Akshare/stock_data",
-  "report_dir": "/home/xiwen.xing/quant_research/reports",
-  "start_date": "2023-01-01",
-  "top_n": 20,
-  "min_amount_e8": 5.0
-}

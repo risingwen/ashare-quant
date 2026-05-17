@@ -1,59 +1,20 @@
-# Data Directory
+# data 目录
 
-本目录用于存储 A股数据文件。
+`data/` 是本地和生产运行时数据目录，不是源码目录。真实行情数据、SQLite 数据库、热榜回补 CSV、实验输出和测试样本都不提交到 Git。
 
-## 目录结构
+## 当前约定
 
-```
-data/
-├── parquet/                    # Parquet 数据湖（被 .gitignore 忽略）
-│   └── ashare_daily/          # A股日线数据
-│       ├── year=2024/         # 按年分区
-│       │   ├── month=01/      # 按月分区
-│       │   ├── month=02/
-│       │   └── ...
-│       └── year=2025/
-│           └── ...
-├── manifest.json              # 下载进度跟踪文件（被 .gitignore 忽略）
-└── README.md                  # 本文件
-```
+| 路径 | 用途 | 是否提交 |
+| --- | --- | --- |
+| `data/quant.db` | 本地 SQLite 数据库 | 否 |
+| `data/parquet/` | 旧 parquet 数据湖 | 否 |
+| `data/hot_sources/` | 同花顺/雪球热榜回补数据 | 否 |
+| `data/experiments/` | 本地实验和探针输出 | 否 |
+| `data/README.md` | 本说明文件 | 是 |
 
-## 数据说明
+## 原则
 
-### Parquet 文件
-- **路径**: `data/parquet/ashare_daily/year=YYYY/month=MM/*.parquet`
-- **分区策略**: 按年月分区（year_month）
-- **文件格式**: Apache Parquet（使用 snappy 压缩）
-- **字段**:
-  - `date`: 交易日期 (date)
-  - `code`: 股票代码 (string)
-  - `open`: 开盘价 (float)
-  - `high`: 最高价 (float)
-  - `low`: 最低价 (float)
-  - `close`: 收盘价 (float)
-  - `volume`: 成交量 (int64)
-  - `amount`: 成交额 (float)
-
-### Manifest 文件
-- **路径**: `data/manifest.json`
-- **用途**: 跟踪每只股票的下载进度和状态
-- **格式**: JSON
-- **内容**: 股票代码、最新日期、状态、行数等
-
-## 注意事项
-
-1. **数据文件不提交到 Git**
-   - 所有 `.parquet`、`.json`、`.duckdb` 等数据文件已被 `.gitignore` 排除
-   - 仅提交代码和配置文件到版本控制
-
-2. **数据备份**
-   - 建议定期备份 `data/parquet/` 目录到云盘或外部存储
-   - Manifest 文件也应该备份，以便恢复下载进度
-
-3. **磁盘空间**
-   - 约 5000 只股票，1 年日线数据，Parquet 格式约占用 300MB-600MB
-   - 请确保有足够的磁盘空间
-
-4. **查询数据**
-   - 使用 DuckDB 可以直接查询 Parquet 文件，无需导入
-   - 示例查询请参考项目 README.md
+- 需要复现的数据通过脚本重新生成，不把快照塞进仓库。
+- 生产数据库位于 `/data/quant_research/data/quant.db`。
+- 需要临时测试样本时使用 pytest 的 `tmp_path` 或本机临时目录，不写入仓库内固定文件。
+- 如果确实需要长期保存一份小型样例数据，先在 `docs/REPO_CLEANUP.md` 记录原因和大小上限。

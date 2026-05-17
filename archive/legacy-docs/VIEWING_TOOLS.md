@@ -229,7 +229,7 @@ ORDER BY date DESC;
 python view_data.py
 
 # 系统测试（包含数据样例）
-python test_system.py
+python -m pytest tests/integration/test_system.py -m "integration and network"
 ```
 
 ## 🆘 遇到问题？

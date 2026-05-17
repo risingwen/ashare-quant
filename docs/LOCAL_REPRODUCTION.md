@@ -1,78 +1,97 @@
-# 本地复现与发布指南
+# 本地复现指南
 
-本文档用于让新同学快速理解：策略如何跑、报告如何生成、Pages 如何在本地复现。
+本文档记录当前推荐的本地复现方式。旧 GitHub Pages 发布链路已经移除，生产发布以 Oracle Cloud 部署为准。
 
-## 1. 策略清单（当前仓库）
-
-- `hot_rank_drop7_smart_exit`：前一日人气前100，次日回撤触发买入（主板-7%，创业板/科创板-13%）
-- `hot_rank_rise2_smart_exit`：前一日人气前50，次日盘中上涨+2%触发买入
-- `hot_rank_top20_newentry`：首次进入前20，开盘买入，次日不涨停或人气跌破阈值卖出
-- `hot_rank_first_top10_rise2_or_gapdown`：首次前10，低开或+2%触发买入，人气跌出前50卖出
-
-对应配置文件都在 `config/strategies/*.yaml`。
-
-## 2. 环境准备
+## 环境准备
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 3. 数据与策略复现命令
+Windows PowerShell：
 
-### 3.1 数据更新/审计
-
-```bash
-python3 scripts/update_daily_incremental.py --config config.yaml --workers 2
-python3 scripts/audit_data_integrity.py --as-of 2026-03-18
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-### 3.2 策略回测（示例）
+## 测试入口
+
+测试收集只走 `tests/`：
 
 ```bash
-python3 scripts/backtest_hot_rank_strategy.py --config config/strategies/hot_rank_drop7.yaml
-python3 scripts/backtest_hot_rank_rise2_strategy.py --config config/strategies/hot_rank_rise2.yaml
-python3 scripts/backtest_hot_rank_top10_open_strategy.py --config config/strategies/hot_rank_top10_open.yaml
-python3 scripts/backtest_hot_rank_first_top10_strategy.py --config config/strategies/hot_rank_first_top10_rise2_or_gapdown.yaml
+python -m pytest --collect-only -q
 ```
 
-### 3.3 报告与页面数据
+外部数据源集成测试会访问 AkShare/东方财富，网络或代理异常时可能被跳过：
 
 ```bash
-python3 scripts/export_hot_rank_top100_history.py
-python3 scripts/publish_latest_experiment_to_reports.py
+python -m pytest -q tests/integration --tb=short
+python -m pytest -q -m "integration and network"
 ```
 
-## 4. 本地复现 Pages（与 CI 一致）
+## 数据更新复现
 
-一条命令生成 `public/`：
+本地不建议提交数据库或行情快照。需要复现数据更新时，使用本地 `data/quant.db`：
 
 ```bash
-./scripts/build_pages_local.sh
+python src/update_sqlite_data.py --db data/quant.db --daily-source sina --workers 4
+python src/update_etf.py --db data/quant.db --spot-only --skip-holdings
 ```
 
-完成后可本地预览：
+如果只想验证脚本参数和依赖是否可用，先运行：
 
 ```bash
-python3 -m http.server 8080 --directory public
-# 浏览器访问 http://127.0.0.1:8080
+python src/update_sqlite_data.py --help
+python src/update_etf.py --help
+python src/generate_report.py --help
 ```
 
-## 5. 本机复现结果（2026-03-19）
+## 报告生成
 
-已实测：
-
-- `scripts/export_hot_rank_top100_history.py` 产出 `26,291` 条、`290` 个交易日
-- `./scripts/build_pages_local.sh` 成功生成 `public/index.html`
-- 热度筛选页入口：`public/hot_rank_top100_explorer.html`
-
-## 6. 发布到 GitHub Pages
-
-推送到 `master` 即触发 `.github/workflows/static.yml`：
+本地报告输出到 `reports/`，该目录是运行产物，默认不提交：
 
 ```bash
-git push origin master
+python src/generate_report.py --db data/quant.db --report-dir reports --start-date 2025-01-01
 ```
 
-工作流会在部署前自动执行热度前100导出，保证页面与最新仓库数据同步。
+生成后可本地预览：
+
+```bash
+python -m http.server 8080 --directory reports/latest
+```
+
+浏览器访问：
+
+```text
+http://127.0.0.1:8080/
+```
+
+## 策略回测
+
+策略配置位于 `config/strategies/`：
+
+```bash
+python scripts/backtest_hot_rank_strategy.py --config config/strategies/hot_rank_drop7.yaml
+python scripts/backtest_hot_rank_rise2_strategy.py --config config/strategies/hot_rank_rise2.yaml
+python scripts/backtest_hot_rank_top10_open_strategy.py --config config/strategies/hot_rank_top10_open.yaml
+python scripts/backtest_hot_rank_first_top10_strategy.py --config config/strategies/hot_rank_first_top10_rise2_or_gapdown.yaml
+```
+
+## 生产部署关系
+
+GitHub `master` push 触发 `.github/workflows/deploy.yml`，通过 SSH 登录 Oracle 服务器并执行：
+
+```bash
+cd /data/quant_research
+RESTART_API=1 RUN_FULL_PIPELINE=0 bash deploy/scripts/deploy_oracle.sh
+```
+
+生产状态以以下接口为准：
+
+```bash
+curl http://140.245.53.52:8080/api/health
+```

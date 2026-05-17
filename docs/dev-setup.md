@@ -456,16 +456,16 @@ python -m compileall src scripts
 python -m pytest --collect-only -q
 
 # 基础环境检查
-python test_system.py
+python -m pytest tests/integration/test_system.py -m "integration and network"
 
 # 查看脚本 CLI 是否能正常启动
 python scripts/prepare_features.py --help
-python scripts/update_daily_incremental.py --help
+python src/update_sqlite_data.py --help
 ```
 
 注意：
 
-- `test_system.py` 中的 AkShare 连通性可能受外部源波动影响
+- `tests/integration/test_system.py` 中的 AkShare 连通性可能受外部源波动影响
 - 如果单股抓取、Parquet、DuckDB 都通过，而 AkShare 总体探测失败，通常更像是外部源不稳定，不是本机环境损坏
 
 ---
@@ -553,7 +553,7 @@ ssh oracle-free 'RESTART_API=0 bash /data/quant_research/deploy/scripts/deploy_o
 - Oracle 生产环境已实测 `AkShare.stock_hot_rank_em` 可用
 - 同时 `stock_hot_rank_wc` 不存在
 - 因此仓库中的人气榜更新逻辑已补充为：如果只有 `stock_hot_rank_em` 可用，则即使在非交易日运行，也继续尝试该接口，避免首页/报告中的“人气热榜”长期停留在旧日期
-- 如果 AkShare 人气接口本身返回异常，更新逻辑还会继续读取仓库 `reports/` 下的标准化多源热榜 CSV 作为兜底写入 `popularity_rankings`
+- 如果 AkShare 人气接口本身返回异常，更新逻辑还会继续读取运行时 `reports/` 下的标准化多源热榜 CSV 作为兜底写入 `popularity_rankings`。`reports/` 属于运行产物，不再提交到 Git
 - 一键部署脚本默认会先执行：
   - `scripts/try_hot_rank_multi_source.py`
   - `scripts/export_hot_rank_multi_source_pages.py`

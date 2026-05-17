@@ -67,7 +67,7 @@ AkShare stock_hot_rank_em -> 东方财富 direct fallback -> 标准化 CSV fallb
 - AkShare 接口可用时，使用 `stock_hot_rank_em`。
 - AkShare 返回非 JSON、连接重置或空结果时，使用东方财富 direct fallback。
 - direct fallback 会先获取 Top100 排名，再尝试补充股票名称和行情；行情补充失败时仍写入排名，名称可降级为代码。
-- 如果接口都失败，再尝试读取仓库内标准化 CSV：`reports/hot_rank_multi_source_snapshot_latest.csv` 和 `reports/hot_rank_wencai_last30_normalized.csv`。
+- 如果接口都失败，再尝试读取运行时生成的标准化 CSV：`reports/hot_rank_multi_source_snapshot_latest.csv` 和 `reports/hot_rank_wencai_last30_normalized.csv`。`reports/` 属于运行产物，不再提交到 Git。
 
 验收标准：
 
