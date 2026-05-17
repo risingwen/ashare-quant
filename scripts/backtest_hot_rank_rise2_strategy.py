@@ -28,7 +28,7 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import yaml
@@ -56,7 +56,7 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-def load_strategy_config(config_path: str) -> dict:
+def load_strategy_config(config_path: Union[str, Path]) -> dict:
     """
     加载策略配置（支持继承）
     
@@ -66,13 +66,13 @@ def load_strategy_config(config_path: str) -> dict:
     Returns:
         合并后的配置字典
     """
-    config_path = Path(config_path)
-    with open(config_path, 'r', encoding='utf-8') as f:
+    config_file = Path(config_path)
+    with open(config_file, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
     
     # 处理继承
     if 'extends' in config:
-        base_path = config_path.parent / config['extends']
+        base_path = config_file.parent / config['extends']
         with open(base_path, 'r', encoding='utf-8') as f:
             base_config = yaml.safe_load(f)
         config = deep_merge(base_config, config)
@@ -105,7 +105,7 @@ def apply_cli_overrides(config: dict, overrides: dict) -> dict:
 class Trade:
     """交易记录"""
     
-    def __init__(self, code: str, entry_date: str, name: str = None):
+    def __init__(self, code: str, entry_date: str, name: Optional[str] = None):
         self.code = code
         self.name = name
         self.entry_date = entry_date
@@ -125,8 +125,8 @@ class Trade:
         self.buy_cost = 0
         self.cash_after_buy = 0
         
-        self.exit_date = None
-        self.exit_reason = None
+        self.exit_date: Optional[str] = None
+        self.exit_reason: Optional[str] = None
         self.hold_days = 0
         
         self.sell_price = None
@@ -198,7 +198,8 @@ class BacktestEngine:
         self.prev_amount_min = self.params['prev_amount_min']
         self.rise_trigger = self.params['rise_trigger']  # 追涨触发阈值 +2%
         self.rise_trigger_cyb_kcb = self.params.get('rise_trigger_cyb_kcb', 0.03)  # 创业板和科创板 +3%
-        self.per_trade_cash_frac = self.params['per_trade_cash_frac']
+        self.per_trade_cash_frac = self.params.get('per_trade_cash_frac', 0.2)
+        self.max_positions = self.params.get('max_positions', 5)
         self.hold_on_limit_up = self.params['hold_on_limit_up']
         self.exit_on_limit_down = self.params.get('exit_on_limit_down', True)
         # 卖出跌幅阈值 -7%（支持两种参数名）
@@ -230,7 +231,9 @@ class BacktestEngine:
         
         logger.info(f"策略初始化: {self.strategy['name']} v{self.strategy['version']}")
         logger.info(f"参数: hot_top_n={self.hot_top_n}, rise_trigger={self.rise_trigger}, "
-                   f"exit_drop_trigger={self.exit_drop_trigger}")
+                   f"exit_drop_trigger={self.exit_drop_trigger}, "
+                   f"per_trade_cash_frac={self.per_trade_cash_frac}, "
+                   f"max_positions={self.max_positions}")
         logger.info(f"初始资金: {self.init_cash:,.0f}")
     
     def _setup_logging(self):
@@ -450,8 +453,8 @@ class BacktestEngine:
         buy_price = row_prev['close'] * (1 + rise_trigger)
         buy_exec = buy_price * (1 + self.slippage_bps / 10000)
         
-        # 计算名义资金（10万全部投入）
-        nominal_cash = self.init_cash * 0.2
+        # 计算名义资金
+        nominal_cash = self.init_cash * self.per_trade_cash_frac
         
         # 计算股数（向下取整到100股）
         shares = int(nominal_cash / buy_exec / self.min_lot_size) * self.min_lot_size
@@ -671,8 +674,8 @@ class BacktestEngine:
                 self.execute_sell(date, position, row_today, reason)
             
             # 2. 检查买入信号
-            # 限制最多持1只股票（10万资金全部投入）
-            max_positions = 5
+            # 限制最大同时持仓数量
+            max_positions = self.max_positions
             if len(self.positions) >= max_positions:
                 # 已达到最大持仓数，不再买入
                 pass
@@ -757,10 +760,10 @@ class BacktestEngine:
         logger.info(f"  最终现金: {self.cash:.2f}")
         logger.info(f"  最终持仓: {len(self.positions)}只")
     
-    def save_results(self, output_dir: str):
+    def save_results(self, output_dir: Union[str, Path]):
         """保存回测结果"""
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         config_hash = hashlib.md5(json.dumps(self.params, sort_keys=True).encode()).hexdigest()[:8]
@@ -769,13 +772,13 @@ class BacktestEngine:
         # 保存交易明细
         if self.trades:
             trades_df = pd.DataFrame([t.to_dict() for t in self.trades])
-            trades_file = output_dir / 'trades' / f"{prefix}_trades.parquet"
+            trades_file = output_path / 'trades' / f"{prefix}_trades.parquet"
             trades_file.parent.mkdir(exist_ok=True)
             trades_df.to_parquet(trades_file, index=False)
             logger.info(f"交易明细已保存: {trades_file}")
             
             # 同时保存CSV（数字保留2位小数）
-            csv_file = output_dir / 'trades' / f"{prefix}_trades.csv"
+            csv_file = output_path / 'trades' / f"{prefix}_trades.csv"
             # 浮点数列保留2位小数
             float_cols = ['buy_price', 'buy_exec', 'commission', 'total_cost', 'cash_after',
                           'sell_price', 'sell_exec', 'stamp_tax', 'sell_proceed', 'pnl', 
@@ -789,7 +792,7 @@ class BacktestEngine:
         # 保存组合净值
         if self.daily_portfolio:
             portfolio_df = pd.DataFrame(self.daily_portfolio)
-            portfolio_file = output_dir / 'portfolio' / f"{prefix}_portfolio.parquet"
+            portfolio_file = output_path / 'portfolio' / f"{prefix}_portfolio.parquet"
             portfolio_file.parent.mkdir(exist_ok=True)
             portfolio_df.to_parquet(portfolio_file, index=False)
             logger.info(f"组合净值已保存: {portfolio_file}")
@@ -822,6 +825,8 @@ def main():
     parser.add_argument('--param.hot_top_n', type=int, dest='param_hot_top_n')
     parser.add_argument('--param.rise_trigger', type=float, dest='param_rise_trigger')
     parser.add_argument('--param.exit_drop_trigger', type=float, dest='param_exit_drop_trigger')
+    parser.add_argument('--param.max_positions', type=int, dest='param_max_positions')
+    parser.add_argument('--param.per_trade_cash_frac', type=float, dest='param_per_trade_cash_frac')
     
     args = parser.parse_args()
     
@@ -836,6 +841,10 @@ def main():
         cli_overrides['param.rise_trigger'] = args.param_rise_trigger
     if args.param_exit_drop_trigger:
         cli_overrides['param.exit_drop_trigger'] = args.param_exit_drop_trigger
+    if args.param_max_positions is not None:
+        cli_overrides['param.max_positions'] = args.param_max_positions
+    if args.param_per_trade_cash_frac is not None:
+        cli_overrides['param.per_trade_cash_frac'] = args.param_per_trade_cash_frac
     
     if cli_overrides:
         config = apply_cli_overrides(config, cli_overrides)
