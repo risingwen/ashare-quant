@@ -323,9 +323,13 @@ def health():
             if item["required"] and item["status"] not in {"fresh"}
         ]
         any_bad = [item for item in modules if item["status"] not in {"fresh"}]
+        actionable_warnings = [
+            item for item in any_bad
+            if item not in required_bad and item["required"] and not item["legacy"]
+        ]
         if required_bad:
             status = "error"
-        elif any_bad:
+        elif actionable_warnings:
             status = "warn"
         else:
             status = "ok"
