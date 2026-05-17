@@ -2,58 +2,39 @@
 测试矩阵: 人气前10/20/30 × 持仓1-5只 = 15种组合
 """
 import subprocess
+import sys
 import pandas as pd
 import re
 from pathlib import Path
 from datetime import datetime
 import time
 
-def modify_script_params(max_pos, nominal_pct):
-    """修改回测脚本参数"""
-    script_path = "scripts/backtest_hot_rank_rise2_strategy.py"
-    
-    # 读取脚本
-    with open(script_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # 替换max_positions
-    content = re.sub(
-        r'(# 限制最多持\d+只股票.*\n\s*)max_positions\s*=\s*\d+',
-        f'\\1max_positions = {max_pos}',
-        content
-    )
-    
-    # 替换nominal_cash
-    content = re.sub(
-        r'(# 计算名义资金.*\n\s*)nominal_cash\s*=\s*self\.init_cash\s*\*\s*[\d.]+',
-        f'\\1nominal_cash = self.init_cash * {nominal_pct:.4f}',
-        content
-    )
-    
-    # 写回文件
-    with open(script_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    
-    print(f"  修改参数: max_positions={max_pos}, nominal_cash={nominal_pct:.4f}")
 
-def run_backtest(hot_top_n):
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+def run_backtest(hot_top_n, max_pos, nominal_pct):
     """运行回测"""
+    script_path = PROJECT_ROOT / "scripts" / "backtest_hot_rank_rise2_strategy.py"
     cmd = [
-        'python',
-        'scripts/backtest_hot_rank_rise2_strategy.py',
+        sys.executable,
+        str(script_path),
         '--config',
-        'config/strategies/hot_rank_rise2.yaml',
+        str(PROJECT_ROOT / 'config' / 'strategies' / 'hot_rank_rise2.yaml'),
         '--param.hot_top_n',
-        str(hot_top_n)
+        str(hot_top_n),
+        '--param.max_positions',
+        str(max_pos),
+        '--param.per_trade_cash_frac',
+        str(nominal_pct),
     ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
     return result
 
 def extract_result_from_output(output_text):
     """从输出中提取结果"""
     # 查找最新生成的文件路径
-    pattern = r'data\\backtest\\trades\\(hot_rank_rise2_smart_exit_v1\.0\.0_\w+_\d+_\d+)_trades\.csv'
+    pattern = r'data[/\\]backtest[/\\]trades[/\\](.+?)_trades\.csv'
     match = re.search(pattern, output_text)
     
     if not match:
@@ -102,12 +83,11 @@ def main():
             current += 1
             print(f"\n[{current}/{total}] 测试: 人气前{hot_n}名 + {max_pos}只持仓 (资金{nominal_pct*100:.1f}%)")
             
-            # 修改脚本参数
-            modify_script_params(max_pos, nominal_pct)
+            print(f"  设置参数: max_positions={max_pos}, nominal_cash={nominal_pct:.4f}")
             
             # 运行回测
             print(f"  执行回测...")
-            result = run_backtest(hot_n)
+            result = run_backtest(hot_n, max_pos, nominal_pct)
             
             # 提取结果
             final_val, ret, n_trades, csv_path = extract_result_from_output(result.stdout)

@@ -3,6 +3,10 @@ import sys
 import subprocess
 import re
 import pandas as pd
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 def main():
     if len(sys.argv) != 4:
@@ -17,46 +21,28 @@ def main():
     print(f"=== 测试配置 ===")
     print(f"人气前{hot_n}名 + {max_pos}只持仓 (资金{nominal_pct*100:.1f}%)\n")
     
-    # 1. 修改脚本参数
-    script_path = "scripts/backtest_hot_rank_rise2_strategy.py"
-    
-    with open(script_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # 替换max_positions
-    content = re.sub(
-        r'(# 限制最多持\d+只股票.*\n\s*)max_positions\s*=\s*\d+',
-        f'\\1max_positions = {max_pos}',
-        content
-    )
-    
-    # 替换nominal_cash
-    content = re.sub(
-        r'(# 计算名义资金.*\n\s*)nominal_cash\s*=\s*self\.init_cash\s*\*\s*[\d.]+',
-        f'\\1nominal_cash = self.init_cash * {nominal_pct:.4f}',
-        content
-    )
-    
-    with open(script_path, 'w', encoding='utf-8') as f:
-        f.write(content)
-    
-    print(f"✓ 已修改参数: max_positions={max_pos}, nominal_cash={nominal_pct:.4f}\n")
+    script_path = PROJECT_ROOT / "scripts" / "backtest_hot_rank_rise2_strategy.py"
+    print(f"✓ 已设置参数: max_positions={max_pos}, nominal_cash={nominal_pct:.4f}\n")
     
     # 2. 运行回测
     print("正在运行回测...\n")
     cmd = [
-        'python',
-        'scripts/backtest_hot_rank_rise2_strategy.py',
+        sys.executable,
+        str(script_path),
         '--config',
-        'config/strategies/hot_rank_rise2.yaml',
+        str(PROJECT_ROOT / 'config' / 'strategies' / 'hot_rank_rise2.yaml'),
         '--param.hot_top_n',
-        str(hot_n)
+        str(hot_n),
+        '--param.max_positions',
+        str(max_pos),
+        '--param.per_trade_cash_frac',
+        str(nominal_pct),
     ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=PROJECT_ROOT)
     
     # 3. 提取文件路径
-    pattern = r'data\\backtest\\trades\\(hot_rank_rise2_smart_exit_v1\.0\.0_\w+_\d+_\d+)_trades\.csv'
+    pattern = r'data[/\\]backtest[/\\]trades[/\\](.+?)_trades\.csv'
     match = re.search(pattern, result.stdout)
     
     if not match:
