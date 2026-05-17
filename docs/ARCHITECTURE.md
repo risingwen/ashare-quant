@@ -321,3 +321,137 @@ log_trade("BUY", date="2025-03-15", code="600519",
 3. **分布式回测**: 使用Dask/Ray并行回测多策略
 4. **Web界面**: 基于Streamlit的交互式分析平台
 5. **ML集成**: 集成机器学习模型预测模块
+
+---
+
+## 当前生产架构补充（2026-05）
+
+本节记录当前 Oracle 生产环境的真实运行形态。旧章节中关于 Parquet 分层和策略回测的内容仍可作为研究侧设计参考；生产日报链路以 SQLite、静态报告、Flask API、nginx 和 systemd 为主。
+
+### 1. 部署拓扑
+
+```mermaid
+flowchart LR
+    GH["GitHub master"] --> GHA["GitHub Actions: Deploy to Oracle Cloud"]
+    GHA --> SSH["SSH: ubuntu@140.245.53.52"]
+    SSH --> Repo["/data/quant_research"]
+    Repo --> Deploy["deploy/scripts/deploy_oracle.sh"]
+    Deploy --> Reports["reports/latest"]
+    Deploy --> API["quant-api.service"]
+    Timer["quant-daily.timer"] --> Daily["quant-daily.service"]
+    Daily --> Runner["/data/quant_research/logs/quant-daily-run.sh"]
+    Runner --> DB["data/quant.db"]
+    Runner --> Reports
+    API --> Health["/api/health"]
+    Nginx["nginx :8080"] --> Reports
+    Nginx --> API
+```
+
+生产基线：
+
+| 项目 | 值 |
+| --- | --- |
+| 生产目录 | `/data/quant_research` |
+| Python 虚拟环境 | `/data/quant_research_venv` |
+| SQLite 数据库 | `/data/quant_research/data/quant.db` |
+| 静态页面目录 | `/data/quant_research/reports/latest` |
+| 日更日志 | `/data/quant_research/logs/daily-run-YYYYMMDD.log` |
+| API 服务 | `quant-api.service` |
+| 日更服务 | `quant-daily.service`、`quant-daily.timer` |
+
+### 2. 数据流
+
+```mermaid
+flowchart TD
+    Sources["AkShare / 东方财富 / 新浪 / mootdx"] --> Update["src/update_sqlite_data.py"]
+    Sources --> ETF["src/update_etf.py --spot-only --skip-holdings"]
+    Update --> DB["SQLite: data/quant.db"]
+    ETF --> DB
+    DB --> Screener["src/screener.py"]
+    DB --> Backtest["src/backtest_new_high_volume.py"]
+    DB --> Report["src/generate_report.py"]
+    Screener --> DB
+    Backtest --> DB
+    Report --> Latest["reports/latest"]
+    Latest --> Pages["index.html / report.html / etf.html / monitor.html / summary.json"]
+    DB --> API["src/api_server.py"]
+    API --> Health["/api/health"]
+```
+
+主链路脚本名称：`deploy/scripts/quant-daily-run.sh`。
+
+日更任务的当前顺序：
+
+1. `src/update_sqlite_data.py`：更新日线、人气热榜、涨停池、龙虎榜、市场温度。
+2. `src/update_etf.py --spot-only --skip-holdings`：更新 ETF 当日快照，不采集持仓。
+3. `src/update_shares.py`：更新股本等基础数据。
+4. `src/update_zt_pool.py`：更新 legacy 涨停池兼容表。
+5. `src/screener.py`：生成选股信号。
+6. `src/backtest_new_high_volume.py`：更新策略回测结果。
+7. `src/generate_report.py`：生成 `reports/latest`、`summary.json`、`monitor.html`。
+8. `src/health_check.py`：执行数据质量检查。
+
+### 3. SQLite 核心表
+
+| 表 | 职责 | 健康检查 |
+| --- | --- | --- |
+| `daily_bars` | A 股日线行情 | 必需模块 |
+| `market_daily` | 市场温度、涨跌停统计 | 必需模块 |
+| `limit_up_pool` | 涨停池 | 必需模块 |
+| `popularity_rankings` | 人气热榜 Top100 | 必需模块 |
+| `lhb_records` | 龙虎榜明细 | 必需模块 |
+| `lhb_seats` | 龙虎榜席位 | 必需模块 |
+| `etf_daily` | ETF 当日快照和技术信号 | 必需模块 |
+| `screen_results` | 选股信号 | 必需模块 |
+| `strategy_backtests` | 策略回测摘要 | 必需模块 |
+| `zt_pool` | legacy 涨停池兼容数据 | 非必需 legacy 模块 |
+
+### 4. 页面与 API
+
+| 入口 | 类型 | 说明 |
+| --- | --- | --- |
+| `/` | 静态页面 | 首页，展示模块入口、最新数据日期和 Git commit |
+| `/report.html` | 静态页面 | 综合报告 |
+| `/hot_rank_iframe.html` | 静态页面 | 人气热榜 |
+| `/longhu.html` | 静态页面 + API | 龙虎榜页面 |
+| `/etf.html` | 静态页面 | ETF 雷达 |
+| `/monitor.html` | 静态页面 | 运行监控、数据模块状态、Git commit、日志路径 |
+| `/summary.json` | 静态 JSON | 首页和监控页摘要数据 |
+| `/api/health` | Flask API | 交易日感知的模块级健康检查 |
+
+`/api/health` 的总状态规则：
+
+- 必需模块全部为 `fresh` 时，`status=ok`。
+- 必需模块缺失、滞后或日期异常时，`status=error`。
+- 非必需 legacy 表异常保留在 `warnings`，但不影响总状态。
+
+### 5. 部署链路
+
+GitHub Actions 工作流名称：`Deploy to Oracle Cloud`。
+
+必需 secret 名称：
+
+- `ORACLE_HOST`
+- `ORACLE_USER`
+- `ORACLE_SSH_KEY`
+
+部署脚本名称：`deploy/scripts/deploy_oracle.sh`。
+
+部署脚本职责：
+
+- 拉取 `origin master` 最新代码。
+- 安装最新版 `deploy/scripts/quant-daily-run.sh` 到 `/data/quant_research/logs/quant-daily-run.sh`。
+- 可选刷新多源热榜兜底产物，且受 `HOT_RANK_REFRESH_TIMEOUT` 限制。
+- 重新生成 `reports/latest`。
+- 可选重启 `quant-api.service`。
+
+### 6. 降级策略
+
+| 模块 | 正常路径 | 兜底路径 |
+| --- | --- | --- |
+| 人气热榜 | AkShare `stock_hot_rank_em` | 东方财富 direct fallback，再失败则读取标准化 CSV |
+| ETF 雷达 | 实时 ETF 快照 | 历史 K 线接口异常时仍写入当日快照 |
+| ETF 持仓 | 单独按需采集 | 不进入每日主链路，避免阻塞 |
+| Git dirty 状态 | `git status` | 排除 `data/`、`reports/`、`logs/` 运行产物 |
+
+详细运行说明见 `docs/DATA_PIPELINE.md` 和 `docs/OPERATIONS_RUNBOOK.md`。
