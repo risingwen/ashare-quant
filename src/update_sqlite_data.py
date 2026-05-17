@@ -645,6 +645,93 @@ def load_popularity_csv_fallback(pd, base_dir: Path, end_date: str) -> list[tupl
     return rows
 
 
+def fetch_eastmoney_hot_rank_direct(retries: int, sleep_seconds: float) -> list[dict[str, object]]:
+    import requests  # type: ignore
+
+    payload = {
+        "appId": "appId01",
+        "globalId": "786e4c21-70dc-435a-93bb-38",
+        "marketType": "",
+        "pageNo": 1,
+        "pageSize": 100,
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://guba.eastmoney.com/rank/",
+        "Content-Type": "application/json",
+    }
+    session = requests.Session()
+
+    data = None
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            resp = session.post(
+                "https://emappdata.eastmoney.com/stockrank/getAllCurrentList",
+                json=payload,
+                headers=headers,
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            if attempt < retries:
+                time.sleep(sleep_seconds * 5)
+    if data is None:
+        raise RuntimeError(last_error)
+
+    items = data.get("data") or []
+    if not items:
+        return []
+
+    codes = [code_value(item.get("sc")) for item in items]
+    codes = [code for code in codes if code]
+    quote_by_code: dict[str, dict[str, object]] = {}
+    if codes:
+        secids = ",".join(("0." if code.startswith(("0", "3")) else "1.") + code for code in codes)
+        try:
+            resp = session.get(
+                "https://push2.eastmoney.com/api/qt/ulist.np/get",
+                params={
+                    "ut": "f057cbcbce2a86e2866ab8877db1d059",
+                    "fltt": "2",
+                    "invt": "2",
+                    "fields": "f14,f3,f12,f2",
+                    "secids": secids,
+                },
+                headers={"User-Agent": headers["User-Agent"], "Referer": headers["Referer"]},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            quote_json = resp.json()
+            for quote in (quote_json.get("data") or {}).get("diff") or []:
+                code = code_value(quote.get("f12"))
+                if code:
+                    quote_by_code[code] = quote
+        except Exception as exc:  # noqa: BLE001
+            print(f"Popularity direct quote fallback failed: {exc}")
+
+    rows: list[dict[str, object]] = []
+    for item in items:
+        code = code_value(item.get("sc"))
+        if not code:
+            continue
+        quote = quote_by_code.get(code, {})
+        rows.append(
+            {
+                "source": "eastmoney_hot_rank_direct",
+                "rank": item.get("rk"),
+                "code": code,
+                "name": quote.get("f14") or code,
+                "score": item.get("rc") if item.get("rc") is not None else item.get("hisRc"),
+                "raw": {"rank": item, "quote": quote},
+            }
+        )
+    return rows
+
+
 def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: float, run_id: str, allow_snapshot: bool = True) -> None:
     fetchers: list[tuple[str, Callable]] = []
     has_em = hasattr(ak, "stock_hot_rank_em")
@@ -694,6 +781,40 @@ def update_popularity(conn, ak, pd, end_date: str, retries: int, sleep_seconds: 
             conn.executemany(insert_sql, rows)
         total += len(rows)
         print(f"Popularity {source}: {len(rows)} rows")
+
+    if total == 0:
+        try:
+            direct_rows = fetch_eastmoney_hot_rank_direct(retries, sleep_seconds)
+        except Exception as exc:  # noqa: BLE001
+            with conn:
+                insert_issue(conn, run_id, "popularity:eastmoney_direct", str(exc))
+            print(f"Popularity direct fallback failed: {exc}")
+            direct_rows = []
+
+        if direct_rows:
+            rows = []
+            for row in direct_rows:
+                rank = to_float(row.get("rank"))
+                code = code_value(row.get("code"))
+                name = str(row.get("name") or "").strip()
+                if rank is None or not code or not name:
+                    continue
+                rows.append(
+                    (
+                        str(row.get("source") or "eastmoney_hot_rank_direct"),
+                        normalize_date(end_date),
+                        int(rank),
+                        code,
+                        name,
+                        to_float(row.get("score")),
+                        json.dumps(row.get("raw") or row, ensure_ascii=False, default=str),
+                    )
+                )
+            if rows:
+                with conn:
+                    conn.executemany(insert_sql, rows)
+                total += len(rows)
+                print(f"Popularity eastmoney_direct: {len(rows)} rows")
 
     if total == 0:
         try:
