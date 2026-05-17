@@ -18,6 +18,7 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.sisyphus/
 *.swp
 *.swo
 *~
@@ -57,3 +58,4 @@ htmlcov/
 # 临时文件
 *.tmp
 *.bak
+tmp/
