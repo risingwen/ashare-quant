@@ -5,6 +5,7 @@ REPO_DIR="${REPO_DIR:-/data/quant_research}"
 VENV_PYTHON="${VENV_PYTHON:-/data/quant_research_venv/bin/python}"
 DB_PATH="${DB_PATH:-/data/quant_research/data/quant.db}"
 REPORT_DIR="${REPORT_DIR:-/data/quant_research/reports}"
+SERVICE_SCRIPT="${SERVICE_SCRIPT:-/data/quant_research/logs/quant-daily-run.sh}"
 START_DATE="${START_DATE:-2025-01-01}"
 BRANCH="${BRANCH:-master}"
 RESTART_API="${RESTART_API:-1}"
@@ -15,6 +16,7 @@ echo "========================================"
 echo "deploy_oracle start: $(date '+%F %T')"
 echo "REPO_DIR=${REPO_DIR}"
 echo "BRANCH=${BRANCH}"
+echo "SERVICE_SCRIPT=${SERVICE_SCRIPT}"
 echo "RUN_FULL_PIPELINE=${RUN_FULL_PIPELINE}"
 echo "RESTART_API=${RESTART_API}"
 echo "REFRESH_HOT_RANK_FALLBACK=${REFRESH_HOT_RANK_FALLBACK}"
@@ -27,20 +29,25 @@ git fetch origin
 git pull --ff-only origin "${BRANCH}"
 echo "HEAD=$(git rev-parse HEAD)"
 
+echo "[2/6] Install systemd daily runner"
+mkdir -p "$(dirname "${SERVICE_SCRIPT}")"
+install -m 0755 deploy/scripts/quant-daily-run.sh "${SERVICE_SCRIPT}"
+echo "SERVICE_SCRIPT_SHA=$(sha256sum "${SERVICE_SCRIPT}" | awk '{print $1}')"
+
 if [[ "${RUN_FULL_PIPELINE}" == "1" ]]; then
-  echo "[2/5] Start full quant-daily pipeline"
+  echo "[3/6] Start full quant-daily pipeline"
   sudo systemctl start quant-daily.service
   echo "Use: sudo journalctl -u quant-daily.service -f"
 else
   if [[ "${REFRESH_HOT_RANK_FALLBACK}" == "1" ]]; then
-    echo "[2/5] Refresh hot-rank fallback artifacts"
+    echo "[3/6] Refresh hot-rank fallback artifacts"
     "${VENV_PYTHON}" scripts/try_hot_rank_multi_source.py || true
     "${VENV_PYTHON}" scripts/export_hot_rank_multi_source_pages.py || true
   else
-    echo "[2/5] Skip hot-rank fallback refresh"
+    echo "[3/6] Skip hot-rank fallback refresh"
   fi
 
-  echo "[3/5] Regenerate reports and homepage assets"
+  echo "[4/6] Regenerate reports and homepage assets"
   "${VENV_PYTHON}" src/generate_report.py \
     --db "${DB_PATH}" \
     --report-dir "${REPORT_DIR}" \
@@ -48,14 +55,14 @@ else
 fi
 
 if [[ "${RESTART_API}" == "1" ]]; then
-  echo "[4/5] Restart quant-api.service"
+  echo "[5/6] Restart quant-api.service"
   sudo systemctl restart quant-api.service
   sudo systemctl is-active quant-api.service
 else
-  echo "[4/5] Skip API restart"
+  echo "[5/6] Skip API restart"
 fi
 
-echo "[5/5] Verify generated homepage/report files"
+echo "[6/6] Verify generated homepage/report files"
 "${VENV_PYTHON}" - <<'PY'
 from pathlib import Path
 import json
@@ -75,7 +82,7 @@ print(f"index_has_data_status={('数据更新情况' in index_text)}")
 print(f"report_has_data_status={('数据更新状态' in report_text)}")
 PY
 
-echo "[6/6] Suggested remote checks"
+echo "[post] Suggested remote checks"
 echo "curl http://140.245.53.52:8080/api/health"
 echo "curl http://140.245.53.52:8080/index.html?v=$(date +%s)"
 echo "curl http://140.245.53.52:8080/report.html?v=$(date +%s)"
