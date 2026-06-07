@@ -24,6 +24,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from quant_core import DEFAULT_DB_PATH, normalize_date
 from quant_db import connect
 
+DEFAULT_AUDIT_CONFIG_PATH = Path("config/audit_completeness.yaml")
+
 
 @dataclass
 class AuditResult:
@@ -35,20 +37,40 @@ class AuditResult:
     stats: dict[str, Any] = field(default_factory=dict)
 
 
+def load_audit_config(config_path: Path) -> dict[str, Any]:
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml  # type: ignore
+    except ImportError as exc:
+        raise SystemExit("Missing dependency for YAML config. Run: pip install -r requirements.txt") from exc
+    with config_path.open("r", encoding="utf-8") as file:
+        data = yaml.safe_load(file) or {}
+    if not isinstance(data, dict):
+        raise SystemExit(f"Audit config must be a mapping: {config_path}")
+    return data
+
+
 def parse_args() -> argparse.Namespace:
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--audit-config", type=Path, default=DEFAULT_AUDIT_CONFIG_PATH)
+    pre_args, _ = pre_parser.parse_known_args()
+    config = load_audit_config(pre_args.audit_config)
+
     parser = argparse.ArgumentParser(description="Audit quant SQLite data completeness")
+    parser.add_argument("--audit-config", type=Path, default=pre_args.audit_config)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--start-date", help="Start date, YYYY-MM-DD or YYYYMMDD")
     parser.add_argument("--end-date", help="End date, YYYY-MM-DD or YYYYMMDD; defaults to latest trading day <= today")
-    parser.add_argument("--lookback-days", type=int, default=20, help="Natural-day lookback when --start-date is omitted")
-    parser.add_argument("--min-daily-bars", type=int, default=5000, help="Minimum daily_bars rows per recent trading day")
-    parser.add_argument("--min-etf-rows", type=int, default=300, help="Minimum etf_daily rows on latest expected trading day")
-    parser.add_argument("--min-popularity-rows", type=int, default=50, help="Minimum popularity rows on latest expected trading day")
-    parser.add_argument("--min-limit-up-rows", type=int, default=1, help="Minimum limit_up_pool rows on latest expected trading day")
-    parser.add_argument("--strict-lhb", action="store_true", help="Require lhb_records rows on latest expected trading day")
+    parser.add_argument("--lookback-days", type=int, default=int(config.get("lookback_days", 20)), help="Natural-day lookback when --start-date is omitted")
+    parser.add_argument("--min-daily-bars", type=int, default=int(config.get("min_daily_bars", 5000)), help="Minimum daily_bars rows per recent trading day")
+    parser.add_argument("--min-etf-rows", type=int, default=int(config.get("min_etf_rows", 300)), help="Minimum etf_daily rows on latest expected trading day")
+    parser.add_argument("--min-popularity-rows", type=int, default=int(config.get("min_popularity_rows", 50)), help="Minimum popularity rows on latest expected trading day")
+    parser.add_argument("--min-limit-up-rows", type=int, default=int(config.get("min_limit_up_rows", 1)), help="Minimum limit_up_pool rows on latest expected trading day")
+    parser.add_argument("--strict-lhb", action="store_true", default=bool(config.get("strict_lhb", False)), help="Require lhb_records rows on latest expected trading day")
     parser.add_argument("--json-output", type=Path, help="Write machine-readable audit result JSON")
     parser.add_argument("--record-issues", action="store_true", help="Append failed checks to data_quality_issues")
-    parser.add_argument("--socket-timeout", type=float, default=15.0)
+    parser.add_argument("--socket-timeout", type=float, default=float(config.get("socket_timeout", 15.0)))
     return parser.parse_args()
 
 

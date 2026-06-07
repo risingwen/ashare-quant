@@ -66,6 +66,7 @@ run_step "health_check" \
 run_step "audit_data_completeness" \
     "$PYTHON" -u src/audit_data_completeness.py \
         --db "$DB" \
+        --audit-config config/audit_completeness.yaml \
         --lookback-days 20 \
         --record-issues \
         --socket-timeout 20

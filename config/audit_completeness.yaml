@@ -1,0 +1,8 @@
+# Data completeness thresholds for src/audit_data_completeness.py.
+lookback_days: 20
+min_daily_bars: 5000
+min_etf_rows: 300
+min_popularity_rows: 50
+min_limit_up_rows: 1
+strict_lhb: false
+socket_timeout: 15

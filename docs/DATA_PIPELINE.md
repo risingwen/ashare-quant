@@ -62,6 +62,7 @@ deploy/scripts/quant-daily-run.sh
 ```bash
 python src/audit_data_completeness.py \
   --db data/quant.db \
+  --audit-config config/audit_completeness.yaml \
   --lookback-days 20 \
   --record-issues \
   --socket-timeout 20
@@ -75,6 +76,8 @@ python src/audit_data_completeness.py \
 - `popularity_rankings`：最新预期交易日至少一个来源不少于 `50` 行。
 - `limit_up_pool`：最新预期交易日默认至少 `1` 行。
 - `lhb_records`：默认不强制每日必须有记录；需要时可加 `--strict-lhb`。
+
+默认阈值集中在 `config/audit_completeness.yaml`。命令行参数优先级更高，可用于临时调试或应急放宽。
 
 可单独输出机器可读结果：
 

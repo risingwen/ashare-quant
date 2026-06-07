@@ -1,0 +1,25 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+  "archive",
+  "data",
+  "logs",
+  "reports",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+  "E501",
+  "B904",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  "integration: tests that validate multiple modules or external services",
+  "network: tests that call external data providers such as AkShare or Eastmoney",
+]
+
