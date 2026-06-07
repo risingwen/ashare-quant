@@ -19,7 +19,8 @@ from typing import Iterable
 
 from quant_core import DEFAULT_DB_PATH, is_limit_down, is_limit_up
 from quant_db import connect
-from reporting.formatters import fmt_num, fmt_pct, format_table_cell
+from reporting.formatters import fmt_num, fmt_pct
+from reporting.tables import markdown_table, simple_table
 from reporting.theme import BASE_STYLE as _BASE_STYLE
 from reporting.theme import navbar as _NAVBAR
 
@@ -163,35 +164,6 @@ def safe_scalar(conn: sqlite3.Connection, sql: str) -> str | None:
     if not row:
         return None
     return row[0]
-
-
-def simple_table(rows: list[dict[str, object]], columns: list[tuple[str, str]], limit: int | None = None) -> str:
-    selected = rows[:limit] if limit else rows
-    if not selected:
-        return "<p class='empty'>暂无数据</p>"
-    head = "".join(f"<th>{html.escape(label)}</th>" for _key, label in columns)
-    body_rows = []
-    for row in selected:
-        cells = []
-        for key, _label in columns:
-            text = format_table_cell(key, row.get(key))
-            cells.append(f"<td>{html.escape(text)}</td>")
-        body_rows.append("<tr>" + "".join(cells) + "</tr>")
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
-
-
-def markdown_table(rows: list[dict[str, object]], columns: list[tuple[str, str]], limit: int | None = None) -> str:
-    selected = rows[:limit] if limit else rows
-    if not selected:
-        return "No data.\n"
-    lines = ["| " + " | ".join(label for _key, label in columns) + " |", "| " + " | ".join("---" for _ in columns) + " |"]
-    for row in selected:
-        values = []
-        for key, _label in columns:
-            value = row.get(key)
-            values.append(fmt_pct(value) if key.endswith("_rate") else fmt_num(value))
-        lines.append("| " + " | ".join(values) + " |")
-    return "\n".join(lines) + "\n"
 
 
 def write_csv(path: Path, rows: list[dict[str, object]], columns: list[str]) -> None:
@@ -2377,7 +2349,7 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
     lines.extend([
         "", "## 新高+量能策略回测", markdown_table(strategy_rows, [("strategy", "策略"), ("trades", "交易次数"), ("signal_days", "信号天数"), ("win_rate", "胜率"), ("avg_return_pct", "均值%"), ("median_return_pct", "中位数%"), ("total_batch_return_pct", "批次总收益%"), ("max_drawdown_pct", "最大回撤%"), ("avg_gap_pct", "均值跳空%"), ("avg_hold_days", "均值持仓天")]),
         "## 最新人气榜", markdown_table(popularity_rows, [("source", "来源"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)")], 50),
-        "## 外部涨停池", markdown_table(limit_pool_rows, [("source", "来源"), ("code", "代码"), ("name", "名称"), ("reason", "涨停原因"), ("streak", "连板"), ("seal_amount", "封单额")], 50),
+        "## 涨停池（东方财富封板口径）", markdown_table(limit_pool_rows, [("source", "来源"), ("code", "代码"), ("name", "名称"), ("reason", "涨停原因"), ("streak", "连板"), ("seal_amount", "封单额")], 50),
         "## 热门候选股", markdown_table(latest_hot, candidate_columns, 40),
         "## 量能龙头候选股", markdown_table(latest_top_amount, candidate_columns, 40),
         "## 连板晋级统计", markdown_table(summary["streak_summary"], [("streak", "连板数"), ("count", "信号数"), ("next_limit_up_rate", "次日涨停率"), ("gap_pct", "均值跳空%"), ("open_to_close_pct", "均值开收%"), ("median_open_to_close_pct", "中位数开收%")]),
