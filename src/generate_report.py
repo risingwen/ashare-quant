@@ -86,6 +86,47 @@ def fmt_pct(value: object, digits: int = 2) -> str:
     return str(value)
 
 
+SOURCE_LABELS = {
+    "eastmoney_zt_pool": "东方财富涨停池",
+    "eastmoney_hot_rank_direct": "东方财富人气榜",
+    "akshare_stock_hot_rank_em": "AkShare人气榜",
+    "ths": "同花顺热榜",
+    "xueqiu": "雪球热榜",
+}
+
+
+def display_source(value: object) -> str:
+    if value is None:
+        return "-"
+    return SOURCE_LABELS.get(str(value), str(value))
+
+
+def fmt_market_time(value: object) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    digits = "".join(ch for ch in text if ch.isdigit())
+    if len(digits) == 6:
+        return f"{digits[:2]}:{digits[2:4]}:{digits[4:]}"
+    if len(digits) == 4:
+        return f"{digits[:2]}:{digits[2:]}"
+    return text
+
+
+def format_table_cell(key: str, value: object) -> str:
+    if key == "source":
+        return display_source(value)
+    if key in {"first_limit_time", "last_limit_time"}:
+        return fmt_market_time(value)
+    if key in {"seal_amount_yi"}:
+        return fmt_num(value)
+    if key.endswith("_rate"):
+        return fmt_pct(value)
+    return fmt_num(value)
+
+
 def _git_output(args: list[str]) -> str | None:
     try:
         result = subprocess.run(
@@ -187,14 +228,13 @@ def safe_scalar(conn: sqlite3.Connection, sql: str) -> str | None:
 def simple_table(rows: list[dict[str, object]], columns: list[tuple[str, str]], limit: int | None = None) -> str:
     selected = rows[:limit] if limit else rows
     if not selected:
-        return "<p>No data.</p>"
+        return "<p class='empty'>暂无数据</p>"
     head = "".join(f"<th>{html.escape(label)}</th>" for _key, label in columns)
     body_rows = []
     for row in selected:
         cells = []
         for key, _label in columns:
-            value = row.get(key)
-            text = fmt_pct(value) if key.endswith("_rate") else fmt_num(value)
+            text = format_table_cell(key, row.get(key))
             cells.append(f"<td>{html.escape(text)}</td>")
         body_rows.append("<tr>" + "".join(cells) + "</tr>")
     return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
@@ -765,22 +805,7 @@ td {{ padding: 8px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
 </style>
 </head>
 <body>
-<div class="navbar">
-  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
-  <div class="navbar-links">
-  <a href="index.html">首页</a>
-  <a href="report.html">综合报告</a>
-  <a href="screener.html">选股信号</a>
-  <a href="lianban.html">连板晋级</a>
-  <a href="hot_rank_iframe.html">人气热榜</a>
-  <a href="longhu.html" class="active">龙虎榜</a>
-  <a href="etf.html">ETF雷达</a>
-  <a href="emotion.html">市场温度</a>
-  <a href="monitor.html">运行监控</a>
-  <a href="docs.html">文档</a>
-  </div>
-  <div class="navbar-date">最新数据：{html.escape(latest_date)}</div>
-</div>
+{_NAVBAR("longhu.html", "最新数据：" + html.escape(latest_date))}
 <div class="container">
   <h1>龙虎榜</h1>
   <p class="sub">来源：东方财富 · 点击行可展开席位明细 · 含上榜后收益追踪</p>
@@ -1355,22 +1380,7 @@ td {{ padding: 9px 8px; border-bottom: 1px solid #21262d; vertical-align: middle
 </style>
 </head>
 <body>
-<div class="navbar">
-  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
-  <div class="navbar-links">
-   <a href="index.html">首页</a>
-   <a href="report.html">综合报告</a>
-   <a href="screener.html">选股信号</a>
-   <a href="lianban.html">连板晋级</a>
-   <a href="hot_rank_iframe.html">人气热榜</a>
-   <a href="longhu.html">龙虎榜</a>
-   <a href="etf.html" class="active">ETF雷达</a>
-   <a href="emotion.html">市场温度</a>
-   <a href="monitor.html">运行监控</a>
-   <a href="docs.html">文档</a>
-  </div>
-  <div class="navbar-date">数据日期：{html_mod.escape(db_latest)}</div>
-</div>
+{_NAVBAR("etf.html", "数据日期：" + html_mod.escape(db_latest))}
 <div class="container">
   <h1>📡 ETF雷达</h1>
   <p class="sub">数据日期：{html_mod.escape(db_latest)} · 成交额≥5亿 · 已去除债券/货币ETF · 点击行展开持仓</p>
@@ -1782,23 +1792,7 @@ tr:last-child td {{ border-bottom: none; }}
 </style>
 </head>
 <body>
-<div class="navbar">
-  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
-  <div class="navbar-links">
-    <a href="index.html">首页</a>
-    <a href="report.html">综合报告</a>
-    <a href="screener.html">选股信号</a>
-    <a href="lianban.html">连板晋级</a>
-    <a href="hot_rank_iframe.html">人气热榜</a>
-    <a href="longhu.html">龙虎榜</a>
-    <a href="etf.html">ETF雷达</a>
-    <a href="emotion.html" class="active">市场温度</a>
-    <a href="monitor.html">运行监控</a>
-    <a href="docs.html">文档</a>
-  </div>
-  <div class="navbar-date">最新数据：{latest_date_str}</div>
-</div>
-</div>
+{_NAVBAR("emotion.html", "最新数据：" + latest_date_str)}
 <div class="container">
   <h1>🌡️ 市场温度</h1>
   <p class="sub">情绪分历史走势 · 涨跌停比 · 成交额 · 连板晋级统计 · 数据范围 {start_date_str} 至今</p>
@@ -2313,7 +2307,12 @@ def publish_static_assets(output_dir: Path) -> None:
 def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, object]], latest_hot: list[dict[str, object]], popularity_rows: list[dict[str, object]], limit_pool_rows: list[dict[str, object]], strategy_rows: list[dict[str, object]], screen_rows: list[dict[str, object]] | None = None) -> str:
     candidate_columns = [("code", "代码"), ("name", "名称"), ("market", "市场"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%"), ("is_limit_up", "涨停"), ("streak", "连板"), ("hot_score", "热度分")]
     popularity_columns = [("source", "来源"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%")]
-    limit_columns = [("source", "来源"), ("code", "代码"), ("name", "名称"), ("reason", "涨停原因"), ("streak", "连板"), ("first_limit_time", "首次封板"), ("last_limit_time", "最后封板"), ("seal_amount", "封单额"), ("amount_e8", "成交额(亿)")]
+    limit_pool_display_rows = []
+    for row in limit_pool_rows:
+        display_row = dict(row)
+        display_row["seal_amount_yi"] = None if row.get("seal_amount") is None else float(row["seal_amount"]) / 100_000_000
+        limit_pool_display_rows.append(display_row)
+    limit_columns = [("source", "来源"), ("code", "代码"), ("name", "名称"), ("reason", "涨停原因/行业"), ("streak", "连板数"), ("first_limit_time", "首次封板"), ("last_limit_time", "最后封板"), ("seal_amount_yi", "封单金额(亿)"), ("amount_e8", "成交额(亿)")]
     strategy_columns = [("strategy", "策略"), ("trades", "交易次数"), ("signal_days", "信号天数"), ("win_rate", "胜率"), ("avg_return_pct", "均值%"), ("median_return_pct", "中位数%"), ("total_batch_return_pct", "批次总收益%"), ("max_drawdown_pct", "最大回撤%"), ("avg_gap_pct", "均值跳空%"), ("avg_hold_days", "均值持仓天")]
 
     def _render_screen_section(rows: list[dict] | None) -> str:
@@ -2351,42 +2350,60 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
 
     streak_columns = [("streak", "连板数"), ("count", "信号数"), ("next_limit_up_rate", "次日涨停率"), ("gap_pct", "均值跳空%"), ("open_to_close_pct", "均值开收%"), ("median_open_to_close_pct", "中位数开收%")]
     emotion_columns = [("date", "日期"), ("eligible_count", "股票数"), ("up_count", "上涨家数"), ("down_count", "下跌家数"), ("up_ratio_rate", "上涨比例"), ("limit_up_count", "涨停数"), ("limit_down_count", "跌停数"), ("amount_e8", "成交额(亿)")]
-    style = """
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; color: #172033; background: #f6f7fb; }
-    h1, h2, h3 { color: #0f172a; }
+    style = _BASE_STYLE + """
+    .container { max-width: 1500px; margin: 0 auto; padding: 28px 20px 72px; }
+    .hero { margin-bottom: 20px; }
+    h1 { font-size: 24px; margin-bottom: 8px; color: #e6edf3; }
+    h2 { font-size: 16px; color: #8b949e; text-transform: uppercase; letter-spacing: .06em; border-left: 3px solid #58a6ff; padding-left: 12px; margin: 34px 0 14px; }
+    h3 { color: #e6edf3; font-size: 14px; }
+    .muted { color: #8b949e; font-size: 13px; line-height: 1.6; }
+    .note { background: #161b22; border: 1px solid #30363d; border-left: 3px solid #ffa657; padding: 12px 14px; border-radius: 10px; color: #c9d1d9; margin: 14px 0 22px; font-size: 13px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 18px 0 28px; }
-    .card { background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
-    .big { font-size: 28px; font-weight: 700; margin: 8px 0; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; margin: 12px 0 28px; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-size: 13px; }
-    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
-    th { background: #e9eef8; color: #0f172a; }
-    .note { background: #fff7ed; border: 1px solid #fed7aa; padding: 12px 14px; border-radius: 10px; }
-    .muted { color: #64748b; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 14px; padding: 16px 18px; box-shadow: 0 8px 24px #0003; }
+    .card p { color: #8b949e; font-size: 12px; line-height: 1.7; }
+    .big { font-size: 30px; font-weight: 800; color: #e6edf3; margin: 6px 0; }
+    .table-wrap { overflow-x: auto; }
+    table { margin: 12px 0 28px; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #30363d; text-align: right; font-size: 13px; white-space: nowrap; }
+    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { text-align: left; }
+    .empty { color: #484f58; padding: 20px; background: #161b22; border: 1px solid #30363d; border-radius: 10px; }
     .status-pill { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-    .status-fresh { background:#dcfce7; color:#166534; }
-    .status-lagging { background:#fef3c7; color:#92400e; }
-    .status-stale { background:#fee2e2; color:#991b1b; }
-    .status-missing { background:#e5e7eb; color:#374151; }
+    .status-fresh { background:#1a3a25; color:#07a071; }
+    .status-lagging { background:#3a2a1a; color:#ffa657; }
+    .status-stale { background:#3a1a1a; color:#e84c3d; }
+    .status-missing { background:#2b3137; color:#c9d1d9; }
+    .footer { text-align: center; color: #484f58; font-size: 12px; padding: 48px 0 12px; }
+    @media (max-width: 760px) {
+      .navbar { padding: 10px 16px; align-items: flex-start; }
+      .navbar-date { margin-left: 0; width: 100%; }
+      .container { padding: 24px 14px 56px; }
+      th, td { padding: 8px 9px; font-size: 12px; }
+    }
     """
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>A股量化研究报告 {html.escape(str(summary['latest_date']))}</title><style>{style}</style></head>
 <body>
-  <h1>A股量化研究报告</h1>
-  <p class="muted">生成时间: {html.escape(str(summary['generated_at']))}　数据库: {html.escape(str(summary['db']))}　commit: {html.escape(str((summary.get('git') or {}).get('short_commit') or '-'))}</p>
-  <div class="note">数据源为 SQLite 数据库，通过 update_sqlite_data.py 每日更新。人气榜数据需要 AkShare 相关接口可用时才会显示。</div>
-  <div class="grid">{summary_cards(summary)}</div>
-  <h2>数据更新状态</h2>{data_status_table(summary.get('data_status', []))}
-  {_render_screen_section(screen_rows)}
-  <h2>新高+量能策略回测</h2>{simple_table(strategy_rows, strategy_columns)}
-  <h2>最新人气榜</h2>{simple_table(popularity_rows, popularity_columns, 80)}
-  <h2 id="limitup">外部涨停池</h2>{simple_table(limit_pool_rows, limit_columns, 80)}
-  <h2>热门候选股</h2>{simple_table(latest_hot, candidate_columns, 40)}
-  <h2>量能龙头候选股</h2>{simple_table(latest_top_amount, candidate_columns, 40)}
-  <h2>连板晋级统计</h2>{simple_table(summary['streak_summary'], streak_columns)}
-  <h2 id="limitdown">近期市场情绪（涨跌停走势）</h2>{simple_table(summary['recent_emotion'], emotion_columns)}
-  <h2>数据质量</h2><p>股票总数: {fmt_num(summary['stock_count'])}；可交易: {fmt_num(summary['eligible_stock_count'])}；日线数据: {fmt_num(summary['bar_count'])}；质量问题: {fmt_num(summary['quality_issue_count'])}；人气榜记录: {fmt_num(summary['popularity_count'])}；外部涨停池记录: {fmt_num(summary['limit_pool_count'])}；策略回测数: {fmt_num(summary['strategy_backtest_count'])}。</p>
+  {_NAVBAR("report.html", html.escape(str(summary["latest_date"])))}
+  <main class="container">
+    <div class="hero">
+      <h1>A股量化研究报告</h1>
+      <p class="muted">生成时间: {html.escape(str(summary['generated_at']))}　数据库: {html.escape(str(summary['db']))}　commit: {html.escape(str((summary.get('git') or {}).get('short_commit') or '-'))}</p>
+      <div class="note">数据源为 SQLite 生产库。核心数据已由完备性审计校验；涨停池采用东方财富封板口径，日线涨跌幅和成交额来自本地 daily_bars。</div>
+    </div>
+    <div class="grid">{summary_cards(summary)}</div>
+    <h2>数据更新状态</h2>{data_status_table(summary.get('data_status', []))}
+    {_render_screen_section(screen_rows)}
+    <h2>新高+量能策略回测</h2>{simple_table(strategy_rows, strategy_columns)}
+    <h2>最新人气榜</h2>{simple_table(popularity_rows, popularity_columns, 80)}
+    <h2 id="limitup">涨停池（东方财富封板口径）</h2>{simple_table(limit_pool_display_rows, limit_columns, 80)}
+    <h2>热门候选股</h2>{simple_table(latest_hot, candidate_columns, 40)}
+    <h2>量能龙头候选股</h2>{simple_table(latest_top_amount, candidate_columns, 40)}
+    <h2>连板晋级统计</h2>{simple_table(summary['streak_summary'], streak_columns)}
+    <h2 id="limitdown">近期市场情绪（涨跌停走势）</h2>{simple_table(summary['recent_emotion'], emotion_columns)}
+    <h2>数据质量</h2><p class="muted">股票总数: {fmt_num(summary['stock_count'])}；可交易: {fmt_num(summary['eligible_stock_count'])}；日线数据: {fmt_num(summary['bar_count'])}；质量问题: {fmt_num(summary['quality_issue_count'])}；人气榜记录: {fmt_num(summary['popularity_count'])}；涨停池记录: {fmt_num(summary['limit_pool_count'])}；策略回测数: {fmt_num(summary['strategy_backtest_count'])}。</p>
+    <div class="footer">数据来源：AkShare / 东方财富 · 每工作日 19:45 (北京时间) 自动更新</div>
+  </main>
 </body></html>"""
 
 
@@ -2442,6 +2459,7 @@ def _NAVBAR(active: str, latest_date: str) -> str:
         ("hot_rank_iframe.html", "人气热榜"),
         ("longhu.html", "龙虎榜"),
         ("etf.html", "ETF雷达"),
+        ("emotion.html", "市场温度"),
         ("monitor.html", "运行监控"),
         ("docs.html", "文档"),
     ]
@@ -2466,7 +2484,7 @@ body {
 .navbar {
   background: #161b22; border-bottom: 1px solid #30363d;
   padding: 0 32px; display: flex; align-items: center;
-  height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap;
+  min-height: 60px; gap: 24px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap;
 }
 .navbar-brand { font-size: 16px; font-weight: 700; color: #58a6ff; text-decoration: none; white-space: nowrap; }
 .navbar-links { display: flex; gap: 2px; flex-wrap: wrap; }
@@ -2477,21 +2495,25 @@ body {
 .navbar-links a:hover { color: #e6edf3; background: #21262d; }
 .navbar-links a.active { color: #e6edf3; background: #21262d; }
 .navbar-date { margin-left: auto; font-size: 12px; color: #484f58; }
-.page { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+.page { max-width: 1500px; margin: 0 auto; padding: 32px 24px 80px; }
 h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
 .subtitle { color: #8b949e; font-size: 13px; margin-bottom: 28px; }
 .section { margin-bottom: 40px; }
 .section-title {
-  font-size: 15px; font-weight: 600; color: #cdd9e5;
-  padding-bottom: 8px; border-bottom: 1px solid #21262d; margin-bottom: 16px;
+  font-size: 15px; font-weight: 600; color: #8b949e;
+  padding-left: 12px; border-left: 3px solid #58a6ff; margin-bottom: 16px;
 }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  background: #161b22; border: 1px solid #30363d; border-radius: 12px; overflow: hidden;
+}
 thead th {
-  text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .05em; color: #484f58; border-bottom: 1px solid #21262d; white-space: nowrap;
+  text-align: left; padding: 9px 10px; font-size: 12px;
+  color: #8b949e; border-bottom: 1px solid #30363d; white-space: nowrap;
+  background: #21262d; font-weight: 600;
 }
-tbody td { padding: 7px 10px; border-bottom: 1px solid #161b22; color: #8b949e; }
-tbody tr:hover td { background: #161b22; color: #cdd9e5; }
+tbody td { padding: 8px 10px; border-bottom: 1px solid #30363d; color: #c9d1d9; }
+tbody tr:hover td { background: #1c2128; color: #e6edf3; }
 .up   { color: #e84c3d; }
 .down { color: #07a071; }
 .flat { color: #8b949e; }
@@ -2505,7 +2527,7 @@ tbody tr:hover td { background: #161b22; color: #cdd9e5; }
 .badge-streak-4 { background:#2d0f0f; color:#ff7b72; border:1px solid #6e1a1a; }
 .badge-streak-5 { background:#3d1f00; color:#ffac5c; border:1px solid #9a4f00; }
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 12px; margin-bottom: 24px; }
-.card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; text-align:center; }
+.card { background:#161b22; border:1px solid #30363d; border-radius:14px; padding:16px; text-align:center; box-shadow:0 8px 24px #0003; }
 .card .val { font-size: 26px; font-weight: 700; color: #e6edf3; }
 .card .lbl { font-size: 12px; color: #8b949e; margin-top: 4px; }
 .tab-bar { display:flex; gap:4px; margin-bottom:16px; }
@@ -2520,6 +2542,12 @@ tbody tr:hover td { background: #161b22; color: #cdd9e5; }
   padding: 5px 10px; border-radius: 6px; font-size: 13px; min-width: 120px;
 }
 .no-data { color: #484f58; padding: 32px; text-align: center; }
+@media (max-width: 760px) {
+  .navbar { padding: 10px 16px; align-items: flex-start; }
+  .navbar-date { margin-left: 0; width: 100%; }
+  .page { padding: 24px 14px 56px; }
+  thead th, tbody td { padding: 8px 9px; font-size: 12px; }
+}
 """
 
 
@@ -3222,21 +3250,7 @@ body {{
 </style>
 </head>
 <body>
-<nav class="navbar">
-  <a class="navbar-brand" href="index.html">📊 A股量化平台</a>
-  <div class="navbar-links">
-    <a href="index.html">首页</a>
-    <a href="report.html">综合报告</a>
-    <a href="screener.html">选股信号</a>
-    <a href="lianban.html">连板晋级</a>
-    <a href="hot_rank_iframe.html">人气热榜</a>
-    <a href="longhu.html">龙虎榜</a>
-    <a href="etf.html">ETF雷达</a>
-    <a href="monitor.html">运行监控</a>
-    <a href="docs.html" class="active">文档</a>
-  </div>
-  <div class="navbar-date">更新于 {generated_date}</div>
-</nav>
+{_NAVBAR("docs.html", "更新于 " + html.escape(generated_date))}
 
 <div class="layout">
 

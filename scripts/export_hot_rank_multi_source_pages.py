@@ -28,28 +28,45 @@ HTML_TEMPLATE = """<!doctype html>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>多源热度看板（最近30天）</title>
   <style>
-    :root { --bg:#f3f7f9; --card:#fff; --line:#d6e0e6; --text:#183044; --muted:#5f7587; --accent:#0b7285; }
-    body { margin:0; font-family:"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif; background:linear-gradient(135deg,#eef7fb 0,#f3f7f9 45%,#f9fbfc 100%); color:var(--text); }
-    .wrap { max-width:1240px; margin:20px auto; padding:0 12px 20px; }
-    h1 { margin:0 0 8px 0; font-size:28px; }
-    .meta { color:var(--muted); font-size:13px; margin-bottom:12px; }
-    .panel { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; }
+    :root { --bg:#0d1117; --card:#161b22; --card2:#21262d; --line:#30363d; --text:#e6edf3; --muted:#8b949e; --dim:#484f58; --accent:#58a6ff; --hot:#ffa657; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .navbar { background:var(--card); border-bottom:1px solid var(--line); padding:0 32px; display:flex; align-items:center; min-height:60px; gap:24px; position:sticky; top:0; z-index:100; }
+    .navbar-brand { color:var(--accent); font-weight:700; font-size:16px; text-decoration:none; white-space:nowrap; }
+    .navbar-links { display:flex; gap:2px; flex-wrap:wrap; }
+    .navbar-links a { color:var(--muted); text-decoration:none; font-size:13px; padding:5px 10px; border-radius:6px; transition:all .15s; }
+    .navbar-links a:hover, .navbar-links a.active { color:var(--text); background:var(--card2); }
+    .wrap { max-width:1500px; margin:0 auto; padding:28px 20px 72px; }
+    h1 { margin:0 0 8px 0; font-size:24px; }
+    h3 { color:var(--text); margin:0 0 12px; font-size:15px; }
+    .meta { color:var(--muted); font-size:13px; margin-bottom:18px; }
+    .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; box-shadow:0 8px 24px #0003; }
     .controls { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
     label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
-    input, select, button { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-    button { cursor:pointer; background:#edf9ff; font-weight:600; }
+    input, select, button { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--text); }
+    button { cursor:pointer; background:#1f6feb26; border-color:#1f6feb; color:#79c0ff; font-weight:600; }
     .grid { display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; }
-    .tbl { border:1px solid var(--line); border-radius:10px; max-height:68vh; overflow:auto; }
+    .tbl { border:1px solid var(--line); border-radius:12px; max-height:68vh; overflow:auto; background:var(--card); }
     table { width:100%; border-collapse:collapse; font-size:14px; }
-    th,td { border-bottom:1px solid var(--line); padding:8px; text-align:left; white-space:nowrap; }
-    th { background:#ecf6fb; position:sticky; top:0; z-index:1; }
-    tr:hover { background:#f8fcff; }
-    .rank { color:var(--accent); font-weight:700; }
+    th,td { border-bottom:1px solid var(--line); padding:9px 10px; text-align:left; white-space:nowrap; }
+    th { background:var(--card2); color:var(--muted); position:sticky; top:0; z-index:1; font-size:12px; }
+    td { color:#c9d1d9; }
+    tr:hover td { background:#1c2128; color:var(--text); }
+    a { color:#79c0ff; text-decoration:none; }
+    .rank { color:var(--hot); font-weight:700; }
     .hint { color:var(--muted); font-size:12px; margin-top:8px; }
     @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
+  <nav class="navbar">
+    <a class="navbar-brand" href="latest/index.html">📊 A股量化平台</a>
+    <div class="navbar-links">
+      <a href="latest/index.html">首页</a>
+      <a href="latest/report.html">综合报告</a>
+      <a href="hot_rank_multi_source_explorer.html" class="active">多源热榜</a>
+    </div>
+  </nav>
   <div class="wrap">
     <h1>多源热度看板（最近30天）</h1>
     <div class="meta" id="summary"></div>

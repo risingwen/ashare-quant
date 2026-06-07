@@ -31,13 +31,15 @@ deploy/scripts/quant-daily-run.sh
 2. src/update_etf.py --spot-only --skip-holdings
 3. src/update_shares.py
 4. src/update_zt_pool.py
-5. src/screener.py
-6. src/backtest_new_high_volume.py
-7. src/generate_report.py
-8. src/health_check.py
+5. src/health_check.py
+6. src/audit_data_completeness.py
+7. src/screener.py
+8. src/backtest_new_high_volume.py
+9. src/generate_report.py
 ```
 
 主链路使用 `set -euo pipefail`，任一关键步骤失败会保留真实退出码，不再吞掉失败继续生成“看似成功”的报告。
+`src/health_check.py` 先尝试补全缺失交易日，`src/audit_data_completeness.py` 再做硬性门禁；核心数据未通过完备性审计时会中断流水线，避免用缺失数据生成信号。
 
 ## 3. 脚本职责
 
@@ -46,11 +48,42 @@ deploy/scripts/quant-daily-run.sh
 | `src/update_sqlite_data.py` | 更新 A 股日线、人气榜、涨停池、龙虎榜、市场温度 | `daily_bars`、`popularity_rankings`、`limit_up_pool`、`lhb_records`、`lhb_seats`、`market_daily` |
 | `src/update_etf.py --spot-only --skip-holdings` | 用实时 ETF 快照更新最新交易日 ETF 数据 | `etf_daily` |
 | `src/update_shares.py` | 更新股本等基础数据 | SQLite 基础表 |
+| `src/audit_data_completeness.py` | 审计交易日连续性、日线覆盖、ETF/人气榜/涨停池新鲜度、重复、空值和 OHLC 异常 | 退出码、日志、可选 `data_quality_issues` |
 | `src/update_zt_pool.py` | 更新涨停池兼容数据 | legacy `zt_pool` |
 | `src/screener.py` | 生成选股信号 | `screen_results` |
 | `src/backtest_new_high_volume.py` | 运行策略回测 | `strategy_backtests`、回测报告 |
 | `src/generate_report.py` | 生成静态页面和摘要 | `reports/latest`、`summary.json`、`monitor.html` |
 | `src/health_check.py` | 数据质量检查 | 日志和质量问题记录 |
+
+## 3.1 完备性审计
+
+生产日更在核心数据更新后运行：
+
+```bash
+python src/audit_data_completeness.py \
+  --db data/quant.db \
+  --lookback-days 20 \
+  --record-issues \
+  --socket-timeout 20
+```
+
+审计失败会返回非 0 退出码。当前硬性检查：
+
+- `daily_bars`：最近交易日窗口内每日记录数不少于阈值，默认 `5000`；检查重复 `(code, date)`、必要字段空值、OHLC/成交量基础约束。
+- `market_daily`：最近交易日窗口内每日必须有记录。
+- `etf_daily`：最新预期交易日必须有记录，默认不少于 `300` 行。
+- `popularity_rankings`：最新预期交易日至少一个来源不少于 `50` 行。
+- `limit_up_pool`：最新预期交易日默认至少 `1` 行。
+- `lhb_records`：默认不强制每日必须有记录；需要时可加 `--strict-lhb`。
+
+可单独输出机器可读结果：
+
+```bash
+python src/audit_data_completeness.py \
+  --db data/quant.db \
+  --lookback-days 20 \
+  --json-output reports/latest/data_completeness.json
+```
 
 ## 4. 人气榜更新策略
 

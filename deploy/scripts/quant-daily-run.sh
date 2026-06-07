@@ -57,6 +57,19 @@ run_step "update_zt_pool" \
     "$PYTHON" -u src/update_zt_pool.py \
         --db "$DB"
 
+run_step "health_check" \
+    "$PYTHON" -u src/health_check.py \
+        --db "$DB" \
+        --lookback-days 20 \
+        --socket-timeout 20
+
+run_step "audit_data_completeness" \
+    "$PYTHON" -u src/audit_data_completeness.py \
+        --db "$DB" \
+        --lookback-days 20 \
+        --record-issues \
+        --socket-timeout 20
+
 run_step "screener" \
     "$PYTHON" -u src/screener.py \
         --db "$DB"
@@ -72,12 +85,6 @@ run_step "generate_report" \
         --db "$DB" \
         --report-dir /data/quant_research/reports \
         --start-date 2025-01-01
-
-run_step "health_check" \
-    "$PYTHON" -u src/health_check.py \
-        --db "$DB" \
-        --lookback-days 10 \
-        --socket-timeout 20
 
 echo ""
 echo "========================================"

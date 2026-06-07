@@ -220,11 +220,18 @@ def main() -> None:
         print(f"  {status} {tbl:20s} {dt or 'N/A'}")
 
     def missing(table: str) -> list[str]:
-        """找出 expected_days 中该表缺失的日期。"""
-        latest = tables[table]
-        if latest is None:
-            return expected_days
-        return [d for d in expected_days if d > latest]
+        """找出 expected_days 中该表实际缺失的日期。
+
+        不能只比较 MAX(date)。如果中间某个交易日采集失败，但之后日期成功，
+        表级 latest 仍然正常，旧逻辑会漏报内部空洞。
+        """
+        placeholders = ",".join("?" for _ in expected_days)
+        rows = conn.execute(
+            f"SELECT date, COUNT(*) AS rows FROM {table} WHERE date IN ({placeholders}) GROUP BY date",
+            tuple(expected_days),
+        ).fetchall()
+        existing = {row["date"] for row in rows if row["rows"] > 0}
+        return [day for day in expected_days if day not in existing]
 
     missing_daily = missing("daily_bars")
     missing_zt = missing("zt_pool")
