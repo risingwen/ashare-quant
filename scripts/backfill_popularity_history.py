@@ -181,13 +181,25 @@ def is_done(
 ) -> bool:
     row = conn.execute(
         """
-        SELECT status
+        SELECT status, updated_at
         FROM popularity_backfill_progress
         WHERE source = ? AND code = ? AND start_date = ? AND end_date = ? AND rank_limit = ?
         """,
         (source, code, start_date, end_date, rank_limit),
     ).fetchone()
-    return bool(row and row["status"] == "ok")
+    if not row:
+        return False
+    if row["status"] == "ok":
+        return True
+    if row["status"] == "running":
+        updated_at = row["updated_at"]
+        if updated_at:
+            try:
+                updated = datetime.strptime(str(updated_at), "%Y-%m-%d %H:%M:%S")
+                return datetime.now() - updated < timedelta(hours=12)
+            except ValueError:
+                return False
+    return False
 
 
 def mark_progress(

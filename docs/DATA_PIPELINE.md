@@ -151,13 +151,20 @@ python scripts/backfill_popularity_history.py \
   --timeout 20
 ```
 
+东财全量历史也可以在云主机分片抓取 CSV，再由本机统一导入，避免多机直接写 SQLite：
+
+```bash
+REMOTE_HOST=aws BATCH_SIZE=50 SLEEP_SECONDS=3 TIMEOUT=20 \
+  scripts/run_eastmoney_popularity_remote_batch.sh
+```
+
 注意：
 
 - 两个脚本默认只写入 `daily_bars` 已存在的交易日，过滤周末/非交易日排名。
 - 同花顺脚本以 `ths_pywencai_hot_rank` 写入 `popularity_rankings`，按日期请求 Top N，适合作为历史主源。
 - 东财 Top100 默认以 `eastmoney_hot_rank_detail_em` 写入；`--all-ranks` 以 `eastmoney_hot_rank_detail_em_all` 写入，避免和 Top100 策略源混用。
 - 东财个股历史回补仍需要逐股请求；全市场一次性回扫存在封 IP 风险，脚本默认拒绝无上限全量扫描。
-- 建议按 `--request-budget` 小批量、低频、断点续跑；重复执行会跳过已完成股票并继续下一批。
+- 建议按 `--request-budget` 或 `BATCH_SIZE` 小批量、低频、断点续跑；重复执行会跳过已完成股票并继续下一批。
 - `--max-symbols` 仅用于小样本调试；仅在可控网络下显式使用 `--allow-full-scan`。
 - 通达信当前未找到可靠历史人气榜接口，仍主要用于行情、盘口和 K 线。
 

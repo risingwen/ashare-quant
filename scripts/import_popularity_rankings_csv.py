@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Import popularity rankings CSV")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH)
     parser.add_argument("--mark-date-progress", action="store_true")
+    parser.add_argument("--stock-progress-csv", type=Path, help="Import per-stock Eastmoney progress CSV")
     parser.add_argument("--rank-limit", type=int, default=100)
     parser.add_argument("csv_files", nargs="+", type=Path)
     return parser.parse_args()
@@ -68,9 +69,46 @@ def read_rows(path: Path) -> list[tuple[str, str, int, str, str, float | None, s
     return rows
 
 
+def read_stock_progress(path: Path) -> list[tuple[str, str, str, str, int, str, int, str | None]]:
+    rows = []
+    if not path.exists():
+        return rows
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            source = str(row.get("source") or "").strip()
+            code = normalize_code(row.get("code"))
+            start_date = normalize_date(str(row.get("start_date") or "").strip())
+            end_date = normalize_date(str(row.get("end_date") or "").strip())
+            rank_limit = to_float(row.get("rank_limit"))
+            status = str(row.get("status") or "").strip()
+            row_count = to_float(row.get("rows")) or 0
+            error = str(row.get("error") or "").strip() or None
+            if not source or not code or not start_date or not end_date or rank_limit is None or not status:
+                continue
+            rows.append((source, code, start_date, end_date, int(rank_limit), status, int(row_count), error))
+    return rows
+
+
 def main() -> int:
     args = parse_args()
     conn = connect(args.db)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS popularity_backfill_progress (
+            source TEXT NOT NULL,
+            code TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            rank_limit INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            rows INTEGER NOT NULL DEFAULT 0,
+            error TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (source, code, start_date, end_date, rank_limit)
+        )
+        """
+    )
     total = 0
     insert_sql = """
     INSERT OR REPLACE INTO popularity_rankings(source, date, rank, code, name, score, raw_json)
@@ -106,6 +144,25 @@ def main() -> int:
                 )
         total += len(rows)
         print(f"{path}: imported={len(rows)}")
+    if args.stock_progress_csv:
+        progress_rows = read_stock_progress(args.stock_progress_csv)
+        with conn:
+            conn.executemany(
+                """
+                INSERT INTO popularity_backfill_progress(
+                    source, code, start_date, end_date, rank_limit, status, rows, error, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                ON CONFLICT(source, code, start_date, end_date, rank_limit)
+                DO UPDATE SET
+                    status = excluded.status,
+                    rows = excluded.rows,
+                    error = excluded.error,
+                    updated_at = excluded.updated_at
+                """,
+                progress_rows,
+            )
+        print(f"{args.stock_progress_csv}: stock_progress_imported={len(progress_rows)}")
     print(f"done imported={total}")
     return 0
 

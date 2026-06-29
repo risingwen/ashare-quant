@@ -2452,9 +2452,14 @@ def fetch_popularity_backfill_monitor(conn: sqlite3.Connection, latest_date: str
                 "log_path": "logs/ths_popularity_cron.log",
             },
             {
-                "name": "东财全量历史分批",
+                "name": "东财全量历史本机分批",
                 "schedule": "5 */4 * * *",
                 "log_path": "logs/eastmoney_popularity_all_cron.log",
+            },
+            {
+                "name": "东财全量历史 AWS 分批",
+                "schedule": "35 */4 * * *",
+                "log_path": "logs/eastmoney_popularity_remote_aws_cron.log",
             },
         ],
     }
@@ -2666,6 +2671,7 @@ def render_monitor_html(summary: dict[str, object]) -> str:
             "</tr>"
         )
     cron_body = "".join(cron_rows) or '<tr><td colspan="3">暂无调度任务</td></tr>'
+    cron_count = len(popularity.get("cron_jobs") or [])
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -2743,8 +2749,8 @@ def render_monitor_html(summary: dict[str, object]) -> str:
     </div>
     <div class="monitor-card">
       <h3>调度任务</h3>
-      <div class="value">2 个任务</div>
-      <div class="desc">同花顺负责每日增量；东财全量历史每 4 小时扫描 50 只股票。</div>
+      <div class="value">{cron_count} 个任务</div>
+      <div class="desc">同花顺负责每日增量；东财全量历史由本机和 AWS 分片并行扫描。</div>
     </div>
     <div class="monitor-card">
       <h3>最近缺失日期</h3>
