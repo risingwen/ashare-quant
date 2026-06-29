@@ -110,6 +110,57 @@ AkShare stock_hot_rank_em -> 东方财富 direct fallback -> 标准化 CSV fallb
 - `popularity_rankings` 最新日期等于 `/api/health.expected_trade_date`。
 - `/api/health.modules` 中「人气热榜」状态为 `fresh`。
 
+### 历史人气榜回补
+
+历史人气榜优先使用同花顺/问财按日期查询，东财个股历史仅用于补缺，不放入每日主链路。
+
+同花顺按交易日回补：
+
+```bash
+python scripts/backfill_ths_popularity_history.py \
+  --db data/quant.db \
+  --start-date 2025-06-27 \
+  --end-date 2026-06-26 \
+  --rank-limit 100 \
+  --request-budget 20 \
+  --sleep 2.0
+```
+
+东财个股历史补缺：
+
+```bash
+python scripts/backfill_popularity_history.py \
+  --db data/quant.db \
+  --start-date 2025-06-27 \
+  --end-date 2026-06-26 \
+  --rank-limit 100 \
+  --request-budget 300 \
+  --sleep 2.0
+```
+
+东财全量历史排名使用独立来源，适合后续分析完整排名分布：
+
+```bash
+python scripts/backfill_popularity_history.py \
+  --db data/quant.db \
+  --start-date 2025-06-27 \
+  --end-date 2026-06-26 \
+  --all-ranks \
+  --request-budget 50 \
+  --sleep 3.0 \
+  --timeout 20
+```
+
+注意：
+
+- 两个脚本默认只写入 `daily_bars` 已存在的交易日，过滤周末/非交易日排名。
+- 同花顺脚本以 `ths_pywencai_hot_rank` 写入 `popularity_rankings`，按日期请求 Top N，适合作为历史主源。
+- 东财 Top100 默认以 `eastmoney_hot_rank_detail_em` 写入；`--all-ranks` 以 `eastmoney_hot_rank_detail_em_all` 写入，避免和 Top100 策略源混用。
+- 东财个股历史回补仍需要逐股请求；全市场一次性回扫存在封 IP 风险，脚本默认拒绝无上限全量扫描。
+- 建议按 `--request-budget` 小批量、低频、断点续跑；重复执行会跳过已完成股票并继续下一批。
+- `--max-symbols` 仅用于小样本调试；仅在可控网络下显式使用 `--allow-full-scan`。
+- 通达信当前未找到可靠历史人气榜接口，仍主要用于行情、盘口和 K 线。
+
 ## 5. ETF 更新策略
 
 `src/update_etf.py --spot-only --skip-holdings` 负责每日 ETF 当日快照。

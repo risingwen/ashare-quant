@@ -7,8 +7,12 @@ import math
 
 SOURCE_LABELS = {
     "eastmoney_zt_pool": "东方财富涨停池",
+    "eastmoney_hot_rank": "东方财富人气榜",
     "eastmoney_hot_rank_direct": "东方财富人气榜",
+    "eastmoney_hot_rank_detail_em": "东方财富人气榜历史",
+    "eastmoney_hot_rank_detail_em_all": "东方财富人气榜全量历史",
     "akshare_stock_hot_rank_em": "AkShare人气榜",
+    "ths_pywencai_hot_rank": "同花顺问财人气榜",
     "ths": "同花顺热榜",
     "xueqiu": "雪球热榜",
 }
@@ -66,4 +70,3 @@ def format_table_cell(key: str, value: object) -> str:
     if key.endswith("_rate"):
         return fmt_pct(value)
     return fmt_num(value)
-

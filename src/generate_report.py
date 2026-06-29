@@ -13,13 +13,13 @@ import sqlite3
 import statistics
 import subprocess
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
 from quant_core import DEFAULT_DB_PATH, is_limit_down, is_limit_up
 from quant_db import connect
-from reporting.formatters import fmt_num, fmt_pct
+from reporting.formatters import display_source, fmt_num, fmt_pct
 from reporting.tables import markdown_table, simple_table
 from reporting.theme import BASE_STYLE as _BASE_STYLE
 from reporting.theme import navbar as _NAVBAR
@@ -27,6 +27,8 @@ from reporting.theme import navbar as _NAVBAR
 
 DEFAULT_START_DATE = "2025-01-01"
 DEFAULT_TOP_N = 20
+POPULARITY_LOOKBACK_DAYS = 60
+POPULARITY_TOP_N = 100
 STATIC_ASSETS_DIR = Path(__file__).resolve().parent.parent / "deploy" / "static"
 
 
@@ -276,25 +278,46 @@ def fetch_latest_candidates(conn: sqlite3.Connection, latest_date: str, top_n: i
     return latest_top_amount, unique_by_code(latest_hot_candidates + latest_limit_up[:top_n])
 
 
+def normalize_stock_code_sql(alias: str) -> str:
+    return (
+        f"CASE WHEN upper(substr({alias}.code, 1, 2)) IN ('SH', 'SZ', 'BJ') "
+        f"THEN substr({alias}.code, 3, 6) ELSE {alias}.code END"
+    )
+
+
 def fetch_popularity_rows(conn: sqlite3.Connection, latest_date: str) -> list[dict[str, object]]:
-    data_date = conn.execute("SELECT MAX(date) AS date FROM popularity_rankings WHERE date >= ?", (latest_date,)).fetchone()["date"]
-    if not data_date:
-        data_date = conn.execute("SELECT MAX(date) AS date FROM popularity_rankings WHERE date <= ?", (latest_date,)).fetchone()["date"]
-    if not data_date:
-        return []
-    join_date = latest_date if data_date > latest_date else data_date
+    normalized_code = normalize_stock_code_sql("p")
     sql = """
+    WITH recent_dates AS (
+        SELECT DISTINCT p.date
+        FROM popularity_rankings p
+        WHERE p.date <= ?
+          AND EXISTS (SELECT 1 FROM daily_bars b WHERE b.date = p.date)
+        ORDER BY p.date DESC
+        LIMIT ?
+    )
     SELECT p.date, p.source, p.rank,
-           CASE WHEN substr(p.code, 1, 2) IN ('SH', 'SZ', 'BJ') THEN substr(p.code, 3, 6) ELSE p.code END AS code,
-           p.name, p.score,
-           b.pct_chg AS pct, b.amount / 100000000.0 AS amount_e8, b.turnover
+           {normalized_code} AS code,
+           CASE
+               WHEN p.name IS NULL OR p.name = '' OR p.name = {normalized_code} THEN COALESCE(s.name, p.name, {normalized_code})
+               ELSE p.name
+           END AS name,
+           p.score,
+           b.pct_chg AS pct,
+           b.amount / 100000000.0 AS amount_e8,
+           b.turnover,
+           b.close
     FROM popularity_rankings p
-    LEFT JOIN daily_bars b ON b.code = CASE WHEN substr(p.code, 1, 2) IN ('SH', 'SZ', 'BJ') THEN substr(p.code, 3, 6) ELSE p.code END AND b.date = ?
-    WHERE p.date = ?
-    ORDER BY p.source, p.rank
-    LIMIT 80
-    """
-    return [dict(row) for row in conn.execute(sql, (join_date, data_date))]
+    JOIN recent_dates rd ON rd.date = p.date
+    LEFT JOIN daily_bars b ON b.code = {normalized_code} AND b.date = p.date
+    LEFT JOIN stocks s ON s.code = {normalized_code}
+    WHERE p.rank <= ?
+    ORDER BY p.date DESC, p.source, p.rank
+    """.format(normalized_code=normalized_code)
+    rows = [dict(row) for row in conn.execute(sql, (latest_date, POPULARITY_LOOKBACK_DAYS, POPULARITY_TOP_N))]
+    for row in rows:
+        row["source_label"] = display_source(row.get("source"))
+    return rows
 
 
 def fetch_limit_pool_rows(conn: sqlite3.Connection, latest_date: str) -> list[dict[str, object]]:
@@ -2117,6 +2140,7 @@ def build_report(args: argparse.Namespace) -> tuple[
         "strategy_backtests": safe_scalar(conn, "SELECT MAX(end_date) FROM strategy_backtests"),
     }
     data_status = build_data_status(latest_date, module_latest_dates)
+    popularity_backfill = fetch_popularity_backfill_monitor(conn, latest_date)
 
     summary: dict[str, object] = {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -2149,6 +2173,7 @@ def build_report(args: argparse.Namespace) -> tuple[
             "old_reversal_rule": summarize_events(old_reversal_events),
         },
         "data_status": data_status,
+        "popularity_backfill": popularity_backfill,
         "streak_summary": streak_summary_rows,
         "recent_emotion": recent_emotion_rows,
     }
@@ -2216,9 +2241,227 @@ def publish_static_assets(output_dir: Path) -> None:
             shutil.copy2(source, output_dir / name)
 
 
+def json_for_script(data: object) -> str:
+    return (
+        json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+    )
+
+
+def render_popularity_section(rows: list[dict[str, object]]) -> str:
+    if not rows:
+        return '<h2 id="popularity">人气榜</h2><p class="empty">暂无数据</p>'
+    latest_date = str(rows[0].get("date") or "-")
+    dates = sorted({str(row.get("date")) for row in rows if row.get("date")}, reverse=True)
+    section = """
+    <h2 id="popularity">人气榜</h2>
+    <div class="popularity-panel">
+      <div class="popularity-toolbar">
+        <label>日期
+          <select id="popularity-date"></select>
+        </label>
+        <label>来源
+          <select id="popularity-source"></select>
+        </label>
+        <span id="popularity-count" class="muted"></span>
+      </div>
+      <p class="muted">内嵌最近 __DATE_COUNT__ 个交易日的人气榜 Top100，行情字段来自 popularity_rankings 与 daily_bars 按日期和代码静态关联；默认显示 __LATEST_DATE__。</p>
+      <div class="table-wrap">
+        <table id="popularity-table">
+          <thead><tr>
+            <th>来源</th><th>日期</th><th>排名</th><th>代码</th><th>名称</th>
+            <th>评分</th><th>涨跌幅%</th><th>成交额(亿)</th><th>换手率%</th><th>收盘</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <script id="popularity-data" type="application/json">__POPULARITY_JSON__</script>
+    <script>
+    (() => {
+      const rows = JSON.parse(document.getElementById("popularity-data").textContent || "[]");
+      const dateSelect = document.getElementById("popularity-date");
+      const sourceSelect = document.getElementById("popularity-source");
+      const countEl = document.getElementById("popularity-count");
+      const tbody = document.querySelector("#popularity-table tbody");
+      const dates = [...new Set(rows.map(row => row.date).filter(Boolean))].sort().reverse();
+      const allSources = [...new Set(rows.map(row => row.source).filter(Boolean))].sort();
+      const sourceLabel = new Map(rows.map(row => [row.source, row.source_label || row.source]));
+      const columns = ["source_label", "date", "rank", "code", "name", "score", "pct", "amount_e8", "turnover", "close"];
+
+      function option(value, label) {
+        const el = document.createElement("option");
+        el.value = value;
+        el.textContent = label;
+        return el;
+      }
+
+      function fmt(value) {
+        if (value === null || value === undefined || value === "") return "-";
+        if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(2);
+        return String(value);
+      }
+
+      function fillDateOptions() {
+        dateSelect.textContent = "";
+        dates.forEach(date => dateSelect.appendChild(option(date, date)));
+      }
+
+      function fillSourceOptions() {
+        const selected = sourceSelect.value;
+        const currentDate = dateSelect.value;
+        const available = new Set(rows.filter(row => row.date === currentDate).map(row => row.source).filter(Boolean));
+        const sources = allSources.filter(source => available.has(source));
+        sourceSelect.textContent = "";
+        sourceSelect.appendChild(option("", "全部来源"));
+        sources.forEach(source => sourceSelect.appendChild(option(source, sourceLabel.get(source) || source)));
+        if (sources.includes(selected)) sourceSelect.value = selected;
+      }
+
+      function render() {
+        const currentDate = dateSelect.value;
+        const currentSource = sourceSelect.value;
+        const selectedRows = rows
+          .filter(row => row.date === currentDate && (!currentSource || row.source === currentSource))
+          .sort((left, right) => (left.source || "").localeCompare(right.source || "") || Number(left.rank || 0) - Number(right.rank || 0));
+        tbody.textContent = "";
+        selectedRows.forEach(row => {
+          const tr = document.createElement("tr");
+          columns.forEach(key => {
+            const td = document.createElement("td");
+            td.textContent = fmt(row[key]);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        if (!selectedRows.length) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = columns.length;
+          td.className = "empty";
+          td.textContent = "暂无数据";
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        }
+        countEl.textContent = `共 ${selectedRows.length} 条 · 已嵌入 ${rows.length} 条`;
+      }
+
+      fillDateOptions();
+      fillSourceOptions();
+      render();
+      dateSelect.addEventListener("change", () => {
+        fillSourceOptions();
+        render();
+      });
+      sourceSelect.addEventListener("change", render);
+    })();
+    </script>
+    """
+    return (
+        section.replace("__POPULARITY_JSON__", json_for_script(rows))
+        .replace("__DATE_COUNT__", html.escape(str(len(dates))))
+        .replace("__LATEST_DATE__", html.escape(latest_date))
+    )
+
+
+def latest_popularity_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    if not rows:
+        return []
+    latest_date = rows[0].get("date")
+    return [row for row in rows if row.get("date") == latest_date]
+
+
+def fetch_popularity_backfill_monitor(conn: sqlite3.Connection, latest_date: str) -> dict[str, object]:
+    start_date = (datetime.strptime(latest_date, "%Y-%m-%d") - timedelta(days=364)).strftime("%Y-%m-%d")
+    end_date = latest_date
+    source = "ths_pywencai_hot_rank"
+    min_rows = 80
+    total_dates = conn.execute(
+        "SELECT COUNT(DISTINCT date) FROM daily_bars WHERE date BETWEEN ? AND ?",
+        (start_date, end_date),
+    ).fetchone()[0] or 0
+    complete_dates = conn.execute(
+        """
+        SELECT COUNT(*)
+        FROM (
+          SELECT date
+          FROM popularity_rankings
+          WHERE source = ? AND date BETWEEN ? AND ?
+          GROUP BY date
+          HAVING COUNT(*) >= ?
+        )
+        """,
+        (source, start_date, end_date, min_rows),
+    ).fetchone()[0] or 0
+    missing_rows = conn.execute(
+        """
+        WITH trading AS (
+          SELECT DISTINCT date FROM daily_bars WHERE date BETWEEN ? AND ?
+        ),
+        complete AS (
+          SELECT date
+          FROM popularity_rankings
+          WHERE source = ?
+          GROUP BY date
+          HAVING COUNT(*) >= ?
+        )
+        SELECT trading.date
+        FROM trading
+        LEFT JOIN complete USING(date)
+        WHERE complete.date IS NULL
+        ORDER BY trading.date DESC
+        LIMIT 16
+        """,
+        (start_date, end_date, source, min_rows),
+    ).fetchall()
+    source_rows = conn.execute(
+        """
+        SELECT source, COUNT(*) AS rows, COUNT(DISTINCT date) AS dates, MIN(date) AS min_date, MAX(date) AS max_date
+        FROM popularity_rankings
+        WHERE source IN (
+          'ths_pywencai_hot_rank',
+          'eastmoney_hot_rank',
+          'eastmoney_hot_rank_direct',
+          'eastmoney_hot_rank_detail_em',
+          'eastmoney_hot_rank_detail_em_all'
+        )
+        GROUP BY source
+        ORDER BY source
+        """
+    ).fetchall()
+    remaining = max(int(total_dates) - int(complete_dates), 0)
+    coverage = (float(complete_dates) / float(total_dates) * 100.0) if total_dates else 0.0
+    return {
+        "source": source,
+        "source_label": display_source(source),
+        "start_date": start_date,
+        "end_date": end_date,
+        "total_dates": int(total_dates),
+        "complete_dates": int(complete_dates),
+        "remaining_dates": remaining,
+        "coverage_pct": round(coverage, 2),
+        "min_rows": min_rows,
+        "missing_dates": [row["date"] for row in missing_rows],
+        "source_summary": [dict(row) for row in source_rows],
+        "cron_jobs": [
+            {
+                "name": "同花顺 Top100 增量",
+                "schedule": "30 18 * * 1-5",
+                "log_path": "logs/ths_popularity_cron.log",
+            },
+            {
+                "name": "东财全量历史分批",
+                "schedule": "5 */4 * * *",
+                "log_path": "logs/eastmoney_popularity_all_cron.log",
+            },
+        ],
+    }
+
+
 def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, object]], latest_hot: list[dict[str, object]], popularity_rows: list[dict[str, object]], limit_pool_rows: list[dict[str, object]], strategy_rows: list[dict[str, object]], screen_rows: list[dict[str, object]] | None = None) -> str:
     candidate_columns = [("code", "代码"), ("name", "名称"), ("market", "市场"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%"), ("is_limit_up", "涨停"), ("streak", "连板"), ("hot_score", "热度分")]
-    popularity_columns = [("source", "来源"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%")]
     limit_pool_display_rows = []
     for row in limit_pool_rows:
         display_row = dict(row)
@@ -2284,6 +2527,10 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
     .status-lagging { background:#3a2a1a; color:#ffa657; }
     .status-stale { background:#3a1a1a; color:#e84c3d; }
     .status-missing { background:#2b3137; color:#c9d1d9; }
+    .popularity-panel { background: #161b22; border: 1px solid #30363d; border-radius: 14px; padding: 16px; margin: 12px 0 28px; }
+    .popularity-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 10px; }
+    .popularity-toolbar label { color: #8b949e; font-size: 13px; display: inline-flex; align-items: center; gap: 8px; }
+    .popularity-toolbar select { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; padding: 7px 10px; }
     .footer { text-align: center; color: #484f58; font-size: 12px; padding: 48px 0 12px; }
     @media (max-width: 760px) {
       .navbar { padding: 10px 16px; align-items: flex-start; }
@@ -2307,7 +2554,7 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
     <h2>数据更新状态</h2>{data_status_table(summary.get('data_status', []))}
     {_render_screen_section(screen_rows)}
     <h2>新高+量能策略回测</h2>{simple_table(strategy_rows, strategy_columns)}
-    <h2>最新人气榜</h2>{simple_table(popularity_rows, popularity_columns, 80)}
+    {render_popularity_section(popularity_rows)}
     <h2 id="limitup">涨停池（东方财富封板口径）</h2>{simple_table(limit_pool_display_rows, limit_columns, 80)}
     <h2>热门候选股</h2>{simple_table(latest_hot, candidate_columns, 40)}
     <h2>量能龙头候选股</h2>{simple_table(latest_top_amount, candidate_columns, 40)}
@@ -2322,6 +2569,7 @@ def render_html(summary: dict[str, object], latest_top_amount: list[dict[str, ob
 def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str, object]], latest_hot: list[dict[str, object]], popularity_rows: list[dict[str, object]], limit_pool_rows: list[dict[str, object]], strategy_rows: list[dict[str, object]]) -> str:
     latest = summary["latest_market"]
     events = summary["event_summaries"]
+    latest_popularity = latest_popularity_rows(popularity_rows)
     lines = [
         "# A股量化研究报告",
         "",
@@ -2348,7 +2596,7 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
     candidate_columns = [("code", "代码"), ("name", "名称"), ("market", "市场"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%"), ("is_limit_up", "涨停"), ("streak", "连板"), ("hot_score", "热度分")]
     lines.extend([
         "", "## 新高+量能策略回测", markdown_table(strategy_rows, [("strategy", "策略"), ("trades", "交易次数"), ("signal_days", "信号天数"), ("win_rate", "胜率"), ("avg_return_pct", "均值%"), ("median_return_pct", "中位数%"), ("total_batch_return_pct", "批次总收益%"), ("max_drawdown_pct", "最大回撤%"), ("avg_gap_pct", "均值跳空%"), ("avg_hold_days", "均值持仓天")]),
-        "## 最新人气榜", markdown_table(popularity_rows, [("source", "来源"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)")], 50),
+        "## 最新人气榜", markdown_table(latest_popularity, [("source", "来源"), ("date", "日期"), ("rank", "排名"), ("code", "代码"), ("name", "名称"), ("score", "评分"), ("pct", "涨跌幅%"), ("amount_e8", "成交额(亿)"), ("turnover", "换手率%"), ("close", "收盘")], 50),
         "## 涨停池（东方财富封板口径）", markdown_table(limit_pool_rows, [("source", "来源"), ("code", "代码"), ("name", "名称"), ("reason", "涨停原因"), ("streak", "连板"), ("seal_amount", "封单额")], 50),
         "## 热门候选股", markdown_table(latest_hot, candidate_columns, 40),
         "## 量能龙头候选股", markdown_table(latest_top_amount, candidate_columns, 40),
@@ -2366,6 +2614,7 @@ def render_markdown(summary: dict[str, object], latest_top_amount: list[dict[str
 
 def render_monitor_html(summary: dict[str, object]) -> str:
     rows = summary.get("data_status", [])
+    popularity = summary.get("popularity_backfill", {}) or {}
     git = summary.get("git", {}) or {}
     fresh = sum(1 for row in rows if row.get("status") == "fresh")
     bad_rows = [row for row in rows if row.get("status") != "fresh"]
@@ -2393,6 +2642,30 @@ def render_monitor_html(summary: dict[str, object]) -> str:
             "</tr>"
         )
     body = "".join(status_rows) or '<tr><td colspan="4">暂无监控数据</td></tr>'
+    coverage_pct = float(popularity.get("coverage_pct") or 0)
+    missing_dates = popularity.get("missing_dates") or []
+    missing_html = "".join(f"<li>{html.escape(str(date_text))}</li>" for date_text in missing_dates) or "<li>暂无缺口</li>"
+    source_summary_rows = []
+    for item in popularity.get("source_summary") or []:
+        source_summary_rows.append(
+            "<tr>"
+            f"<td>{html.escape(display_source(item.get('source')))}</td>"
+            f"<td>{html.escape(str(item.get('rows') or 0))}</td>"
+            f"<td>{html.escape(str(item.get('dates') or 0))}</td>"
+            f"<td>{html.escape(str(item.get('min_date') or '-'))} .. {html.escape(str(item.get('max_date') or '-'))}</td>"
+            "</tr>"
+        )
+    source_summary_body = "".join(source_summary_rows) or '<tr><td colspan="4">暂无来源数据</td></tr>'
+    cron_rows = []
+    for item in popularity.get("cron_jobs") or []:
+        cron_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(item.get('name') or '-'))}</td>"
+            f"<td><span class=\"code\">{html.escape(str(item.get('schedule') or '-'))}</span></td>"
+            f"<td><span class=\"code\">{html.escape(str(item.get('log_path') or '-'))}</span></td>"
+            "</tr>"
+        )
+    cron_body = "".join(cron_rows) or '<tr><td colspan="3">暂无调度任务</td></tr>'
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -2415,6 +2688,9 @@ def render_monitor_html(summary: dict[str, object]) -> str:
 .monitor-card h3 {{ font-size:14px; color:#8b949e; margin-bottom:8px; }}
 .monitor-card .value {{ font-size:20px; font-weight:700; word-break:break-all; }}
 .monitor-card .desc {{ color:#8b949e; font-size:12px; margin-top:8px; }}
+.progress-wrap {{ height:10px; background:#0d1117; border:1px solid #30363d; border-radius:999px; overflow:hidden; margin:10px 0; }}
+.progress-bar {{ height:100%; background:linear-gradient(90deg,#238636,#3fb950); width:{coverage_pct:.2f}%; }}
+.missing-list {{ columns:2; margin:8px 0 0 18px; color:#c9d1d9; }}
 .status-table {{ background:#161b22; border:1px solid #30363d; border-radius:14px; overflow:hidden; }}
 .status-table table {{ width:100%; }}
 .status-table th, .status-table td {{ padding:10px 14px; }}
@@ -2454,6 +2730,39 @@ def render_monitor_html(summary: dict[str, object]) -> str:
     <table>
       <thead><tr><th>模块</th><th>最新日期</th><th>落后天数</th><th>状态</th></tr></thead>
       <tbody>{body}</tbody>
+    </table>
+  </div>
+
+  <div class="section-title">人气榜历史回补</div>
+  <div class="monitor-grid">
+    <div class="monitor-card">
+      <h3>{html.escape(str(popularity.get("source_label") or "同花顺问财人气榜"))}</h3>
+      <div class="value">{html.escape(str(popularity.get("complete_dates") or 0))} / {html.escape(str(popularity.get("total_dates") or 0))} 个交易日</div>
+      <div class="progress-wrap"><div class="progress-bar"></div></div>
+      <div class="desc">覆盖率 {coverage_pct:.2f}%；剩余 {html.escape(str(popularity.get("remaining_dates") or 0))} 个交易日；每日至少 {html.escape(str(popularity.get("min_rows") or 80))} 行视为完成。</div>
+    </div>
+    <div class="monitor-card">
+      <h3>调度任务</h3>
+      <div class="value">2 个任务</div>
+      <div class="desc">同花顺负责每日增量；东财全量历史每 4 小时扫描 50 只股票。</div>
+    </div>
+    <div class="monitor-card">
+      <h3>最近缺失日期</h3>
+      <ul class="missing-list">{missing_html}</ul>
+    </div>
+  </div>
+
+  <div class="status-table" style="margin-bottom:16px">
+    <table>
+      <thead><tr><th>任务</th><th>计划</th><th>日志</th></tr></thead>
+      <tbody>{cron_body}</tbody>
+    </table>
+  </div>
+
+  <div class="status-table">
+    <table>
+      <thead><tr><th>来源</th><th>行数</th><th>覆盖日期数</th><th>日期范围</th></tr></thead>
+      <tbody>{source_summary_body}</tbody>
     </table>
   </div>
 
@@ -3464,6 +3773,7 @@ def main() -> None:
     # ETF 页面需要直接访问数据库
     _conn = connect(args.db)
     for output_dir in (dated_dir, latest_dir):
+        latest_popularity = latest_popularity_rows(popularity_rows)
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "report.html").write_text(render_html(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows, screen_rows), encoding="utf-8")
         (output_dir / "report.md").write_text(render_markdown(summary, latest_top_amount, latest_hot, popularity_rows, limit_pool_rows, strategy_rows), encoding="utf-8")
@@ -3478,7 +3788,7 @@ def main() -> None:
         (output_dir / "docs.html").write_text(render_docs_html(latest_date), encoding="utf-8")
         write_csv(output_dir / "latest_top_amount.csv", latest_top_amount, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
         write_csv(output_dir / "latest_hot_candidates.csv", latest_hot, ["date", "code", "name", "market", "pct", "amount_e8", "turnover", "is_limit_up", "streak", "hot_score"])
-        write_csv(output_dir / "latest_popularity_rankings.csv", popularity_rows, ["date", "source", "rank", "code", "name", "score", "pct", "amount_e8", "turnover"])
+        write_csv(output_dir / "latest_popularity_rankings.csv", latest_popularity, ["date", "source", "rank", "code", "name", "score", "pct", "amount_e8", "turnover", "close"])
         write_csv(output_dir / "latest_external_limit_up_pool.csv", limit_pool_rows, ["date", "source", "code", "name", "reason", "streak", "first_limit_time", "last_limit_time", "seal_amount", "pct", "amount_e8"])
         write_csv(output_dir / "new_high_volume_backtests.csv", strategy_rows, ["strategy", "trades", "signal_days", "win_rate", "avg_return_pct", "median_return_pct", "total_batch_return_pct", "max_drawdown_pct", "avg_gap_pct", "avg_hold_days", "description"])
     print(f"Report generated: {dated_dir / 'report.html'}")
