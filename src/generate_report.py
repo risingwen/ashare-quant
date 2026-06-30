@@ -2453,12 +2453,12 @@ def fetch_popularity_backfill_monitor(conn: sqlite3.Connection, latest_date: str
             },
             {
                 "name": "东财全量历史本机分批",
-                "schedule": "5 */4 * * *",
+                "schedule": "5 */3 * * *",
                 "log_path": "logs/eastmoney_popularity_all_cron.log",
             },
             {
                 "name": "东财全量历史 AWS 分批",
-                "schedule": "35 */4 * * *",
+                "schedule": "35 */3 * * *",
                 "log_path": "logs/eastmoney_popularity_remote_aws_cron.log",
             },
         ],
