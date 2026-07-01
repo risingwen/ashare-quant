@@ -160,6 +160,8 @@ REMOTE_HOST=aws BATCH_SIZE=50 SLEEP_SECONDS=3 TIMEOUT=20 \
 
 当前生产调度采用本机和 AWS 双路分片，每路每 3 小时扫描 50 只股票；提速后需观察 24 小时内的超时、空数据、403/502 或连接重置比例。
 
+每日进展报告由 `scripts/report_popularity_progress.py` 生成，生产 cron 每天 09:10 写入 `reports/latest/popularity_progress.md` 并追加到 `logs/popularity_daily_progress.log`。
+
 注意：
 
 - 两个脚本默认只写入 `daily_bars` 已存在的交易日，过滤周末/非交易日排名。
