@@ -1,0 +1,16 @@
+[Unit]
+Description=Replay Eastmoney moneyflow incremental sync
+After=network.target postgresql.service
+StartLimitIntervalSec=21600
+StartLimitBurst=12
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/data/quant_research
+EnvironmentFile=-/data/quant_research/config/quant-platform.env
+ExecStart=/data/quant_research_venv/bin/quant sync-moneyflow --date latest-market
+Restart=on-failure
+RestartSec=30min
+NoNewPrivileges=true
+PrivateTmp=true

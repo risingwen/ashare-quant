@@ -1,0 +1,14 @@
+[Unit]
+Description=A-share research FastAPI
+After=network.target postgresql.service
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/data/quant_research
+EnvironmentFile=-/data/quant_research/config/quant-platform.env
+ExecStart=/data/quant_research_venv/bin/uvicorn quant_platform.api:app --host 127.0.0.1 --port 8081
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target

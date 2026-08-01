@@ -62,3 +62,8 @@ Thumbs.db
 
 # Legacy duplicate config directory. Use config/ and config.example.yaml.
 configs/
+apps/web/node_modules/
+apps/web/dist/
+*.tsbuildinfo
+config/quant-platform.env
+backups/

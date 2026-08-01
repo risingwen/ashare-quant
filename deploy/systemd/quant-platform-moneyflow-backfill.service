@@ -1,0 +1,15 @@
+[Unit]
+Description=Replay Eastmoney stock and sector moneyflow backfill
+After=network.target postgresql.service
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/data/quant_research
+EnvironmentFile=/data/quant_research/config/quant-platform.env
+ExecStart=/data/quant_research_venv/bin/quant backfill-moneyflow --start 2025-01-01 --end 2026-07-15 --sleep 0.6
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+[Install]
+WantedBy=multi-user.target

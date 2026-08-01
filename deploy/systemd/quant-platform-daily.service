@@ -1,0 +1,11 @@
+[Unit]
+Description=A-share daily research pipeline
+After=network.target postgresql.service
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/data/quant_research
+EnvironmentFile=-/data/quant_research/config/quant-platform.env
+ExecStart=/data/quant_research_venv/bin/quant daily --date today
+NoNewPrivileges=true
+PrivateTmp=true

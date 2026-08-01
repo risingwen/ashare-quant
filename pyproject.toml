@@ -8,6 +8,24 @@ extend-exclude = [
   "reports",
 ]
 
+[project]
+name = "a-share-research-platform"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[project.scripts]
+quant = "quant_platform.cli:main"
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["quant_platform*"]
+
+[tool.setuptools.package-data]
+quant_platform = ["migrations/*.sql"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 ignore = [
@@ -22,4 +40,3 @@ markers = [
   "integration: tests that validate multiple modules or external services",
   "network: tests that call external data providers such as AkShare or Eastmoney",
 ]
-
