@@ -1,0 +1,10 @@
+[Unit]
+Description=Run LHB hot-money and institutional research sync after market close
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 23:25:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

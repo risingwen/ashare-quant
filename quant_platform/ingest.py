@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from collections import defaultdict
@@ -24,18 +25,30 @@ def _numeric(value: Any) -> Any:
     return None if value in (None, "", "--") else value
 
 
-def _wan_to_yuan(value: Any) -> Any:
-    value = _numeric(value)
-    if value is None:
-        return None
-    numeric = float(value)
-    return numeric * 10000 if abs(numeric) < 10_000_000 else numeric
+def _documented_yuan(value: Any) -> Any:
+    """Keep fields whose upstream contract explicitly declares yuan unchanged."""
+    return _numeric(value)
 
 
 def _documented_wan_to_yuan(value: Any) -> Any:
     """Convert fields whose upstream contract explicitly declares 万元 to yuan."""
     value = _numeric(value)
     return None if value is None else float(value) * 10000
+
+
+def _iso_date(value: Any) -> str | None:
+    candidate = str(value or "").strip().replace("-", "")
+    if len(candidate) != 8 or not candidate.isdigit():
+        return None
+    return f"{candidate[:4]}-{candidate[4:6]}-{candidate[6:]}"
+
+
+def _text_value(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value)
 
 
 def normalize_popularity(result: ProviderResult, trade_date: str) -> list[dict[str, Any]]:
@@ -169,8 +182,12 @@ def ingest_lhb(provider: ReplayProvider, endpoint: str, trade_date: str) -> dict
                     deduped[key] = r
             conn.execute(text("""INSERT INTO market.lhb_record(trade_date,symbol,name,close,pct_change,turnover_rate,amount,l_sell,l_buy,l_amount,net_amount,net_rate,amount_rate,float_values,reason,provider,batch_id,raw)
               VALUES (:trade_date,:symbol,:name,:close,:pct_change,:turnover_rate,:amount,:l_sell,:l_buy,:l_amount,:net_amount,:net_rate,:amount_rate,:float_values,:reason,:provider,:batch_id,CAST(:raw AS jsonb))
-              ON CONFLICT(trade_date,symbol,reason) DO UPDATE SET close=excluded.close,pct_change=excluded.pct_change,net_amount=excluded.net_amount,batch_id=excluded.batch_id,raw=excluded.raw"""),
-              [{"trade_date": trade_date, "symbol": key[0], "name": r.get("name") or "", "close": _numeric(r.get("close")), "pct_change": _numeric(r.get("pct_change")), "turnover_rate": _numeric(r.get("turnover_rate")), "amount": _wan_to_yuan(r.get("amount")), "l_sell": _wan_to_yuan(r.get("l_sell")), "l_buy": _wan_to_yuan(r.get("l_buy")), "l_amount": _wan_to_yuan(r.get("l_amount")), "net_amount": _wan_to_yuan(r.get("net_amount")), "net_rate": _numeric(r.get("net_rate")), "amount_rate": _numeric(r.get("amount_rate")), "float_values": _wan_to_yuan(r.get("float_values")), "reason": key[1], "provider": result.provider, "batch_id": batch_id, "raw": json.dumps(r, ensure_ascii=False, default=str)} for key, r in deduped.items()])
+              ON CONFLICT(trade_date,symbol,reason) DO UPDATE SET name=excluded.name,close=excluded.close,
+                pct_change=excluded.pct_change,turnover_rate=excluded.turnover_rate,amount=excluded.amount,
+                l_sell=excluded.l_sell,l_buy=excluded.l_buy,l_amount=excluded.l_amount,net_amount=excluded.net_amount,
+                net_rate=excluded.net_rate,amount_rate=excluded.amount_rate,float_values=excluded.float_values,
+                provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""),
+              [{"trade_date": trade_date, "symbol": key[0], "name": r.get("name") or "", "close": _numeric(r.get("close")), "pct_change": _numeric(r.get("pct_change")), "turnover_rate": _numeric(r.get("turnover_rate")), "amount": _documented_yuan(r.get("amount")), "l_sell": _documented_yuan(r.get("l_sell")), "l_buy": _documented_yuan(r.get("l_buy")), "l_amount": _documented_yuan(r.get("l_amount")), "net_amount": _documented_yuan(r.get("net_amount")), "net_rate": _numeric(r.get("net_rate")), "amount_rate": _numeric(r.get("amount_rate")), "float_values": _documented_yuan(r.get("float_values")), "reason": key[1], "provider": result.provider, "batch_id": batch_id, "raw": json.dumps(r, ensure_ascii=False, default=str)} for key, r in deduped.items()])
         elif status == "success" and endpoint == "top_inst":
             deduped = {}
             for r in rows:
@@ -182,9 +199,189 @@ def ingest_lhb(provider: ReplayProvider, endpoint: str, trade_date: str) -> dict
                     deduped[key] = r
             conn.execute(text("""INSERT INTO market.lhb_seat(trade_date,symbol,seat_name,side,buy,buy_rate,sell,sell_rate,net_buy,reason,provider,batch_id,raw)
               VALUES (:trade_date,:symbol,:seat_name,:side,:buy,:buy_rate,:sell,:sell_rate,:net_buy,:reason,:provider,:batch_id,CAST(:raw AS jsonb))
-              ON CONFLICT(trade_date,symbol,seat_name,side,reason) DO UPDATE SET buy=excluded.buy,sell=excluded.sell,net_buy=excluded.net_buy,batch_id=excluded.batch_id,raw=excluded.raw"""),
+              ON CONFLICT(trade_date,symbol,seat_name,side,reason) DO UPDATE SET buy=excluded.buy,
+                buy_rate=excluded.buy_rate,sell=excluded.sell,sell_rate=excluded.sell_rate,
+                net_buy=excluded.net_buy,provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""),
               [{"trade_date": trade_date, "symbol": key[0], "seat_name": key[1], "side": key[2], "buy": _numeric(r.get("buy")), "buy_rate": _numeric(r.get("buy_rate")), "sell": _numeric(r.get("sell")), "sell_rate": _numeric(r.get("sell_rate")), "net_buy": _numeric(r.get("net_buy")), "reason": key[3], "provider": result.provider, "batch_id": batch_id, "raw": json.dumps(r, ensure_ascii=False, default=str)} for key, r in deduped.items()])
     return {"endpoint": endpoint, "status": status, "rows": len(rows), "batch_id": batch_id}
+
+
+def normalize_hot_money_detail(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        item_date = _iso_date(row.get("trade_date"))
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        hot_money_name = str(row.get("hm_name") or "").strip()
+        if item_date is None or not symbol.isdigit() or not hot_money_name:
+            continue
+        normalized.append({
+            "trade_date": item_date,
+            "symbol": symbol,
+            "name": _text_value(row.get("ts_name")),
+            "buy_amount": _numeric(row.get("buy_amount")),
+            "sell_amount": _numeric(row.get("sell_amount")),
+            "net_amount": _numeric(row.get("net_amount")),
+            "hot_money_name": hot_money_name,
+            "associated_orgs": str(row.get("hm_orgs") or ""),
+            "tag": _text_value(row.get("tag")),
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    deduped = {
+        (item["trade_date"], item["symbol"], item["hot_money_name"], item["associated_orgs"]): item
+        for item in normalized
+    }
+    return list(deduped.values())
+
+
+def normalize_institutional_surveys(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        survey_date = _iso_date(row.get("surv_date"))
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        if survey_date is None or not symbol.isdigit():
+            continue
+        identity = json.dumps({
+            "symbol": symbol,
+            "survey_date": survey_date,
+            "fund_visitors": row.get("fund_visitors"),
+            "receive_org": row.get("rece_org"),
+            "receive_mode": row.get("rece_mode"),
+            "content": row.get("content"),
+        }, ensure_ascii=False, sort_keys=True, default=str)
+        normalized.append({
+            "record_key": hashlib.sha256(identity.encode()).hexdigest(),
+            "symbol": symbol,
+            "name": _text_value(row.get("name")),
+            "survey_date": survey_date,
+            "fund_visitors": _text_value(row.get("fund_visitors")),
+            "receive_place": _text_value(row.get("rece_place")),
+            "receive_mode": _text_value(row.get("rece_mode")),
+            "receive_org": _text_value(row.get("rece_org")),
+            "org_type": _text_value(row.get("org_type")),
+            "company_receivers": _text_value(row.get("comp_rece")),
+            "content": _text_value(row.get("content")),
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    return list({item["record_key"]: item for item in normalized}.values())
+
+
+def normalize_broker_recommendations(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        month = str(row.get("month") or "").replace("-", "")[:6]
+        broker = str(row.get("broker") or "").strip()
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        if len(month) != 6 or not month.isdigit() or not broker or not symbol.isdigit():
+            continue
+        normalized.append({
+            "month": month,
+            "broker": broker,
+            "symbol": symbol,
+            "name": _text_value(row.get("name")),
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    return list({(item["month"], item["broker"], item["symbol"]): item for item in normalized}.values())
+
+
+def ingest_hot_money_directory(provider: ReplayProvider) -> dict[str, Any]:
+    result = provider.fetch_hot_money_directory()
+    source_rows = result.rows if result.status == "success" else []
+    candidates = [{
+        "hot_money_name": str(row.get("name") or "").strip(),
+        "description": _text_value(row.get("desc")),
+        "associated_orgs": _text_value(row.get("orgs")),
+        "raw": json.dumps(row, ensure_ascii=False, default=str),
+    } for row in source_rows if str(row.get("name") or "").strip()]
+    normalized = list({item["hot_money_name"]: item for item in candidates}.values())
+    with engine.begin() as conn:
+        batch_id = conn.execute(text("""INSERT INTO ops.data_batch(provider,dataset,requested_at,source_as_of,status,row_count,raw_hash,error_code,error_message,finished_at)
+          VALUES (:provider,'hm_list',:requested,:as_of,:status,:count,:hash,:error_code,:error_message,now()) RETURNING id"""), {
+            "provider": result.provider, "requested": result.requested_at, "as_of": result.source_as_of,
+            "status": result.status, "count": len(normalized), "hash": result.raw_hash,
+            "error_code": result.error_code, "error_message": result.error_message,
+        }).scalar_one()
+        if result.status == "success" and normalized:
+            conn.execute(text("""INSERT INTO market.hot_money_directory(hot_money_name,description,associated_orgs,provider,batch_id,raw)
+              VALUES (:hot_money_name,:description,:associated_orgs,:provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(hot_money_name) DO UPDATE SET description=excluded.description,associated_orgs=excluded.associated_orgs,
+                provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw,updated_at=now()"""),
+              [{**item, "provider": result.provider, "batch_id": batch_id} for item in normalized])
+    return {"endpoint": "hm_list", "status": result.status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_hot_money_detail(provider: ReplayProvider, trade_date: str) -> dict[str, Any]:
+    result = provider.fetch_hot_money_detail(trade_date)
+    normalized = normalize_hot_money_detail(result.rows) if result.status == "success" else []
+    expected_date = trade_date.replace("-", "")
+    returned_dates = {item["trade_date"].replace("-", "") for item in normalized}
+    status = "quarantined" if result.status == "success" and returned_dates not in ({expected_date}, set()) else result.status
+    with engine.begin() as conn:
+        batch_id = conn.execute(text("""INSERT INTO ops.data_batch(provider,dataset,requested_at,source_as_of,status,row_count,raw_hash,error_code,error_message,finished_at)
+          VALUES (:provider,'hm_detail',:requested,:as_of,:status,:count,:hash,:error_code,:error_message,now()) RETURNING id"""), {
+            "provider": result.provider, "requested": result.requested_at, "as_of": result.source_as_of,
+            "status": status, "count": len(normalized), "hash": result.raw_hash,
+            "error_code": result.error_code, "error_message": result.error_message,
+        }).scalar_one()
+        if status == "success" and normalized:
+            conn.execute(text("""INSERT INTO market.hot_money_detail(trade_date,symbol,name,buy_amount,sell_amount,net_amount,
+              hot_money_name,associated_orgs,tag,provider,batch_id,raw)
+              VALUES (:trade_date,:symbol,:name,:buy_amount,:sell_amount,:net_amount,:hot_money_name,:associated_orgs,:tag,
+                :provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(trade_date,symbol,hot_money_name,associated_orgs) DO UPDATE SET name=excluded.name,
+                buy_amount=excluded.buy_amount,sell_amount=excluded.sell_amount,net_amount=excluded.net_amount,
+                tag=excluded.tag,provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""),
+              [{**item, "provider": result.provider, "batch_id": batch_id} for item in normalized])
+        if status == "quarantined":
+            conn.execute(text("""INSERT INTO ops.data_issue(batch_id,severity,code,message)
+              VALUES (:batch,'error','hm_detail_date_mismatch',:message)"""), {
+                "batch": batch_id,
+                "message": f"hm_detail requested {expected_date}, returned {sorted(returned_dates)}",
+            })
+    return {"endpoint": "hm_detail", "status": status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_institutional_surveys(provider: ReplayProvider, start: str, end: str) -> dict[str, Any]:
+    result = provider.fetch_institutional_surveys(start, end)
+    normalized = normalize_institutional_surveys(result.rows) if result.status == "success" else []
+    with engine.begin() as conn:
+        batch_id = conn.execute(text("""INSERT INTO ops.data_batch(provider,dataset,requested_at,source_as_of,status,row_count,raw_hash,error_code,error_message,metadata,finished_at)
+          VALUES (:provider,'stk_surv',:requested,:as_of,:status,:count,:hash,:error_code,:error_message,CAST(:metadata AS jsonb),now()) RETURNING id"""), {
+            "provider": result.provider, "requested": result.requested_at, "as_of": result.source_as_of,
+            "status": result.status, "count": len(normalized), "hash": result.raw_hash,
+            "error_code": result.error_code, "error_message": result.error_message,
+            "metadata": json.dumps({"start": start, "end": end}),
+        }).scalar_one()
+        if result.status == "success" and normalized:
+            conn.execute(text("""INSERT INTO research.institutional_survey(record_key,symbol,name,survey_date,fund_visitors,
+              receive_place,receive_mode,receive_org,org_type,company_receivers,content,provider,batch_id,raw)
+              VALUES (:record_key,:symbol,:name,:survey_date,:fund_visitors,:receive_place,:receive_mode,:receive_org,
+                :org_type,:company_receivers,:content,:provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(record_key) DO UPDATE SET name=excluded.name,fund_visitors=excluded.fund_visitors,
+                receive_place=excluded.receive_place,receive_mode=excluded.receive_mode,receive_org=excluded.receive_org,
+                org_type=excluded.org_type,company_receivers=excluded.company_receivers,content=excluded.content,
+                provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw,updated_at=now()"""),
+              [{**item, "provider": result.provider, "batch_id": batch_id} for item in normalized])
+    return {"endpoint": "stk_surv", "status": result.status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_broker_recommendations(provider: ReplayProvider, month: str) -> dict[str, Any]:
+    result = provider.fetch_broker_recommendations(month)
+    normalized = normalize_broker_recommendations(result.rows) if result.status == "success" else []
+    with engine.begin() as conn:
+        batch_id = conn.execute(text("""INSERT INTO ops.data_batch(provider,dataset,requested_at,source_as_of,status,row_count,raw_hash,error_code,error_message,metadata,finished_at)
+          VALUES (:provider,'broker_recommend',:requested,:as_of,:status,:count,:hash,:error_code,:error_message,CAST(:metadata AS jsonb),now()) RETURNING id"""), {
+            "provider": result.provider, "requested": result.requested_at, "as_of": result.source_as_of,
+            "status": result.status, "count": len(normalized), "hash": result.raw_hash,
+            "error_code": result.error_code, "error_message": result.error_message,
+            "metadata": json.dumps({"month": month}),
+        }).scalar_one()
+        if result.status == "success" and normalized:
+            conn.execute(text("""INSERT INTO research.broker_recommendation(month,broker,symbol,name,provider,batch_id,raw)
+              VALUES (:month,:broker,:symbol,:name,:provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(month,broker,symbol) DO UPDATE SET name=excluded.name,provider=excluded.provider,
+                batch_id=excluded.batch_id,raw=excluded.raw,updated_at=now()"""),
+              [{**item, "provider": result.provider, "batch_id": batch_id} for item in normalized])
+    return {"endpoint": "broker_recommend", "status": result.status, "rows": len(normalized), "batch_id": batch_id}
 
 
 def ingest_moneyflow(provider: ReplayProvider, endpoint: str, trade_date: str) -> dict[str, Any]:

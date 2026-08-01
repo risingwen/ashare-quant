@@ -31,9 +31,9 @@ def overview() -> dict:
       (SELECT count(DISTINCT trade_date) FROM market.daily_bar WHERE trade_date>='2025-01-01') trade_day_count,
       (SELECT count(*) FROM market.instrument WHERE active) instrument_count,
       (SELECT row_count FROM popularity.snapshot WHERE endpoint='dc_hot' AND status='success'
-        ORDER BY trade_date DESC,snapshot_time DESC LIMIT 1) dc_snapshot_count,
+        AND category='人气榜' ORDER BY trade_date DESC,snapshot_time DESC LIMIT 1) dc_snapshot_count,
       (SELECT row_count FROM popularity.snapshot WHERE endpoint='ths_hot' AND status='success'
-        ORDER BY trade_date DESC,snapshot_time DESC LIMIT 1) ths_snapshot_count,
+        AND category='热股' ORDER BY trade_date DESC,snapshot_time DESC LIMIT 1) ths_snapshot_count,
       (SELECT count(*) FROM research.strategy_run) strategy_run_count""")[0]
     return {"data": summary, "generated_at": datetime.now(UTC)}
 
@@ -86,7 +86,9 @@ def data_freshness() -> dict:
         SELECT status,finished_at,error_code FROM ops.data_batch
         WHERE dataset=CASE WHEN d.dataset='daily' THEN 'daily_market' ELSE d.dataset END ORDER BY id DESC LIMIT 1
       ) b ON true ORDER BY d.dataset""")
-    jobs = rows("SELECT id,job_name,status,started_at,finished_at,details,error FROM ops.job_run WHERE job_name IN ('moneyflow_sync','popularity_sync') ORDER BY started_at DESC LIMIT 20")
+    jobs = rows("""SELECT id,job_name,status,started_at,finished_at,details,error FROM ops.job_run
+      WHERE job_name IN ('moneyflow_sync','popularity_sync','market_intelligence_sync')
+      ORDER BY started_at DESC LIMIT 30""")
     return {"data": data, "jobs": jobs, "generated_at": datetime.now(UTC)}
 
 
@@ -102,16 +104,37 @@ def bars(symbol: str, start: str = "2025-01-01", end: str = "9999-12-31") -> dic
 
 @app.get("/api/v1/popularity/rankings")
 def rankings(trade_date: str, source: Literal["dc_hot", "ths_hot"] = "dc_hot", limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)) -> dict:
+    final_category = "人气榜" if source == "dc_hot" else "热股"
     data = rows("""WITH latest AS (
         SELECT DISTINCT ON (provider,endpoint,category) id,provider,endpoint,category,trade_date,snapshot_time
-        FROM popularity.snapshot WHERE endpoint=:source AND status='success' AND trade_date=:trade_date
+        FROM popularity.snapshot WHERE endpoint=:source AND category=:category
+          AND status='success' AND trade_date=:trade_date
         ORDER BY provider,endpoint,category,snapshot_time DESC
       )
       SELECT s.provider,s.endpoint,s.category,s.trade_date,s.snapshot_time,i.symbol,i.name,i.rank,i.heat,
-        i.rank_change,i.rank_reason,i.concept
+        i.rank_change,i.rank_reason,i.concept,b.close base_close,
+        future.next_trade_date,future.day_3_trade_date,future.day_5_trade_date,
+        round(100 * (future.next_close / nullif(b.close,0) - 1), 4) next_day_return,
+        round(100 * (future.day_3_close / nullif(b.close,0) - 1), 4) day_3_return,
+        round(100 * (future.day_5_close / nullif(b.close,0) - 1), 4) day_5_return
       FROM latest s JOIN popularity.snapshot_item i ON i.snapshot_id=s.id
+      LEFT JOIN market.daily_bar b ON b.symbol=i.symbol AND b.trade_date=s.trade_date
+      LEFT JOIN LATERAL (
+        SELECT max(trade_date) FILTER (WHERE sequence=1) next_trade_date,
+          max(trade_date) FILTER (WHERE sequence=3) day_3_trade_date,
+          max(trade_date) FILTER (WHERE sequence=5) day_5_trade_date,
+          max(close) FILTER (WHERE sequence=1) next_close,
+          max(close) FILTER (WHERE sequence=3) day_3_close,
+          max(close) FILTER (WHERE sequence=5) day_5_close
+        FROM (
+          SELECT trade_date,close,row_number() OVER (ORDER BY trade_date) sequence
+          FROM market.daily_bar
+          WHERE symbol=i.symbol AND trade_date>s.trade_date
+          ORDER BY trade_date LIMIT 5
+        ) observations
+      ) future ON true
       ORDER BY s.provider,i.rank LIMIT :limit OFFSET :offset""",
-      {"trade_date": trade_date, "source": source, "limit": limit, "offset": offset})
+      {"trade_date": trade_date, "source": source, "category": final_category, "limit": limit, "offset": offset})
     source_label = "东方财富" if source == "dc_hot" else "同花顺"
     return {"data": data, "limit": limit, "offset": offset, "coverage": {
         "scope": "published_top_100", "rank_limit": 100,
@@ -121,27 +144,78 @@ def rankings(trade_date: str, source: Literal["dc_hot", "ths_hot"] = "dc_hot", l
 
 @app.get("/api/v1/popularity/dates")
 def popularity_dates(source: Literal["dc_hot", "ths_hot"] = "dc_hot") -> dict:
+    final_category = "人气榜" if source == "dc_hot" else "热股"
     return {"data": rows("""SELECT trade_date,provider,endpoint,count(*) snapshot_count,
       (array_agg(row_count ORDER BY snapshot_time DESC))[1] row_count,max(snapshot_time) latest_snapshot_time
-      FROM popularity.snapshot WHERE endpoint=:source AND status='success'
-      GROUP BY trade_date,provider,endpoint ORDER BY trade_date DESC,provider LIMIT 1000""", {"source": source}),
+      FROM popularity.snapshot WHERE endpoint=:source AND category=:category AND status='success'
+      GROUP BY trade_date,provider,endpoint ORDER BY trade_date DESC,provider LIMIT 1000""", {
+        "source": source, "category": final_category,
+      }),
       "source": source, "source_label": "东方财富" if source == "dc_hot" else "同花顺"}
 
 
 @app.get("/api/v1/popularity/history/{symbol}")
 def popularity_history(symbol: str, source: Literal["dc_hot", "ths_hot"] = "dc_hot", limit: int = Query(200, ge=1, le=500)) -> dict:
-    return {"data": rows("SELECT provider,endpoint,category,trade_date,snapshot_time,rank,heat,rank_change FROM popularity.daily_close WHERE endpoint=:source AND symbol=:symbol ORDER BY trade_date DESC,snapshot_time DESC LIMIT :limit", {"source": source, "symbol": symbol, "limit": limit})}
+    final_category = "人气榜" if source == "dc_hot" else "热股"
+    return {"data": rows("""SELECT provider,endpoint,category,trade_date,snapshot_time,rank,heat,rank_change
+      FROM popularity.daily_close WHERE endpoint=:source AND category=:category AND symbol=:symbol
+      ORDER BY trade_date DESC,snapshot_time DESC LIMIT :limit""", {
+        "source": source, "category": final_category, "symbol": symbol, "limit": limit,
+    })}
+
+
+@app.get("/api/v1/popularity/detail/{symbol}")
+def popularity_detail(
+    symbol: str,
+    source: Literal["dc_hot", "ths_hot"] = "dc_hot",
+    end_date: str = "9999-12-31",
+    days: int = Query(30, ge=5, le=120),
+) -> dict:
+    try:
+        date.fromisoformat(end_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="end_date 必须是 YYYY-MM-DD 格式") from exc
+    final_category = "人气榜" if source == "dc_hot" else "热股"
+    bars_data = rows("""SELECT * FROM (
+        SELECT trade_date,open,high,low,close,volume,amount,pct_change
+        FROM market.daily_bar WHERE symbol=:symbol AND trade_date<=:end_date
+        ORDER BY trade_date DESC LIMIT :days
+      ) selected ORDER BY trade_date""", {"symbol": symbol, "end_date": end_date, "days": days})
+    rank_data = rows("""SELECT * FROM (
+        SELECT provider,endpoint,trade_date,snapshot_time,rank,heat,rank_change
+        FROM popularity.daily_close
+        WHERE endpoint=:source AND category=:category AND symbol=:symbol AND trade_date<=:end_date
+        ORDER BY trade_date DESC,snapshot_time DESC LIMIT :days
+      ) selected ORDER BY trade_date,snapshot_time""", {
+        "source": source, "category": final_category, "symbol": symbol, "end_date": end_date, "days": days,
+    })
+    name_data = rows("""SELECT name FROM popularity.daily_close
+      WHERE endpoint=:source AND category=:category AND symbol=:symbol AND trade_date<=:end_date
+      ORDER BY trade_date DESC LIMIT 1""", {
+        "source": source, "category": final_category, "symbol": symbol, "end_date": end_date,
+      })
+    return {
+        "data": {"bars": bars_data, "ranks": rank_data},
+        "symbol": symbol,
+        "name": name_data[0]["name"] if name_data else symbol,
+        "source": source,
+        "source_label": "东方财富" if source == "dc_hot" else "同花顺",
+        "end_date": end_date,
+        "days": days,
+    }
 
 
 @app.get("/api/v1/popularity/intraday")
 def popularity_intraday(trade_date: str, source: Literal["dc_hot", "ths_hot"] = "dc_hot", symbol: str | None = None) -> dict:
     snapshots = rows("""SELECT snapshot_time,row_count FROM popularity.snapshot
-      WHERE endpoint=:source AND trade_date=:date AND status='success' ORDER BY snapshot_time""", {"date": trade_date, "source": source})
+      WHERE endpoint=:source AND category LIKE '%盘中' AND trade_date=:date AND status='success'
+      ORDER BY snapshot_time""", {"date": trade_date, "source": source})
     trajectory = []
     if symbol:
         trajectory = rows("""SELECT s.snapshot_time,i.symbol,i.name,i.rank,i.heat,i.rank_change,i.rank_reason
           FROM popularity.snapshot s JOIN popularity.snapshot_item i ON i.snapshot_id=s.id
-          WHERE s.endpoint=:source AND s.trade_date=:date AND s.status='success' AND i.symbol=:symbol
+          WHERE s.endpoint=:source AND s.category LIKE '%盘中' AND s.trade_date=:date
+            AND s.status='success' AND i.symbol=:symbol
           ORDER BY s.snapshot_time""", {"date": trade_date, "source": source, "symbol": symbol})
     return {"data": {"snapshots": snapshots, "trajectory": trajectory}, "trade_date": trade_date,
             "source": source, "source_label": "东方财富" if source == "dc_hot" else "同花顺", "symbol": symbol}
@@ -157,21 +231,141 @@ def lhb_dates() -> dict:
 @app.get("/api/v1/lhb/records")
 def lhb_records(trade_date: str, limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)) -> dict:
     return {"data": rows("""SELECT r.trade_date,r.symbol,r.name,r.close,r.pct_change,r.turnover_rate,r.amount,
-      coalesce(r.net_amount,s.net_amount) net_amount,r.net_rate,r.reason
+      r.l_sell,r.l_buy,r.l_amount,coalesce(r.net_amount,s.net_amount) net_amount,r.net_rate,
+      r.amount_rate,r.float_values,r.reason,coalesce(s.seat_count,0) seat_count,
+      coalesce(s.institution_count,0) institution_count,coalesce(s.business_seat_count,0) business_seat_count
       FROM market.lhb_record r LEFT JOIN (
-        SELECT trade_date,symbol,sum(net_buy) net_amount FROM market.lhb_seat GROUP BY trade_date,symbol
+        SELECT trade_date,symbol,sum(net_buy) net_amount,count(*) seat_count,
+          count(*) FILTER (WHERE seat_name LIKE '%机构专用%') institution_count,
+          count(*) FILTER (WHERE seat_name NOT LIKE '%机构专用%') business_seat_count
+        FROM market.lhb_seat GROUP BY trade_date,symbol
       ) s USING(trade_date,symbol) WHERE r.trade_date=:date
       ORDER BY coalesce(r.net_amount,s.net_amount) DESC NULLS LAST LIMIT :limit OFFSET :offset""", {"date": trade_date, "limit": limit, "offset": offset})}
 
 
 @app.get("/api/v1/lhb/seats")
 def lhb_seats(trade_date: str, symbol: str, limit: int = Query(100, ge=1, le=500)) -> dict:
-    return {"data": rows("SELECT seat_name,side,buy,buy_rate,sell,sell_rate,net_buy,reason FROM market.lhb_seat WHERE trade_date=:date AND symbol=:symbol ORDER BY abs(net_buy) DESC NULLS LAST LIMIT :limit", {"date": trade_date, "symbol": symbol, "limit": limit})}
+    data = rows("""SELECT seat_name,side,
+      CASE side WHEN '0' THEN '买入前五' WHEN '1' THEN '卖出前五' ELSE side END side_label,
+      CASE WHEN seat_name LIKE '%机构专用%' THEN '机构' ELSE '营业部' END seat_type,
+      buy,buy_rate,sell,sell_rate,net_buy,reason
+      FROM market.lhb_seat WHERE trade_date=:date AND symbol=:symbol
+      ORDER BY side,abs(net_buy) DESC NULLS LAST LIMIT :limit""", {
+        "date": trade_date, "symbol": symbol, "limit": limit,
+    })
+    institution_count = sum(item["seat_type"] == "机构" for item in data)
+    business_count = len(data) - institution_count
+    coverage_status = "mixed" if business_count else "institution_only" if institution_count else "missing"
+    return {"data": data, "coverage": {
+        "status": coverage_status,
+        "seat_count": len(data),
+        "institution_count": institution_count,
+        "business_seat_count": business_count,
+        "description": "同时含机构与普通营业部席位；仅表示类型覆盖，不保证上游全量" if coverage_status == "mixed" else
+          "上游目前只返回机构专用席位，不能视为完整席位" if coverage_status == "institution_only" else
+          "上游未返回该股票席位明细",
+    }}
 
 
 @app.get("/api/v1/lhb/history/{symbol}")
 def lhb_history(symbol: str, limit: int = Query(200, ge=1, le=500)) -> dict:
-    return {"data": rows("SELECT trade_date,symbol,name,pct_change,amount,net_amount,net_rate,reason FROM market.lhb_record WHERE symbol=:symbol ORDER BY trade_date DESC LIMIT :limit", {"symbol": symbol, "limit": limit})}
+    return {"data": rows("""SELECT trade_date,symbol,name,close,pct_change,turnover_rate,amount,l_sell,l_buy,
+      l_amount,net_amount,net_rate,amount_rate,float_values,reason FROM market.lhb_record
+      WHERE symbol=:symbol ORDER BY trade_date DESC LIMIT :limit""", {"symbol": symbol, "limit": limit})}
+
+
+@app.get("/api/v1/lhb/detail/{symbol}")
+def lhb_detail(
+    symbol: str,
+    trade_date: str,
+    days: int = Query(30, ge=5, le=120),
+) -> dict:
+    try:
+        date.fromisoformat(trade_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="trade_date 必须是 YYYY-MM-DD 格式") from exc
+    bars_data = rows("""SELECT * FROM (
+        SELECT trade_date,open,high,low,close,volume,amount,pct_change
+        FROM market.daily_bar WHERE symbol=:symbol AND trade_date<=:date
+        ORDER BY trade_date DESC LIMIT :days
+      ) selected ORDER BY trade_date""", {"symbol": symbol, "date": trade_date, "days": days})
+    history_data = rows("""SELECT trade_date,name,close,pct_change,turnover_rate,amount,l_sell,l_buy,l_amount,
+      net_amount,net_rate,amount_rate,float_values,reason FROM market.lhb_record
+      WHERE symbol=:symbol AND trade_date<=:date ORDER BY trade_date DESC LIMIT 50""", {
+        "symbol": symbol, "date": trade_date,
+    })
+    flow_data = rows("""SELECT trade_date,close,pct_change,net_amount,net_amount_rate,buy_elg_amount,
+      buy_lg_amount,buy_md_amount,buy_sm_amount FROM market.stock_moneyflow
+      WHERE symbol=:symbol AND trade_date<=:date ORDER BY trade_date DESC LIMIT :days""", {
+        "symbol": symbol, "date": trade_date, "days": days,
+    })
+    hot_money_data = rows("""SELECT d.trade_date,d.hot_money_name,d.associated_orgs,d.buy_amount,d.sell_amount,
+      d.net_amount,d.tag,h.description FROM market.hot_money_detail d
+      LEFT JOIN market.hot_money_directory h USING(hot_money_name)
+      WHERE d.symbol=:symbol AND d.trade_date<=:date
+      ORDER BY d.trade_date DESC,abs(d.net_amount) DESC NULLS LAST LIMIT 100""", {
+        "symbol": symbol, "date": trade_date,
+    })
+    return {"data": {
+        "bars": bars_data,
+        "history": history_data,
+        "moneyflow": flow_data,
+        "hot_money": hot_money_data,
+    }, "symbol": symbol, "trade_date": trade_date, "days": days}
+
+
+@app.get("/api/v1/research/survey-dates")
+def survey_dates() -> dict:
+    return {"data": rows("""SELECT survey_date,count(*) row_count,count(DISTINCT symbol) symbol_count
+      FROM research.institutional_survey GROUP BY survey_date ORDER BY survey_date DESC LIMIT 1000""")}
+
+
+@app.get("/api/v1/research/surveys")
+def institutional_surveys(
+    survey_date: str | None = None,
+    q: str = "",
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    if survey_date:
+        try:
+            date.fromisoformat(survey_date)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="survey_date 必须是 YYYY-MM-DD 格式") from exc
+    effective = survey_date or rows("SELECT max(survey_date) survey_date FROM research.institutional_survey")[0]["survey_date"]
+    data = rows("""SELECT record_key,symbol,name,survey_date,fund_visitors,receive_place,receive_mode,
+      receive_org,org_type,company_receivers,content FROM research.institutional_survey
+      WHERE survey_date=:date AND (:q='' OR symbol ILIKE :like OR name ILIKE :like OR receive_org ILIKE :like
+        OR fund_visitors ILIKE :like) ORDER BY symbol,receive_org NULLS LAST LIMIT :limit OFFSET :offset""", {
+        "date": effective, "q": q, "like": f"%{q}%", "limit": limit, "offset": offset,
+    }) if effective else []
+    return {"data": data, "effective_date": effective, "limit": limit, "offset": offset}
+
+
+@app.get("/api/v1/research/broker-months")
+def broker_months() -> dict:
+    return {"data": rows("""SELECT month,count(*) row_count,count(DISTINCT broker) broker_count,
+      count(DISTINCT symbol) symbol_count FROM research.broker_recommendation
+      GROUP BY month ORDER BY month DESC LIMIT 120""")}
+
+
+@app.get("/api/v1/research/broker-recommendations")
+def broker_recommendations(
+    month: str | None = None,
+    q: str = "",
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    if month and (len(month) != 6 or not month.isdigit()):
+        raise HTTPException(status_code=422, detail="month 必须是 YYYYMM 格式")
+    effective = month or rows("SELECT max(month) month FROM research.broker_recommendation")[0]["month"]
+    data = rows("""SELECT month,broker,symbol,name,count(*) OVER (PARTITION BY symbol) recommendation_count
+      FROM research.broker_recommendation WHERE month=:month AND
+      (:q='' OR broker ILIKE :like OR symbol ILIKE :like OR name ILIKE :like)
+      ORDER BY recommendation_count DESC,name,broker LIMIT :limit OFFSET :offset""", {
+        "month": effective, "q": q, "like": f"%{q}%", "limit": limit, "offset": offset,
+    }) if effective else []
+    return {"data": data, "effective_month": effective, "limit": limit, "offset": offset}
 
 
 @app.get("/api/v1/moneyflow/dates")
