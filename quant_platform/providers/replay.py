@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -14,6 +15,9 @@ from .base import ProviderResult
 
 class ReplayProvider:
     name = "tushare_replay"
+    _rate_lock = threading.Lock()
+    _next_request_at = 0.0
+    _requests_per_minute = 90
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
         self.base_url = (base_url or settings.tushare_replay_base_url).rstrip("/")
@@ -21,13 +25,37 @@ class ReplayProvider:
         self.session = requests.Session()
         self.session.trust_env = False
 
+    @classmethod
+    def _wait_for_request_slot(cls) -> None:
+        """Space requests across threads below Replay's 100 requests/minute cap."""
+        interval = 60.0 / cls._requests_per_minute
+        with cls._rate_lock:
+            now = time.monotonic()
+            scheduled = max(now, cls._next_request_at)
+            cls._next_request_at = scheduled + interval
+        if scheduled > now:
+            time.sleep(scheduled - now)
+
     def _get(self, endpoint: str, params: dict[str, Any]) -> ProviderResult:
+        """Retry intermittent Replay upstream credential/permission pool errors."""
+        result: ProviderResult | None = None
+        for attempt in range(3):
+            result = self._get_once(endpoint, params)
+            if result.error_code not in {"provider_40101", "provider_40203"}:
+                return result
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+        assert result is not None
+        return result
+
+    def _get_once(self, endpoint: str, params: dict[str, Any]) -> ProviderResult:
         requested = datetime.now(UTC)
         if not self.api_key:
             return ProviderResult(self.name, endpoint, requested, None, "unauthorized", error_code="missing_api_key")
         response = None
         last_error = None
         for attempt in range(3):
+            self._wait_for_request_slot()
             try:
                 response = self.session.get(
                     f"{self.base_url}/{endpoint}", headers={"X-API-Key": self.api_key}, params=params, timeout=(5, 40)
@@ -46,7 +74,33 @@ class ReplayProvider:
             return ProviderResult(self.name, endpoint, requested, None, "rate_limited", error_code="http_429")
         if response.status_code >= 400:
             return ProviderResult(self.name, endpoint, requested, None, "failed", error_code=f"http_{response.status_code}", error_message=response.text[:300])
-        payload = response.json()
+        try:
+            payload = response.json()
+        except requests.JSONDecodeError as exc:
+            return ProviderResult(
+                self.name,
+                endpoint,
+                requested,
+                None,
+                "failed",
+                error_code="invalid_json",
+                error_message=str(exc)[:300],
+            )
+        provider_code = payload.get("code") if isinstance(payload, dict) else None
+        if provider_code not in (None, 0, "0"):
+            message = str(payload.get("msg") or payload.get("message") or "Replay provider rejected the request")
+            unauthorized = str(provider_code) == "40203" or any(
+                marker in message.lower() for marker in ("权限", "permission", "unauthorized", "token")
+            )
+            return ProviderResult(
+                self.name,
+                endpoint,
+                requested,
+                None,
+                "unauthorized" if unauthorized else "failed",
+                error_code=f"provider_{provider_code}",
+                error_message=message[:300],
+            )
         data = payload.get("data")
         if isinstance(data, dict):
             fields = data.get("fields") or []
@@ -223,6 +277,18 @@ class ReplayProvider:
 
     def fetch_daily_market(self, trade_date: str) -> ProviderResult:
         return self._get("daily", {"trade_date": trade_date.replace("-", ""), "limit": 7000})
+
+    def fetch_daily_basic(self, trade_date: str) -> ProviderResult:
+        return self._get("daily_basic", {"trade_date": trade_date.replace("-", ""), "limit": 7000})
+
+    def fetch_adj_factors(self, trade_date: str) -> ProviderResult:
+        return self._get("adj_factor", {"trade_date": trade_date.replace("-", ""), "limit": 7000})
+
+    def fetch_limit_events(self, trade_date: str) -> ProviderResult:
+        return self._get("limit_list_d", {"trade_date": trade_date.replace("-", ""), "limit": 2500})
+
+    def fetch_limit_steps(self, trade_date: str) -> ProviderResult:
+        return self._get("limit_step", {"trade_date": trade_date.replace("-", ""), "limit": 2000})
 
     def fetch_lhb(self, endpoint: str, trade_date: str) -> ProviderResult:
         if endpoint not in {"top_list", "top_inst"}:

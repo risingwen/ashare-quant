@@ -1,4 +1,4 @@
-import React, {Suspense, lazy, useEffect, useMemo, useState} from 'react';
+import React, {Suspense, lazy, useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {QueryClient, QueryClientProvider, useQuery} from '@tanstack/react-query';
 import './style.css';
@@ -58,13 +58,34 @@ function Overview() {
 }
 
 function Strategies(){
+  const researchViews={
+    'top10-drop2':{label:'前十 −2%',title:'人气前十 · T+1跌2%',description:'所有最终榜前十，比较广覆盖低吸的成交与退出。',src:'/strategy-research/popularity-top10-drop2.html'},
+    'top10-drop7':{label:'前十 −7%',title:'人气前十 · T+1跌7%',description:'与−2%使用同一规则，专门检查深跌是否真的提高可兑现收益。',src:'/strategy-research/popularity-top10-drop7.html'},
+    'excursions':{label:'跌7%反弹',title:'人气前十 · T+1跌7%后的T+2/T+3收益',description:'同时查看T+1高低点比例，以及跌7%成交后持有至T+2/T+3的净收益、胜率与指数超额。',src:'/strategy-research/popularity-top10-excursions.html'},
+    'new-top10':{label:'首次前十',title:'首次进入前十 · T+1跌2%',description:'排除连续霸榜样本，观察新进入人气中心后的次日低吸。',src:'/strategy-research/popularity-new-top10.html'},
+    'core':{label:'核心条件',title:'首次前五＋榜外至少10日',description:'当前优先研究条件，页面默认应用前五与榜外10日筛选。',src:'/strategy-research/popularity-core-drop2.html'},
+    'core-high':{label:'核心＋新高',title:'核心人气 × 接近120日前高',description:'验证新高更适合作为排序因子，还是应该成为硬过滤。',src:'/strategy-research/popularity-core-new-high.html'},
+    'core-drop7':{label:'核心 −7%',title:'核心人气 · T+1跌7%',description:'小样本深度回撤版本，重点复盘是否出现分钟级止跌。',src:'/strategy-research/popularity-core-drop7.html'},
+    'factors':{label:'论文复验',title:'新高、价量与人气因子',description:'用2025年以来本地数据复验52周新高论文，并列出正式论文链接和相反证据。',src:'/strategy-research/factor-validation.html'},
+    'ultra-short':{label:'总方案',title:'游资成交与人气超短总方案',description:'近两年龙虎榜席位成交、策略裁剪、执行风险、研究路线和样本外门槛。',src:'/strategy-research/ultra-short-research-report.html'},
+  } as const;
+  type StrategyView='ledger'|keyof typeof researchViews;
+  const [view,setView]=useState<StrategyView>(()=>{const value=new URLSearchParams(location.search).get('view');return value&&value in researchViews?value as keyof typeof researchViews:'ledger'});
   const q=useQuery({queryKey:['strategy-runs'],queryFn:()=>api('/strategy-runs')});
   if(q.isLoading)return <Loading/>; if(q.error)return <ErrorState error={q.error}/>;
   const rows=q.data?.data||[];
-  return <><div className="hero compact"><div><span className="eyebrow">EXPERIMENT LAB</span><h1>策略实验</h1><p>先把每个研究假设做成可复现、可比较、可反驳的实验，再考虑自动化选参。</p></div><span className="chip">研究模式 · 暂不开放网页创建</span></div>
-    <div className="metric-grid"><Metric label="实验总数" value={rows.length}/><Metric label="运行成功" value={rows.filter((r:any)=>r.status==='success').length} tone="good"/><Metric label="当前阶段" value="验证框架" detail="不急于扩充策略数量"/><Metric label="下一门禁" value="样本外" detail="滚动窗口与基准比较"/></div>
-    <section className="panel"><div className="panel-head"><div><span className="section-kicker">RECOMMENDED WORKFLOW</span><h2>建议按三层推进</h2></div><span className="chip">参考主流量化研究工作流</span></div><div className="recommendation-grid"><article><b>P0 · 实验账本</b><p>固定数据版本、代码指纹、参数、费用与信号时点；相同输入必须得到相同结果。</p></article><article><b>P1 · 样本外验证</b><p>加入滚动训练/验证窗口、基准指数、行业中性对照和交易成本压力测试。</p></article><article><b>P2 · 稳健性而非最优点</b><p>展示参数热力图、换手与容量；优先选择稳定参数区域，不追逐单一最佳收益。</p></article></div></section>
-    <section className="panel table-panel"><div className="panel-head"><div><span className="section-kicker">RUN HISTORY</span><h2>实验记录</h2></div><button className="ghost">筛选</button></div><div className="table-wrap"><table><thead><tr><th>策略模板</th><th>样本区间</th><th>参数</th><th>数据版本</th><th>状态</th><th>完成时间</th></tr></thead><tbody>{rows.map((r:any)=><tr key={r.id}><td><b>{r.template_key}</b><small>版本 v{r.template_version}</small></td><td>{r.start_date}<small>至 {r.end_date}</small></td><td><code>{Object.entries(r.parameters||{}).map(([k,v])=>`${k}=${v}`).join(' · ')}</code></td><td className="mono clip">{r.data_version}</td><td><span className={`status ${r.status}`}>{r.status==='success'?'已完成':r.status}</span></td><td>{dateTime(r.finished_at)}</td></tr>)}</tbody></table></div></section>
+  const switchView=(next:StrategyView)=>{setView(next);const url=new URL(location.href);if(next==='ledger')url.searchParams.delete('view');else url.searchParams.set('view',next);history.replaceState({},'',url)};
+  const selected=view==='ledger'?null:researchViews[view];
+  return <><div className="hero compact"><div><span className="eyebrow">EXPERIMENT LAB</span><h1>策略实验</h1><p>每个假设独立成页，统一检查信号、成交、K线、价量、人气和后续收益。</p></div><span className="chip">独立复盘页</span></div>
+    <div className="strategy-page-tabs"><button className={view==='ledger'?'active':''} onClick={()=>switchView('ledger')}><b>实验账本</b><span>版本与运行记录</span></button>{(Object.entries(researchViews) as [keyof typeof researchViews,typeof researchViews[keyof typeof researchViews]][]).map(([key,item])=><button key={key} className={view===key?'active':''} onClick={()=>switchView(key)}><b>{item.label}</b><span>{item.title}</span></button>)}</div>
+    {selected?<>
+      <section className="panel strategy-research-intro"><div><span className="section-kicker">STRATEGY REVIEW PAGE</span><h2>{selected.title}</h2><p>{selected.description} 成交页支持右侧K线与后续人气，总方案页集中保留研究结论与来源。</p></div><a href={selected.src} target="_blank" rel="noreferrer">全屏打开 ↗</a></section>
+      <iframe className="strategy-dashboard-frame" src={selected.src} title={selected.title}/>
+    </>:<>
+      <div className="metric-grid"><Metric label="实验总数" value={rows.length}/><Metric label="运行成功" value={rows.filter((r:any)=>r.status==='success').length} tone="good"/><Metric label="当前阶段" value="验证框架" detail="不急于扩充策略数量"/><Metric label="下一门禁" value="样本外" detail="滚动窗口与基准比较"/></div>
+      <section className="panel"><div className="panel-head"><div><span className="section-kicker">RECOMMENDED WORKFLOW</span><h2>建议按三层推进</h2></div><span className="chip">参考主流量化研究工作流</span></div><div className="recommendation-grid"><article><b>P0 · 实验账本</b><p>固定数据版本、代码指纹、参数、费用与信号时点；相同输入必须得到相同结果。</p></article><article><b>P1 · 样本外验证</b><p>加入滚动训练/验证窗口、基准指数、行业中性对照和交易成本压力测试。</p></article><article><b>P2 · 稳健性而非最优点</b><p>展示参数热力图、换手与容量；优先选择稳定参数区域，不追逐单一最佳收益。</p></article></div></section>
+      <section className="panel table-panel"><div className="panel-head"><div><span className="section-kicker">RUN HISTORY</span><h2>实验记录</h2></div><button className="ghost">筛选</button></div><div className="table-wrap"><table><thead><tr><th>策略模板</th><th>样本区间</th><th>参数</th><th>数据版本</th><th>状态</th><th>完成时间</th></tr></thead><tbody>{rows.map((r:any)=><tr key={r.id}><td><b>{r.template_key}</b><small>版本 v{r.template_version}</small></td><td>{r.start_date}<small>至 {r.end_date}</small></td><td><code>{Object.entries(r.parameters||{}).map(([k,v])=>`${k}=${v}`).join(' · ')}</code></td><td className="mono clip">{r.data_version}</td><td><span className={`status ${r.status}`}>{r.status==='success'?'已完成':r.status}</span></td><td>{dateTime(r.finished_at)}</td></tr>)}</tbody></table></div></section>
+    </>}
   </>;
 }
 
@@ -80,24 +101,29 @@ function Portfolio(){
 }
 
 function SystemPage(){
-  const backfill=useQuery({queryKey:['backfill'],queryFn:()=>api('/backfill-status'),refetchInterval:15000});
   const batches=useQuery({queryKey:['data-status'],queryFn:()=>api('/data-status'),refetchInterval:15000});
   const freshness=useQuery({queryKey:['data-freshness'],queryFn:()=>api('/data-freshness'),refetchInterval:15000});
-  const rows=backfill.data?.data||[], batchRows=batches.data?.data||[];
+  const batchRows=batches.data?.data||[];
   const freshRows=freshness.data?.data||[], syncJobs=freshness.data?.jobs||[];
   const moneyflowJob=syncJobs.find((x:any)=>x.job_name==='moneyflow_sync');
   const popularityJob=syncJobs.find((x:any)=>x.job_name==='popularity_sync');
   const intelligenceJob=syncJobs.find((x:any)=>x.job_name==='market_intelligence_sync');
-  const expected=Math.max(...rows.filter((x:any)=>x.dataset==='daily'&&x.status==='success').map((x:any)=>Number(x.day_count||0)),1);
-  const grouped=useMemo(()=>['daily','dc_hot','ths_hot','moneyflow_dc','moneyflow_ind_dc','top_list','top_inst'].map(dataset=>({dataset,ok:rows.find((x:any)=>x.dataset===dataset&&x.status==='success'),issues:rows.filter((x:any)=>x.dataset===dataset&&x.status!=='success')})),[rows]);
+  const marketDate=freshRows.find((row:any)=>row.dataset==='daily')?.expected_date;
+  const currentCount=freshRows.filter((row:any)=>row.status==='current').length;
+  const knownGaps=freshRows.reduce((total:number,row:any)=>total+Number(row.missing_count||0)+Number(row.source_limited_count||0),0);
+  const jobs=[['人气榜',popularityJob,'23:05'],['资金流',moneyflowJob,'23:15'],['机构与游资',intelligenceJob,'23:25']] as const;
+  const healthyJobs=jobs.filter(([,job])=>job?.status==='success').length;
+  const statusLabel=(row:any)=>row.status==='current'?(Number(row.missing_count||0)>0?`当前 · 历史缺 ${row.missing_count} 日`:'当前'):row.status==='source_limited'?`源端受限 · ${row.source_limited_count}`:row.status==='empty'?'无数据':'落后';
+  const coverageDetail=(row:any)=>row.coverage_mode==='checked_range'?`已检查至 ${row.checked_through||'—'} · 最新记录 ${row.latest_date||'—'}`:row.coverage_mode==='monthly'?`最新月份 ${String(row.latest_date||'—').slice(0,7)} · ${number(row.row_count)} 行`:row.coverage_mode==='latest_only'?`增量数据 · ${number(row.row_count)} 行`:`${number(row.day_count)} 个交易日 · ${number(row.row_count)} 行`;
   return <><div className="hero compact"><div><span className="eyebrow">OPERATIONS</span><h1>系统状态</h1><p>数据质量、历史覆盖和采集批次的统一观测面板。</p></div><span className="market-state"><i/>API 在线</span></div>
-    <div className="metric-grid">{freshRows.filter((r:any)=>['daily','moneyflow_dc'].includes(r.dataset)).map((r:any)=><Metric key={r.dataset} label={r.dataset} value={r.latest_date||'—'} detail={`市场基准 ${r.expected_date||'—'} · ${r.status==='current'?'已同步':'已滞后'}`} tone={r.status==='current'?'good':''}/>) }<Metric label="热榜自动同步" value={popularityJob?.status==='success'?'正常':popularityJob?.status==='failed'?'重试中':'等待首轮'} detail={popularityJob?`最近运行 ${dateTime(popularityJob.finished_at||popularityJob.started_at)}`:'每日 23:05 执行'} tone={popularityJob?.status==='success'?'good':''}/><Metric label="资金流自动同步" value={moneyflowJob?.status==='success'?'正常':moneyflowJob?.status==='failed'?'重试中':'等待首轮'} detail={moneyflowJob?`最近运行 ${dateTime(moneyflowJob.finished_at||moneyflowJob.started_at)}`:'每日收盘后执行'} tone={moneyflowJob?.status==='success'?'good':''}/><Metric label="机构与游资同步" value={intelligenceJob?.status==='success'?'正常':intelligenceJob?.status==='failed'?'重试中':'等待首轮'} detail={intelligenceJob?`最近运行 ${dateTime(intelligenceJob.finished_at||intelligenceJob.started_at)}`:'随每日任务执行'} tone={intelligenceJob?.status==='success'?'good':''}/></div>
-    <div className="service-grid">{grouped.map((g:any)=>{const fresh=freshRows.find((r:any)=>r.dataset===g.dataset);const hasGap=Number(fresh?.missing_count||0)>0;return <div className="service-card" key={g.dataset}><div><b>{g.dataset}</b><span className={g.issues.length||hasGap?'warn-dot':'ok-dot'}>{hasGap?`缺 ${fresh.missing_count} 日`:Number(g.ok?.day_count||0)<expected||g.issues.length?'补数中':'正常'}</span></div><strong>{g.ok?.day_count||0}<small> / {expected} 天</small></strong><span>{hasGap?`缺口：${(fresh.missing_dates||[]).join('、')}`:`${number(g.ok?.row_count)} 行 · 更新于 ${dateTime(g.ok?.updated_at)}`}</span></div>})}</div>
-    <section className="panel table-panel"><div className="panel-head"><div><span className="section-kicker">INGESTION LOG</span><h2>最近采集批次</h2></div><span className="chip">15 秒刷新</span></div><div className="table-wrap"><table><thead><tr><th>批次</th><th>数据集</th><th>来源</th><th>记录数</th><th>状态</th><th>完成时间</th></tr></thead><tbody>{batchRows.slice(0,20).map((r:any)=><tr key={r.id}><td className="mono">#{r.id}</td><td><b>{r.dataset}</b></td><td>{r.provider}</td><td>{number(r.row_count)}</td><td><span className={`status ${r.status}`}>{r.status}</span></td><td>{dateTime(r.finished_at)}</td></tr>)}</tbody></table></div></section>
+    <div className="metric-grid"><Metric label="市场基准交易日" value={marketDate||'—'} detail="以已入库日线的最新交易日为准" tone="good"/><Metric label="当前数据集" value={`${currentCount} / ${freshRows.length}`} detail="仅判断是否跟上市场基准，不混入历史缺口" tone={currentCount===freshRows.length?'good':''}/><Metric label="历史已知缺口" value={knownGaps} detail="按数据集分别计数，不再误报为最新数据滞后" tone={knownGaps===0?'good':''}/><Metric label="自动同步任务" value={`${healthyJobs} / ${jobs.length}`} detail="按每类任务最近一次运行状态" tone={healthyJobs===jobs.length?'good':''}/></div>
+    <div className="sync-job-grid">{jobs.map(([label,job,schedule])=><div className="sync-job" key={label}><div><b>{label}</b><span className={`status ${job?.status||''}`}>{job?.status==='success'?'正常':job?.status==='failed'?'失败':'等待首轮'}</span></div><strong>{job?.details?.trade_date||job?.details?.month||'—'}</strong><small>{job?`最近完成 ${dateTime(job.finished_at||job.started_at)}`:`每日 ${schedule} 执行`}</small><em>计划时间 {schedule}</em></div>)}</div>
+    <div className="service-grid">{freshRows.map((row:any)=>{const warning=row.status!=='current'||Number(row.missing_count||0)>0;const unit=row.coverage_mode==='monthly'?'个月':'个交易日';return <div className="service-card" key={row.dataset}><div><b>{row.label||row.dataset}</b><span className={warning?'warn-dot':'ok-dot'}>{statusLabel(row)}</span></div><strong>{row.latest_date||'—'}</strong><span>{Number(row.source_limited_count||0)>0?`源端无法提供：${row.source_limited_count} ${unit}`:Number(row.missing_count||0)>0?`历史缺口：${(row.missing_dates||[]).join('、')}`:coverageDetail(row)}</span><small>{row.dataset} · 最近采集 {dateTime(row.latest_attempt_at)}</small></div>})}</div>
+    <section className="panel table-panel"><div className="panel-head"><div><span className="section-kicker">LATEST INGESTION BY DATASET</span><h2>各数据集最近一次采集</h2></div><span className="chip">15 秒刷新</span></div><div className="table-wrap"><table><thead><tr><th>批次</th><th>数据集</th><th>来源</th><th>记录数</th><th>状态</th><th>完成时间</th></tr></thead><tbody>{batchRows.map((r:any)=><tr key={r.id}><td className="mono">#{r.id}</td><td><b>{r.dataset}</b></td><td>{r.provider}</td><td>{number(r.row_count)}</td><td><span className={`status ${r.status}`}>{r.status}</span></td><td>{dateTime(r.finished_at)}</td></tr>)}</tbody></table></div></section>
   </>;
 }
 
-const nav: [PageId,string,string][]=[['overview','总览','⌂'],['popularity','人气研究','↗'],['moneyflow','资金流','¥'],['lhb','龙虎榜','榜'],['research','机构研究','研'],['strategies','策略实验','◇'],['portfolio','模拟组合','◎'],['system','系统状态','◌']];
+const nav: [PageId,string,string][]=[['overview','总览','⌂'],['popularity','人气研究','↗'],['moneyflow','资金流','¥'],['lhb','龙虎榜','榜'],['research','股票研究','研'],['strategies','策略实验','◇'],['portfolio','模拟组合','◎'],['system','系统状态','◌']];
 function App(){
   const [page,setPage]=useState<PageId>(()=>pageFromPath(location.pathname));
   useEffect(()=>{const onPopState=()=>setPage(pageFromPath(location.pathname));window.addEventListener('popstate',onPopState);return()=>window.removeEventListener('popstate',onPopState)},[]);

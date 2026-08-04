@@ -11,14 +11,19 @@ from decimal import Decimal
 from .migrate import apply_schema, import_legacy_popularity, import_sqlite
 from .providers.replay import ReplayProvider
 from .ingest import (
+    ingest_adj_factors,
     ingest_broker_recommendations,
+    ingest_daily_basic,
     ingest_daily_market,
     ingest_hot_money_detail,
     ingest_hot_money_directory,
     ingest_institutional_surveys,
     ingest_lhb,
+    ingest_limit_events,
+    ingest_limit_steps,
     ingest_moneyflow,
     ingest_popularity,
+    refresh_market_breadth,
     refresh_popularity_view,
 )
 from .intraday import (
@@ -76,6 +81,8 @@ def main() -> None:
     daily.add_argument("--date", default="today")
     flow_sync = commands.add_parser("sync-moneyflow")
     flow_sync.add_argument("--date", default="latest-market")
+    sentiment_sync = commands.add_parser("sync-sentiment")
+    sentiment_sync.add_argument("--date", default="latest-market")
     popularity_sync = commands.add_parser("sync-popularity")
     popularity_sync.add_argument("--date", default="latest-market")
     intelligence_sync = commands.add_parser("sync-market-intelligence")
@@ -86,17 +93,31 @@ def main() -> None:
     backfill.add_argument("--start", default="2025-01-01")
     backfill.add_argument("--end", default=date.today().isoformat())
     backfill.add_argument("--sleep", type=float, default=0.6, help="Keep sustained rate at or below 100 requests/minute")
+    backfill.add_argument("--workers", type=int, default=1, help="Parallel datasets per date; keep request rate below provider allowance")
     backfill.add_argument("--force", action="store_true")
     backfill.add_argument("--no-finalize", action="store_true")
     flow_backfill = commands.add_parser("backfill-moneyflow")
     flow_backfill.add_argument("--start", default="2025-01-01")
     flow_backfill.add_argument("--end", default=date.today().isoformat())
     flow_backfill.add_argument("--sleep", type=float, default=0.6)
+    flow_backfill.add_argument("--workers", type=int, default=1)
     flow_backfill.add_argument("--force", action="store_true")
+    sentiment_backfill = commands.add_parser("backfill-sentiment")
+    sentiment_backfill.add_argument("--start", default="2024-01-01")
+    sentiment_backfill.add_argument("--end", default=date.today().isoformat())
+    sentiment_backfill.add_argument("--sleep", type=float, default=0.6)
+    sentiment_backfill.add_argument("--workers", type=int, default=1)
+    sentiment_backfill.add_argument("--force", action="store_true")
     intelligence_backfill = commands.add_parser("backfill-market-intelligence")
     intelligence_backfill.add_argument("--start", default="2025-01-01")
     intelligence_backfill.add_argument("--end", default=date.today().isoformat())
     intelligence_backfill.add_argument("--sleep", type=float, default=0.15)
+    intelligence_backfill.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Parallel trade dates; capped at 4 and globally throttled below the provider allowance",
+    )
     intelligence_backfill.add_argument("--force", action="store_true")
     intraday_backfill = commands.add_parser("backfill-intraday-popularity")
     intraday_backfill.add_argument("--start", default="2025-01-01")
@@ -161,13 +182,70 @@ def main() -> None:
         popularity_results = [ingest_popularity(provider, endpoint, run_date) for endpoint in ("dc_hot", "ths_hot")]
         lhb_results = [ingest_lhb(provider, endpoint, run_date) for endpoint in ("top_list", "top_inst")]
         moneyflow_results = [ingest_moneyflow(provider, endpoint, run_date) for endpoint in ("moneyflow_dc", "moneyflow_ind_dc", "moneyflow_mkt_dc")]
+        sentiment_results = [
+            ingest_daily_basic(provider, run_date),
+            ingest_adj_factors(provider, run_date),
+            ingest_limit_events(provider, run_date),
+            ingest_limit_steps(provider, run_date),
+        ]
+        breadth_result = refresh_market_breadth(run_date)
         if any(item["status"] == "success" for item in popularity_results):
             refresh_popularity_view()
         strategy_result = run_popularity_breakout(f"{int(run_date[:4]) - 1}{run_date[4:]}", run_date)
         portfolio_result = advance(run_date)
         print(json.dumps({"daily": daily_result, "popularity": popularity_results, "lhb": lhb_results,
-                          "moneyflow": moneyflow_results, "strategy": strategy_result,
+                          "moneyflow": moneyflow_results, "sentiment": sentiment_results,
+                          "market_breadth": breadth_result, "strategy": strategy_result,
                           "portfolio": portfolio_result}, ensure_ascii=False, default=str))
+    elif args.command == "sync-sentiment":
+        from sqlalchemy import text
+        from .db import engine
+        if args.date == "latest-market":
+            with engine.connect() as conn:
+                latest_market = conn.execute(text("SELECT max(trade_date) FROM market.daily_bar")).scalar_one()
+            if latest_market is None:
+                raise SystemExit("daily_bar is empty; cannot resolve latest market date")
+            run_date = latest_market.isoformat()
+        else:
+            run_date = date.today().isoformat() if args.date == "today" else args.date
+        job_id = uuid.uuid4()
+        with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO ops.job_run(id,job_name,status,details)
+              VALUES (:id,'sentiment_sync','running',CAST(:details AS jsonb))"""), {
+                "id": job_id, "details": json.dumps({"trade_date": run_date}),
+            })
+        try:
+            provider = ReplayProvider()
+            outputs = [
+                ingest_daily_basic(provider, run_date),
+                ingest_adj_factors(provider, run_date),
+                ingest_limit_events(provider, run_date),
+                ingest_limit_steps(provider, run_date),
+            ]
+            failures = [item for item in outputs if item["status"] not in {"success", "empty"}]
+            breadth = refresh_market_breadth(run_date)
+            if breadth["status"] != "success":
+                failures.append({"endpoint": "market_breadth", "status": breadth["status"]})
+            status = "failed" if failures else "success"
+            details = {"trade_date": run_date, "datasets": outputs, "market_breadth": breadth}
+            with engine.begin() as conn:
+                conn.execute(text("""UPDATE ops.job_run SET status=:status,finished_at=now(),
+                  details=CAST(:details AS jsonb),error=:error WHERE id=:id"""), {
+                    "id": job_id, "status": status, "details": json.dumps(details),
+                    "error": None if not failures else ", ".join(
+                        f"{item['endpoint']}={item['status']}" for item in failures
+                    ),
+                })
+            print(json.dumps({"job_id": str(job_id), "status": status, **details}, ensure_ascii=False, default=str))
+            if failures:
+                raise SystemExit(2)
+        except SystemExit:
+            raise
+        except Exception as exc:
+            with engine.begin() as conn:
+                conn.execute(text("""UPDATE ops.job_run SET status='failed',finished_at=now(),error=:error
+                  WHERE id=:id"""), {"id": job_id, "error": str(exc)[:2000]})
+            raise
     elif args.command == "sync-popularity":
         from sqlalchemy import text
         from .db import engine
@@ -335,6 +413,7 @@ def main() -> None:
         if failures:
             raise SystemExit(2)
     elif args.command == "backfill-moneyflow":
+        from concurrent.futures import ThreadPoolExecutor
         from sqlalchemy import text
         from .db import engine
         provider = ReplayProvider()
@@ -347,15 +426,26 @@ def main() -> None:
         failures = 0
         for index, run_date in enumerate(dates, 1):
             outputs = {}
-            for dataset in ("moneyflow_dc", "moneyflow_ind_dc"):
-                if (dataset, run_date) in done:
-                    continue
+            pending = [dataset for dataset in ("moneyflow_dc", "moneyflow_ind_dc")
+                       if (dataset, run_date) not in done]
+
+            def execute_flow(dataset: str) -> tuple[str, dict, str, str | None]:
+                task_provider = provider if args.workers <= 1 else ReplayProvider()
                 try:
-                    output = ingest_moneyflow(provider, dataset, run_date)
+                    output = ingest_moneyflow(task_provider, dataset, run_date)
                     status, error = output["status"], None
                 except Exception as exc:
                     output = {"status": "failed", "rows": 0}
                     status, error = "failed", str(exc)[:1000]
+                time.sleep(args.sleep)
+                return dataset, output, status, error
+
+            if args.workers <= 1:
+                task_results = [execute_flow(dataset) for dataset in pending]
+            else:
+                with ThreadPoolExecutor(max_workers=min(max(args.workers, 1), 2)) as executor:
+                    task_results = list(executor.map(execute_flow, pending))
+            for dataset, output, status, error in task_results:
                 outputs[dataset] = output
                 failures += int(status != "success")
                 with engine.begin() as conn:
@@ -363,11 +453,76 @@ def main() -> None:
                       VALUES (:dataset,:date,:status,:rows,1,:error) ON CONFLICT(dataset,trade_date) DO UPDATE
                       SET status=excluded.status,row_count=excluded.row_count,attempts=ops.backfill_progress.attempts+1,error=excluded.error,updated_at=now()"""),
                       {"dataset": dataset, "date": run_date, "status": status, "rows": output.get("rows", 0), "error": error})
-                time.sleep(args.sleep)
             print(json.dumps({"progress": f"{index}/{len(dates)}", "date": run_date, "results": outputs}, ensure_ascii=False), flush=True)
         if failures:
             raise SystemExit(2)
+    elif args.command == "backfill-sentiment":
+        from concurrent.futures import ThreadPoolExecutor
+        from sqlalchemy import text
+        from .db import engine
+        provider = ReplayProvider()
+        datasets = ("daily_basic", "adj_factor", "limit_list_d", "limit_step")
+        with engine.connect() as conn:
+            dates = [row[0].isoformat() for row in conn.execute(text("""SELECT trade_date FROM (
+                SELECT trade_date FROM market.trade_calendar WHERE is_open AND trade_date BETWEEN :start AND :end
+                UNION SELECT DISTINCT trade_date FROM market.daily_bar WHERE trade_date BETWEEN :start AND :end
+              ) dates ORDER BY trade_date"""), {"start": args.start, "end": args.end})]
+            done = set() if args.force else {(row[0], row[1].isoformat()) for row in conn.execute(text("""
+              SELECT dataset,trade_date FROM ops.backfill_progress
+              WHERE dataset=ANY(:datasets) AND status IN ('success','unavailable')"""), {
+                  "datasets": list(datasets),
+              })}
+        failures = 0
+        for index, run_date in enumerate(dates, 1):
+            outputs = {}
+            pending = [dataset for dataset in datasets if (dataset, run_date) not in done]
+
+            def execute_sentiment(dataset: str) -> tuple[str, dict, str | None]:
+                task_provider = provider if args.workers <= 1 else ReplayProvider()
+                error = None
+                try:
+                    if dataset == "daily_basic":
+                        output = ingest_daily_basic(task_provider, run_date)
+                    elif dataset == "adj_factor":
+                        output = ingest_adj_factors(task_provider, run_date)
+                    elif dataset == "limit_list_d":
+                        output = ingest_limit_events(task_provider, run_date)
+                    else:
+                        output = ingest_limit_steps(task_provider, run_date)
+                except Exception as exc:
+                    output = {"endpoint": dataset, "status": "failed", "rows": 0}
+                    error = str(exc)[:1000]
+                time.sleep(args.sleep)
+                return dataset, output, error
+
+            if args.workers <= 1:
+                task_results = [execute_sentiment(dataset) for dataset in pending]
+            else:
+                with ThreadPoolExecutor(max_workers=min(max(args.workers, 1), 4)) as executor:
+                    task_results = list(executor.map(execute_sentiment, pending))
+            for dataset, output, error in task_results:
+                progress_status = "unavailable" if output["status"] == "empty" else output["status"]
+                outputs[dataset] = {**output, "progress_status": progress_status}
+                failures += int(progress_status not in {"success", "unavailable"})
+                with engine.begin() as conn:
+                    conn.execute(text("""INSERT INTO ops.backfill_progress(dataset,trade_date,status,row_count,attempts,error)
+                      VALUES (:dataset,:date,:status,:rows,1,:error)
+                      ON CONFLICT(dataset,trade_date) DO UPDATE SET status=excluded.status,
+                        row_count=excluded.row_count,attempts=ops.backfill_progress.attempts+1,
+                        error=excluded.error,updated_at=now()"""), {
+                            "dataset": dataset, "date": run_date, "status": progress_status,
+                            "rows": output.get("rows", 0), "error": error,
+                        })
+            breadth = refresh_market_breadth(run_date)
+            failures += int(breadth["status"] != "success")
+            print(json.dumps({"progress": f"{index}/{len(dates)}", "date": run_date,
+                              "results": outputs, "market_breadth": breadth},
+                             ensure_ascii=False, default=str), flush=True)
+        if failures:
+            raise SystemExit(2)
     elif args.command == "backfill-market-intelligence":
+        from concurrent.futures import ThreadPoolExecutor
+
         from sqlalchemy import text
         from .db import engine
         provider = ReplayProvider()
@@ -409,12 +564,15 @@ def main() -> None:
             status = save_intelligence_progress("broker_recommend", progress_date, output, error)
             failures += int(status not in {"success", "unavailable"})
             time.sleep(args.sleep)
-        for index, run_date in enumerate(dates, 1):
+        def process_intelligence_date(item: tuple[int, str]) -> tuple[int, str, dict, int]:
+            index, run_date = item
+            task_provider = ReplayProvider()
             outputs = {}
             tasks = (
-                ("hm_detail", lambda d=run_date: ingest_hot_money_detail(provider, d)),
-                ("stk_surv", lambda d=run_date: ingest_institutional_surveys(provider, d, d)),
+                ("hm_detail", lambda d=run_date: ingest_hot_money_detail(task_provider, d)),
+                ("stk_surv", lambda d=run_date: ingest_institutional_surveys(task_provider, d, d)),
             )
+            date_failures = 0
             for dataset, task in tasks:
                 if (dataset, run_date) in done:
                     continue
@@ -425,13 +583,27 @@ def main() -> None:
                     output = {"status": "failed", "rows": 0}
                     error = str(exc)[:1000]
                 status = save_intelligence_progress(dataset, run_date, output, error)
-                failures += int(status not in {"success", "unavailable"})
+                date_failures += int(status not in {"success", "unavailable"})
                 outputs[dataset] = {**output, "progress_status": status}
                 time.sleep(args.sleep)
-            if outputs:
-                print(json.dumps({"progress": f"{index}/{len(dates)}", "date": run_date,
-                                  "directory": directory_output if index == 1 else None,
-                                  "results": outputs}, ensure_ascii=False, default=str), flush=True)
+            return index, run_date, outputs, date_failures
+
+        items = list(enumerate(dates, 1))
+        if args.workers <= 1:
+            date_results = map(process_intelligence_date, items)
+        else:
+            executor = ThreadPoolExecutor(max_workers=min(max(args.workers, 1), 4))
+            date_results = executor.map(process_intelligence_date, items)
+        try:
+            for index, run_date, outputs, date_failures in date_results:
+                failures += date_failures
+                if outputs:
+                    print(json.dumps({"progress": f"{index}/{len(dates)}", "date": run_date,
+                                      "directory": directory_output if index == 1 else None,
+                                      "results": outputs}, ensure_ascii=False, default=str), flush=True)
+        finally:
+            if args.workers > 1:
+                executor.shutdown(wait=True)
         if failures:
             raise SystemExit(2)
     elif args.command == "backfill-intraday-popularity":
@@ -578,6 +750,7 @@ def main() -> None:
         if failures:
             raise SystemExit(2)
     elif args.command == "backfill-two-years":
+        from concurrent.futures import ThreadPoolExecutor
         from sqlalchemy import text
         from .db import engine
         provider = ReplayProvider()
@@ -592,35 +765,47 @@ def main() -> None:
               error=COALESCE(error,'Replay returned no archived rows after repeated retries'),updated_at=now()
               WHERE status='empty' AND attempts>=5"""))
             done = set() if args.force else {(row[0], row[1].isoformat()) for row in conn.execute(text("SELECT dataset,trade_date FROM ops.backfill_progress WHERE status IN ('success','unavailable')"))}
+        popularity_changed = False
         for index, run_date in enumerate(dates, 1):
             outputs = {}
-            tasks = [
-                ("daily", lambda d=run_date: ingest_daily_market(provider, d)),
-                ("dc_hot", lambda d=run_date: ingest_popularity(provider, "dc_hot", d)),
-                ("ths_hot", lambda d=run_date: ingest_popularity(provider, "ths_hot", d)),
-                ("top_list", lambda d=run_date: ingest_lhb(provider, "top_list", d)),
-                ("top_inst", lambda d=run_date: ingest_lhb(provider, "top_inst", d)),
-            ]
-            for dataset, task in tasks:
-                if (dataset, run_date) in done:
-                    continue
+            pending = [dataset for dataset in ("daily", "dc_hot", "ths_hot", "top_list", "top_inst")
+                       if (dataset, run_date) not in done]
+
+            def execute(dataset: str) -> tuple[str, dict, str, str | None]:
+                task_provider = provider if args.workers <= 1 else ReplayProvider()
                 try:
-                    output = task()
+                    if dataset == "daily":
+                        output = ingest_daily_market(task_provider, run_date)
+                    elif dataset in {"dc_hot", "ths_hot"}:
+                        output = ingest_popularity(task_provider, dataset, run_date)
+                    else:
+                        output = ingest_lhb(task_provider, dataset, run_date)
                     status = output["status"]
                     error = None
                 except Exception as exc:
                     output = {"status": "failed", "rows": 0}
                     status, error = "failed", str(exc)[:1000]
+                time.sleep(args.sleep)
+                return dataset, output, status, error
+
+            if args.workers <= 1:
+                task_results = [execute(dataset) for dataset in pending]
+            else:
+                with ThreadPoolExecutor(max_workers=min(max(args.workers, 1), 5)) as executor:
+                    task_results = list(executor.map(execute, pending))
+            for dataset, output, status, error in task_results:
                 outputs[dataset] = output
+                popularity_changed = popularity_changed or (
+                    dataset in {"dc_hot", "ths_hot"} and status == "success"
+                )
                 with engine.begin() as conn:
                     conn.execute(text("""INSERT INTO ops.backfill_progress(dataset,trade_date,status,row_count,attempts,error)
                       VALUES (:dataset,:date,:status,:rows,1,:error) ON CONFLICT(dataset,trade_date) DO UPDATE
                       SET status=excluded.status,row_count=excluded.row_count,attempts=ops.backfill_progress.attempts+1,error=excluded.error,updated_at=now()"""),
                       {"dataset": dataset, "date": run_date, "status": status, "rows": output.get("rows", 0), "error": error})
-                time.sleep(args.sleep)
-            if any(outputs.get(endpoint, {}).get("status") == "success" for endpoint in ("dc_hot", "ths_hot")):
-                refresh_popularity_view()
             print(json.dumps({"progress": f"{index}/{len(dates)}", "date": run_date, "results": outputs}, ensure_ascii=False), flush=True)
+        if popularity_changed:
+            refresh_popularity_view()
         if args.no_finalize:
             return
         with engine.begin() as conn:

@@ -163,6 +163,244 @@ def ingest_daily_market(provider: Any, trade_date: str) -> dict[str, Any]:
     return {"status": status, "rows": len(normalized), "batch_id": batch_id}
 
 
+def normalize_daily_basic(rows: list[dict[str, Any]], trade_date: str) -> list[dict[str, Any]]:
+    fields = (
+        "close", "turnover_rate", "turnover_rate_f", "volume_ratio", "pe", "pe_ttm", "pb", "ps", "ps_ttm",
+        "dv_ratio", "dv_ttm", "total_share", "float_share", "free_share", "total_mv", "circ_mv",
+    )
+    normalized = []
+    for row in rows:
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        item_date = _iso_date(row.get("trade_date"))
+        if not symbol.isdigit() or item_date != trade_date:
+            continue
+        normalized.append({
+            "symbol": symbol,
+            "trade_date": item_date,
+            **{field: _numeric(row.get(field)) for field in fields},
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    return list({item["symbol"]: item for item in normalized}.values())
+
+
+def normalize_adj_factors(rows: list[dict[str, Any]], trade_date: str) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        item_date = _iso_date(row.get("trade_date"))
+        factor = _numeric(row.get("adj_factor"))
+        if symbol.isdigit() and item_date == trade_date and factor is not None:
+            normalized.append({"symbol": symbol, "trade_date": item_date, "adj_factor": factor})
+    return list({item["symbol"]: item for item in normalized}.values())
+
+
+def normalize_limit_events(rows: list[dict[str, Any]], trade_date: str) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        item_date = _iso_date(row.get("trade_date"))
+        event_type = str(row.get("limit") or row.get("limit_type") or "").upper()
+        if not symbol.isdigit() or item_date != trade_date or event_type not in {"U", "D", "Z"}:
+            continue
+        normalized.append({
+            "trade_date": item_date,
+            "symbol": symbol,
+            "event_type": event_type,
+            "name": _text_value(row.get("name")),
+            "industry": _text_value(row.get("industry")),
+            "close": _numeric(row.get("close")),
+            "pct_change": _numeric(row.get("pct_chg")),
+            "amount": _numeric(row.get("amount")),
+            "limit_amount": _numeric(row.get("limit_amount")),
+            "float_mv": _numeric(row.get("float_mv")),
+            "total_mv": _numeric(row.get("total_mv")),
+            "turnover_ratio": _numeric(row.get("turnover_ratio")),
+            "fd_amount": _numeric(row.get("fd_amount")),
+            "first_time": _text_value(row.get("first_time")),
+            "last_time": _text_value(row.get("last_time")),
+            "open_times": _numeric(row.get("open_times")),
+            "up_stat": _text_value(row.get("up_stat")),
+            "limit_times": _numeric(row.get("limit_times")),
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    return list({(item["symbol"], item["event_type"]): item for item in normalized}.values())
+
+
+def normalize_limit_steps(rows: list[dict[str, Any]], trade_date: str) -> list[dict[str, Any]]:
+    normalized = []
+    for row in rows:
+        symbol = str(row.get("ts_code") or "").split(".")[0].zfill(6)
+        item_date = _iso_date(row.get("trade_date"))
+        streak = _numeric(row.get("nums") if row.get("nums") is not None else row.get("limit_times"))
+        if not symbol.isdigit() or item_date != trade_date or streak is None:
+            continue
+        normalized.append({
+            "trade_date": item_date,
+            "symbol": symbol,
+            "name": _text_value(row.get("name")),
+            "streak": int(streak),
+            "raw": json.dumps(row, ensure_ascii=False, default=str),
+        })
+    return list({item["symbol"]: item for item in normalized}.values())
+
+
+def _ensure_instruments(conn: Any, symbols: set[str]) -> None:
+    if not symbols:
+        return
+    known = set(conn.execute(
+        text("SELECT symbol FROM market.instrument WHERE symbol=ANY(:symbols)"),
+        {"symbols": sorted(symbols)},
+    ).scalars())
+    missing = sorted(symbols - known)
+    if missing:
+        conn.execute(
+            text("INSERT INTO market.instrument(symbol,name,exchange) VALUES (:symbol,:symbol,'UNKNOWN') ON CONFLICT DO NOTHING"),
+            [{"symbol": symbol} for symbol in missing],
+        )
+
+
+def _insert_market_batch(result: ProviderResult, dataset: str, status: str, row_count: int) -> int:
+    with engine.begin() as conn:
+        return conn.execute(text("""INSERT INTO ops.data_batch(
+          provider,dataset,requested_at,source_as_of,status,row_count,raw_hash,error_code,error_message,finished_at)
+          VALUES (:provider,:dataset,:requested,:as_of,:status,:count,:hash,:error_code,:error_message,now())
+          RETURNING id"""), {
+            "provider": result.provider,
+            "dataset": dataset,
+            "requested": result.requested_at,
+            "as_of": result.source_as_of,
+            "status": status,
+            "count": row_count,
+            "hash": result.raw_hash,
+            "error_code": result.error_code,
+            "error_message": result.error_message,
+        }).scalar_one()
+
+
+def ingest_daily_basic(provider: ReplayProvider, trade_date: str) -> dict[str, Any]:
+    result = provider.fetch_daily_basic(trade_date)
+    normalized = normalize_daily_basic(result.rows, trade_date) if result.status == "success" else []
+    status = result.status if result.status != "success" or len(normalized) >= 4000 else "quarantined"
+    batch_id = _insert_market_batch(result, "daily_basic", status, len(normalized))
+    with engine.begin() as conn:
+        if status == "success":
+            _ensure_instruments(conn, {item["symbol"] for item in normalized})
+            conn.execute(text("""INSERT INTO market.daily_basic(
+              symbol,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,
+              dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv,provider,batch_id,raw)
+              VALUES (:symbol,:trade_date,:close,:turnover_rate,:turnover_rate_f,:volume_ratio,:pe,:pe_ttm,:pb,:ps,
+                :ps_ttm,:dv_ratio,:dv_ttm,:total_share,:float_share,:free_share,:total_mv,:circ_mv,:provider,
+                :batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(symbol,trade_date) DO UPDATE SET close=excluded.close,turnover_rate=excluded.turnover_rate,
+                turnover_rate_f=excluded.turnover_rate_f,volume_ratio=excluded.volume_ratio,pe=excluded.pe,
+                pe_ttm=excluded.pe_ttm,pb=excluded.pb,ps=excluded.ps,ps_ttm=excluded.ps_ttm,
+                dv_ratio=excluded.dv_ratio,dv_ttm=excluded.dv_ttm,total_share=excluded.total_share,
+                float_share=excluded.float_share,free_share=excluded.free_share,total_mv=excluded.total_mv,
+                circ_mv=excluded.circ_mv,provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""), [
+                {**item, "provider": result.provider, "batch_id": batch_id} for item in normalized
+            ])
+        elif result.status == "success":
+            conn.execute(text("""INSERT INTO ops.data_issue(batch_id,severity,code,message)
+              VALUES (:batch,'error','daily_basic_too_few_rows',:message)"""), {
+                "batch": batch_id, "message": f"normalized rows {len(normalized)} < 4000",
+            })
+    return {"endpoint": "daily_basic", "status": status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_adj_factors(provider: ReplayProvider, trade_date: str) -> dict[str, Any]:
+    result = provider.fetch_adj_factors(trade_date)
+    normalized = normalize_adj_factors(result.rows, trade_date) if result.status == "success" else []
+    status = result.status if result.status != "success" or len(normalized) >= 4000 else "quarantined"
+    batch_id = _insert_market_batch(result, "adj_factor", status, len(normalized))
+    with engine.begin() as conn:
+        if status == "success":
+            _ensure_instruments(conn, {item["symbol"] for item in normalized})
+            conn.execute(text("""INSERT INTO market.adj_factor(symbol,trade_date,adj_factor,provider,batch_id)
+              VALUES (:symbol,:trade_date,:adj_factor,:provider,:batch_id)
+              ON CONFLICT(symbol,trade_date) DO UPDATE SET adj_factor=excluded.adj_factor,
+                provider=excluded.provider,batch_id=excluded.batch_id"""), [
+                {**item, "provider": result.provider, "batch_id": batch_id} for item in normalized
+            ])
+        elif result.status == "success":
+            conn.execute(text("""INSERT INTO ops.data_issue(batch_id,severity,code,message)
+              VALUES (:batch,'error','adj_factor_too_few_rows',:message)"""), {
+                "batch": batch_id, "message": f"normalized rows {len(normalized)} < 4000",
+            })
+    return {"endpoint": "adj_factor", "status": status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_limit_events(provider: ReplayProvider, trade_date: str) -> dict[str, Any]:
+    result = provider.fetch_limit_events(trade_date)
+    normalized = normalize_limit_events(result.rows, trade_date) if result.status == "success" else []
+    status = result.status
+    batch_id = _insert_market_batch(result, "limit_list_d", status, len(normalized))
+    if status == "success" and normalized:
+        with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO market.limit_event(
+              trade_date,symbol,event_type,name,industry,close,pct_change,amount,limit_amount,float_mv,total_mv,
+              turnover_ratio,fd_amount,first_time,last_time,open_times,up_stat,limit_times,provider,batch_id,raw)
+              VALUES (:trade_date,:symbol,:event_type,:name,:industry,:close,:pct_change,:amount,:limit_amount,
+                :float_mv,:total_mv,:turnover_ratio,:fd_amount,:first_time,:last_time,:open_times,:up_stat,
+                :limit_times,:provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(trade_date,symbol,event_type) DO UPDATE SET name=excluded.name,industry=excluded.industry,
+                close=excluded.close,pct_change=excluded.pct_change,amount=excluded.amount,
+                limit_amount=excluded.limit_amount,float_mv=excluded.float_mv,total_mv=excluded.total_mv,
+                turnover_ratio=excluded.turnover_ratio,fd_amount=excluded.fd_amount,first_time=excluded.first_time,
+                last_time=excluded.last_time,open_times=excluded.open_times,up_stat=excluded.up_stat,
+                limit_times=excluded.limit_times,provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""), [
+                {**item, "provider": result.provider, "batch_id": batch_id} for item in normalized
+            ])
+    return {"endpoint": "limit_list_d", "status": status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def ingest_limit_steps(provider: ReplayProvider, trade_date: str) -> dict[str, Any]:
+    result = provider.fetch_limit_steps(trade_date)
+    normalized = normalize_limit_steps(result.rows, trade_date) if result.status == "success" else []
+    status = result.status
+    batch_id = _insert_market_batch(result, "limit_step", status, len(normalized))
+    if status == "success" and normalized:
+        with engine.begin() as conn:
+            conn.execute(text("""INSERT INTO market.limit_streak(
+              trade_date,symbol,name,streak,provider,batch_id,raw)
+              VALUES (:trade_date,:symbol,:name,:streak,:provider,:batch_id,CAST(:raw AS jsonb))
+              ON CONFLICT(trade_date,symbol) DO UPDATE SET name=excluded.name,streak=excluded.streak,
+                provider=excluded.provider,batch_id=excluded.batch_id,raw=excluded.raw"""), [
+                {**item, "provider": result.provider, "batch_id": batch_id} for item in normalized
+            ])
+    return {"endpoint": "limit_step", "status": status, "rows": len(normalized), "batch_id": batch_id}
+
+
+def refresh_market_breadth(trade_date: str) -> dict[str, Any]:
+    with engine.begin() as conn:
+        row = conn.execute(text("""WITH bars AS (
+            SELECT count(*) FILTER (WHERE pct_change > 0)::integer AS up_num,
+                   count(*) FILTER (WHERE pct_change < 0)::integer AS down_num,
+                   count(*) FILTER (WHERE pct_change = 0)::integer AS flat_num,
+                   count(*)::integer AS traded_num,
+                   sum(amount) AS total_amount
+            FROM market.daily_bar WHERE trade_date=:trade_date
+          ), limits AS (
+            SELECT count(*) FILTER (WHERE event_type='U')::integer AS limit_up_num,
+                   count(*) FILTER (WHERE event_type='D')::integer AS limit_down_num,
+                   count(*) FILTER (WHERE event_type='Z')::integer AS broken_limit_num
+            FROM market.limit_event WHERE trade_date=:trade_date
+          )
+          INSERT INTO market.market_breadth(
+            trade_date,up_num,down_num,flat_num,traded_num,limit_up_num,limit_down_num,broken_limit_num,
+            total_amount,is_ice)
+          SELECT :trade_date,b.up_num,b.down_num,b.flat_num,b.traded_num,l.limit_up_num,l.limit_down_num,
+                 l.broken_limit_num,b.total_amount,b.up_num < 1000
+          FROM bars b CROSS JOIN limits l WHERE b.traded_num >= 4000
+          ON CONFLICT(trade_date) DO UPDATE SET up_num=excluded.up_num,down_num=excluded.down_num,
+            flat_num=excluded.flat_num,traded_num=excluded.traded_num,limit_up_num=excluded.limit_up_num,
+            limit_down_num=excluded.limit_down_num,broken_limit_num=excluded.broken_limit_num,
+            total_amount=excluded.total_amount,is_ice=excluded.is_ice,updated_at=now()
+          RETURNING up_num,down_num,flat_num,traded_num,limit_up_num,limit_down_num,broken_limit_num,is_ice"""), {
+            "trade_date": trade_date,
+        }).mappings().one_or_none()
+    return {"status": "success" if row else "quarantined", **(dict(row) if row else {})}
+
+
 def ingest_lhb(provider: ReplayProvider, endpoint: str, trade_date: str) -> dict[str, Any]:
     result = provider.fetch_lhb(endpoint, trade_date)
     rows = result.rows if result.status == "success" else []

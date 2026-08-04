@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh strategy review pages after the market data jobs
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 23:40:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

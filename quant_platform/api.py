@@ -40,25 +40,36 @@ def overview() -> dict:
 
 @app.get("/api/v1/data-status")
 def data_status() -> dict:
-    return {"data": rows("SELECT id,provider,dataset,status,row_count,source_as_of,finished_at,error_code FROM ops.data_batch ORDER BY id DESC LIMIT 50")}
+    return {"data": rows("""SELECT DISTINCT ON (dataset)
+      id,provider,dataset,status,row_count,source_as_of,finished_at,error_code
+      FROM ops.data_batch ORDER BY dataset,id DESC""")}
 
 
 @app.get("/api/v1/data-freshness")
 def data_freshness() -> dict:
     data = rows("""WITH calendar AS (
-        SELECT trade_date FROM market.daily_bar
-        UNION SELECT trade_date FROM market.stock_moneyflow
-        UNION SELECT trade_date FROM market.sector_moneyflow
+        SELECT DISTINCT trade_date FROM market.daily_bar WHERE trade_date>='2024-01-01'
       ), latest_market AS (
         SELECT max(trade_date) expected_date FROM calendar
       ), datasets AS (
-        SELECT 'daily' dataset,max(trade_date) latest_date FROM market.daily_bar
-        UNION ALL SELECT 'moneyflow_dc',max(trade_date) FROM market.stock_moneyflow
-        UNION ALL SELECT 'moneyflow_ind_dc',max(trade_date) FROM market.sector_moneyflow
-        UNION ALL SELECT 'dc_hot',max(trade_date) FROM popularity.snapshot WHERE endpoint='dc_hot'
-        UNION ALL SELECT 'ths_hot',max(trade_date) FROM popularity.snapshot WHERE endpoint='ths_hot'
-        UNION ALL SELECT 'top_list',max(trade_date) FROM market.lhb_record
-        UNION ALL SELECT 'top_inst',max(trade_date) FROM market.lhb_seat
+        SELECT 'daily' dataset,'日线' label,max(trade_date) latest_date,
+          count(DISTINCT trade_date) day_count,count(*) row_count,'trading_day' coverage_mode FROM market.daily_bar
+        UNION ALL SELECT 'moneyflow_dc','个股资金流',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.stock_moneyflow
+        UNION ALL SELECT 'moneyflow_ind_dc','板块资金流',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.sector_moneyflow
+        UNION ALL SELECT 'daily_basic','每日估值与换手',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.daily_basic
+        UNION ALL SELECT 'adj_factor','复权因子',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.adj_factor
+        UNION ALL SELECT 'limit_list_d','涨跌停与炸板',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.limit_event
+        UNION ALL SELECT 'limit_step','连板天梯',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.limit_streak
+        UNION ALL SELECT 'market_breadth','涨跌家数与冰点',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.market_breadth
+        UNION ALL SELECT 'dc_hot','东财人气',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day'
+          FROM popularity.snapshot WHERE endpoint='dc_hot' AND category='人气榜' AND status='success'
+        UNION ALL SELECT 'ths_hot','同花顺热股',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day'
+          FROM popularity.snapshot WHERE endpoint='ths_hot' AND category='热股' AND status='success'
+        UNION ALL SELECT 'top_list','龙虎榜个股',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.lhb_record
+        UNION ALL SELECT 'top_inst','龙虎榜席位',max(trade_date),count(DISTINCT trade_date),count(*),'trading_day' FROM market.lhb_seat
+        UNION ALL SELECT 'hm_detail','游资明细',max(trade_date),count(DISTINCT trade_date),count(*),'latest_only' FROM market.hot_money_detail
+        UNION ALL SELECT 'stk_surv','机构调研',max(survey_date),count(DISTINCT survey_date),count(*),'checked_range' FROM research.institutional_survey
+        UNION ALL SELECT 'broker_recommend','券商金股',to_date(max(month)||'01','YYYYMMDD'),count(DISTINCT month),count(*),'monthly' FROM research.broker_recommendation
       ), coverage AS (
         SELECT 'daily' dataset,array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE d.trade_date IS NULL) missing_dates
           FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.daily_bar) d USING(trade_date)
@@ -66,28 +77,67 @@ def data_freshness() -> dict:
           FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.stock_moneyflow) x USING(trade_date)
         UNION ALL SELECT 'moneyflow_ind_dc',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
           FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.sector_moneyflow) x USING(trade_date)
+        UNION ALL SELECT 'daily_basic',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.daily_basic) x USING(trade_date)
+        UNION ALL SELECT 'adj_factor',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.adj_factor) x USING(trade_date)
+        UNION ALL SELECT 'limit_list_d',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL AND u.trade_date IS NULL)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.limit_event) x USING(trade_date)
+          LEFT JOIN (SELECT trade_date FROM ops.backfill_progress WHERE dataset='limit_list_d' AND status='unavailable') u USING(trade_date)
+        UNION ALL SELECT 'limit_step',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL AND u.trade_date IS NULL)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.limit_streak) x USING(trade_date)
+          LEFT JOIN (SELECT trade_date FROM ops.backfill_progress WHERE dataset='limit_step' AND status='unavailable') u USING(trade_date)
+        UNION ALL SELECT 'market_breadth',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
+          FROM calendar c LEFT JOIN (SELECT trade_date FROM market.market_breadth) x USING(trade_date)
         UNION ALL SELECT 'dc_hot',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL AND u.trade_date IS NULL)
-          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM popularity.snapshot WHERE endpoint='dc_hot') x USING(trade_date)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM popularity.snapshot
+            WHERE endpoint='dc_hot' AND category='人气榜' AND status='success') x USING(trade_date)
           LEFT JOIN (SELECT trade_date FROM ops.backfill_progress WHERE dataset='dc_hot' AND status='unavailable') u USING(trade_date)
         UNION ALL SELECT 'ths_hot',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL AND u.trade_date IS NULL)
-          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM popularity.snapshot WHERE endpoint='ths_hot') x USING(trade_date)
+          FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM popularity.snapshot
+            WHERE endpoint='ths_hot' AND category='热股' AND status='success') x USING(trade_date)
           LEFT JOIN (SELECT trade_date FROM ops.backfill_progress WHERE dataset='ths_hot' AND status='unavailable') u USING(trade_date)
         UNION ALL SELECT 'top_list',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
           FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.lhb_record) x USING(trade_date)
         UNION ALL SELECT 'top_inst',array_agg(c.trade_date ORDER BY c.trade_date) FILTER (WHERE x.trade_date IS NULL)
           FROM calendar c LEFT JOIN (SELECT DISTINCT trade_date FROM market.lhb_seat) x USING(trade_date)
+        UNION ALL SELECT 'hm_detail',NULL::date[]
+        UNION ALL SELECT 'stk_surv',NULL::date[]
+        UNION ALL SELECT 'broker_recommend',NULL::date[]
+      ), limitations AS (
+        SELECT dataset,
+          count(*) FILTER (WHERE status='unavailable') unavailable_count,
+          count(*) FILTER (WHERE status='unauthorized') unauthorized_count,
+          array_agg(trade_date ORDER BY trade_date)
+            FILTER (WHERE status IN ('unavailable','unauthorized')) source_limited_dates
+        FROM ops.backfill_progress
+        WHERE status IN ('unavailable','unauthorized')
+        GROUP BY dataset
       )
-      SELECT d.dataset,d.latest_date,m.expected_date,
-        CASE WHEN d.latest_date>=m.expected_date AND coalesce(cardinality(c.missing_dates),0)=0 THEN 'current' ELSE 'stale' END status,
+      SELECT d.dataset,d.label,d.latest_date,m.expected_date,d.day_count,d.row_count,d.coverage_mode,
+        CASE
+          WHEN coalesce(l.unavailable_count,0)+coalesce(l.unauthorized_count,0)>0 THEN 'source_limited'
+          WHEN d.dataset='stk_surv' AND coalesce(nullif(b.metadata->>'end','')::date,d.latest_date)>=m.expected_date THEN 'current'
+          WHEN d.dataset='broker_recommend' AND to_char(d.latest_date,'YYYYMM')>=to_char(m.expected_date,'YYYYMM') THEN 'current'
+          WHEN d.latest_date>=m.expected_date THEN 'current'
+          WHEN d.latest_date IS NULL THEN 'empty'
+          ELSE 'lagging'
+        END status,
         coalesce(cardinality(c.missing_dates),0) missing_count,c.missing_dates,
+        coalesce(l.unavailable_count,0)+coalesce(l.unauthorized_count,0) source_limited_count,
+        coalesce(l.unavailable_count,0) unavailable_count,
+        coalesce(l.unauthorized_count,0) unauthorized_count,l.source_limited_dates,
+        CASE WHEN d.dataset='stk_surv' THEN coalesce(nullif(b.metadata->>'end','')::date,d.latest_date)
+          ELSE d.latest_date END checked_through,
         b.status latest_attempt_status,b.finished_at latest_attempt_at,b.error_code
       FROM datasets d CROSS JOIN latest_market m LEFT JOIN coverage c USING(dataset)
+      LEFT JOIN limitations l USING(dataset)
       LEFT JOIN LATERAL (
-        SELECT status,finished_at,error_code FROM ops.data_batch
+        SELECT status,finished_at,error_code,metadata FROM ops.data_batch
         WHERE dataset=CASE WHEN d.dataset='daily' THEN 'daily_market' ELSE d.dataset END ORDER BY id DESC LIMIT 1
       ) b ON true ORDER BY d.dataset""")
     jobs = rows("""SELECT id,job_name,status,started_at,finished_at,details,error FROM ops.job_run
-      WHERE job_name IN ('moneyflow_sync','popularity_sync','market_intelligence_sync')
+      WHERE job_name IN ('moneyflow_sync','popularity_sync','market_intelligence_sync','sentiment_sync')
       ORDER BY started_at DESC LIMIT 30""")
     return {"data": data, "jobs": jobs, "generated_at": datetime.now(UTC)}
 
@@ -176,18 +226,33 @@ def popularity_detail(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="end_date 必须是 YYYY-MM-DD 格式") from exc
     final_category = "人气榜" if source == "dc_hot" else "热股"
-    bars_data = rows("""SELECT * FROM (
-        SELECT trade_date,open,high,low,close,volume,amount,pct_change
-        FROM market.daily_bar WHERE symbol=:symbol AND trade_date<=:end_date
-        ORDER BY trade_date DESC LIMIT :days
-      ) selected ORDER BY trade_date""", {"symbol": symbol, "end_date": end_date, "days": days})
-    rank_data = rows("""SELECT * FROM (
-        SELECT provider,endpoint,trade_date,snapshot_time,rank,heat,rank_change
-        FROM popularity.daily_close
-        WHERE endpoint=:source AND category=:category AND symbol=:symbol AND trade_date<=:end_date
-        ORDER BY trade_date DESC,snapshot_time DESC LIMIT :days
-      ) selected ORDER BY trade_date,snapshot_time""", {
-        "source": source, "category": final_category, "symbol": symbol, "end_date": end_date, "days": days,
+    bars_data = rows("""WITH ordered AS (
+        SELECT trade_date,open,high,low,close,volume,amount,pct_change,
+          row_number() OVER (ORDER BY trade_date) sequence,count(*) OVER () total_rows
+        FROM market.daily_bar WHERE symbol=:symbol
+      ), anchor AS (
+        SELECT max(sequence) anchor_sequence,max(total_rows) total_rows
+        FROM ordered WHERE trade_date<=:end_date
+      ), bounds AS (
+        SELECT greatest(1,least(anchor_sequence-:before_days,greatest(total_rows-:days+1,1))) start_sequence,
+          total_rows FROM anchor WHERE anchor_sequence IS NOT NULL
+      )
+      SELECT trade_date,open,high,low,close,volume,amount,pct_change
+      FROM ordered CROSS JOIN bounds
+      WHERE ordered.sequence BETWEEN bounds.start_sequence
+        AND least(bounds.start_sequence+:days-1,bounds.total_rows)
+      ORDER BY trade_date""", {
+        "symbol": symbol, "end_date": end_date, "days": days, "before_days": days // 2,
+    })
+    window_start = bars_data[0]["trade_date"] if bars_data else end_date
+    window_end = bars_data[-1]["trade_date"] if bars_data else end_date
+    rank_data = rows("""SELECT provider,endpoint,trade_date,snapshot_time,rank,heat,rank_change
+      FROM popularity.daily_close
+      WHERE endpoint=:source AND category=:category AND symbol=:symbol
+        AND trade_date BETWEEN :window_start AND :window_end
+      ORDER BY trade_date,snapshot_time""", {
+        "source": source, "category": final_category, "symbol": symbol,
+        "window_start": window_start, "window_end": window_end,
     })
     name_data = rows("""SELECT name FROM popularity.daily_close
       WHERE endpoint=:source AND category=:category AND symbol=:symbol AND trade_date<=:end_date
@@ -202,6 +267,12 @@ def popularity_detail(
         "source_label": "东方财富" if source == "dc_hot" else "同花顺",
         "end_date": end_date,
         "days": days,
+        "window": {
+            "start_date": window_start,
+            "end_date": window_end,
+            "anchor_date": end_date,
+            "trade_day_count": len(bars_data),
+        },
     }
 
 
@@ -324,6 +395,8 @@ def survey_dates() -> dict:
 def institutional_surveys(
     survey_date: str | None = None,
     q: str = "",
+    sort_by: Literal["symbol", "name", "receive_org", "org_type"] = "symbol",
+    sort_dir: Literal["asc", "desc"] = "asc",
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> dict:
@@ -333,13 +406,22 @@ def institutional_surveys(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="survey_date 必须是 YYYY-MM-DD 格式") from exc
     effective = survey_date or rows("SELECT max(survey_date) survey_date FROM research.institutional_survey")[0]["survey_date"]
-    data = rows("""SELECT record_key,symbol,name,survey_date,fund_visitors,receive_place,receive_mode,
-      receive_org,org_type,company_receivers,content FROM research.institutional_survey
-      WHERE survey_date=:date AND (:q='' OR symbol ILIKE :like OR name ILIKE :like OR receive_org ILIKE :like
-        OR fund_visitors ILIKE :like) ORDER BY symbol,receive_org NULLS LAST LIMIT :limit OFFSET :offset""", {
+    survey_sort_columns = {
+        "symbol": "s.symbol", "name": "coalesce(s.name,i.name,s.symbol)",
+        "receive_org": "s.receive_org", "org_type": "s.org_type",
+    }
+    order_column = survey_sort_columns[sort_by]
+    direction = sort_dir.upper()
+    data = rows(f"""SELECT s.record_key,s.symbol,coalesce(s.name,i.name,s.symbol) name,s.survey_date,
+      s.fund_visitors,s.receive_place,s.receive_mode,s.receive_org,s.org_type,s.company_receivers,s.content
+      FROM research.institutional_survey s LEFT JOIN market.instrument i ON i.symbol=s.symbol
+      WHERE s.survey_date=:date AND (:q='' OR s.symbol ILIKE :like OR s.name ILIKE :like OR i.name ILIKE :like
+        OR s.receive_org ILIKE :like OR s.fund_visitors ILIKE :like)
+      ORDER BY {order_column} {direction} NULLS LAST,s.symbol,s.receive_org NULLS LAST LIMIT :limit OFFSET :offset""", {
         "date": effective, "q": q, "like": f"%{q}%", "limit": limit, "offset": offset,
     }) if effective else []
-    return {"data": data, "effective_date": effective, "limit": limit, "offset": offset}
+    return {"data": data, "effective_date": effective, "sort_by": sort_by,
+            "sort_dir": sort_dir, "limit": limit, "offset": offset}
 
 
 @app.get("/api/v1/research/broker-months")
@@ -353,19 +435,32 @@ def broker_months() -> dict:
 def broker_recommendations(
     month: str | None = None,
     q: str = "",
+    sort_by: Literal["symbol", "name", "broker", "recommendation_count"] = "recommendation_count",
+    sort_dir: Literal["asc", "desc"] = "desc",
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ) -> dict:
     if month and (len(month) != 6 or not month.isdigit()):
         raise HTTPException(status_code=422, detail="month 必须是 YYYYMM 格式")
     effective = month or rows("SELECT max(month) month FROM research.broker_recommendation")[0]["month"]
-    data = rows("""SELECT month,broker,symbol,name,count(*) OVER (PARTITION BY symbol) recommendation_count
-      FROM research.broker_recommendation WHERE month=:month AND
-      (:q='' OR broker ILIKE :like OR symbol ILIKE :like OR name ILIKE :like)
-      ORDER BY recommendation_count DESC,name,broker LIMIT :limit OFFSET :offset""", {
+    broker_sort_columns = {
+        "symbol": "symbol", "name": "name", "broker": "broker",
+        "recommendation_count": "recommendation_count",
+    }
+    order_column = broker_sort_columns[sort_by]
+    direction = sort_dir.upper()
+    data = rows(f"""SELECT * FROM (
+        SELECT b.month,b.broker,b.symbol,coalesce(b.name,i.name,b.symbol) name,
+          count(*) OVER (PARTITION BY b.symbol) recommendation_count
+        FROM research.broker_recommendation b LEFT JOIN market.instrument i ON i.symbol=b.symbol
+        WHERE b.month=:month AND (:q='' OR b.broker ILIKE :like OR b.symbol ILIKE :like
+          OR b.name ILIKE :like OR i.name ILIKE :like)
+      ) recommendations
+      ORDER BY {order_column} {direction} NULLS LAST,symbol,broker LIMIT :limit OFFSET :offset""", {
         "month": effective, "q": q, "like": f"%{q}%", "limit": limit, "offset": offset,
     }) if effective else []
-    return {"data": data, "effective_month": effective, "limit": limit, "offset": offset}
+    return {"data": data, "effective_month": effective, "sort_by": sort_by,
+            "sort_dir": sort_dir, "limit": limit, "offset": offset}
 
 
 @app.get("/api/v1/moneyflow/dates")

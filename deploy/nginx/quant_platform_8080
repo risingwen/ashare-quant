@@ -3,9 +3,42 @@ server {
     server_name _;
     root /data/quant_research/apps/web/dist;
     index index.html;
-    location /api/ { proxy_pass http://127.0.0.1:8081; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; }
-    location = /docs.html { alias /data/quant_research/reports/latest/docs.html; }
-    location / { try_files $uri /index.html; }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location = /docs.html {
+        alias /data/quant_research/reports/latest/docs.html;
+    }
+
+    location ^~ /strategy-research/ {
+        alias /data/quant_research/reports/latest/strategy-research/;
+    }
+
+    location = /tradingagents {
+        return 301 /tradingagents/;
+    }
+
+    location /tradingagents/ {
+        proxy_pass http://127.0.0.1:8501;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+
     gzip on;
-    gzip_types application/json text/css application/javascript;
+    gzip_types application/json text/css application/javascript text/csv;
 }
